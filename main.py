@@ -1,18 +1,18 @@
 # Copyright (C) 2021 Victor Soupday
-# This file is part of CC3-Blender-Tools-Plugin <https://github.com/soupday/CC3-Blender-Tools-Plugin>
+# This file is part of CC4-Blender-Tools-Plugin <https://github.com/soupday/CC4-Blender-Tools-Plugin>
 #
-# CC3-Blender-Tools-Plugin is free software: you can redistribute it and/or modify
+# CC4-Blender-Tools-Plugin is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CC3-Blender-Tools-Plugin is distributed in the hope that it will be useful,
+# CC4-Blender-Tools-Plugin is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CC3-Blender-Tools-Plugin.  If not, see <https://www.gnu.org/licenses/>.
+# along with CC4-Blender-Tools-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from sys import api_version
 import RLPy
@@ -84,32 +84,36 @@ NUM_SUBSTANCE_MAPS = 10
 
 plugin_menu = None
 menu_import_action_1 = None
+menu_import_action_2 = None
+menu_import_action_3 = None
+menu_import_action_4 = None
+menu_import_action_5 = None
 
 
 def initialize_plugin():
     global plugin_menu
     global menu_import_action_1
+    global menu_import_action_2
+    global menu_import_action_3
+    global menu_import_action_4
+    global menu_import_action_5
 
     # Add menu
-    #ic_dlg = wrapInstance(int(RLPy.RUi.GetMainWindow()), PySide2.QtWidgets.QMainWindow)
-    #plugin_menu = ic_dlg.menuBar().findChild(PySide2.QtWidgets.QMenu, "pysoupdayblender_menu")
-    #if (plugin_menu == None):
     plugin_menu = wrapInstance(int(RLPy.RUi.AddMenu("Blender Autosetup", RLPy.EMenu_Plugins)), PySide2.QtWidgets.QMenu)
-    #plugin_menu.setObjectName("pysoupdayblender_menu")
 
-    menu_import_action_1 = plugin_menu.addAction("Import Standard Character From Blender")
+    menu_import_action_1 = plugin_menu.addAction("Import Character From Blender")
     menu_import_action_1.triggered.connect(menu_import_standard)
 
-    menu_import_action_2 = plugin_menu.addAction("Import Humanoid From Blender")
-    menu_import_action_2.triggered.connect(menu_import_standard)
+    #menu_import_action_2 = plugin_menu.addAction("Import Humanoid From Blender")
+    #menu_import_action_2.triggered.connect(menu_import_standard)
 
-    menu_import_action_3 = plugin_menu.addAction("Import Creature From Blender")
-    menu_import_action_3.triggered.connect(menu_import_standard)
+    #menu_import_action_3 = plugin_menu.addAction("Import Creature From Blender")
+    #menu_import_action_3.triggered.connect(menu_import_standard)
 
-    menu_import_action_4 = plugin_menu.addAction("Import Prop From Blender")
-    menu_import_action_4.triggered.connect(menu_import_standard)
+    #menu_import_action_4 = plugin_menu.addAction("Import Prop From Blender")
+    #menu_import_action_4.triggered.connect(menu_import_standard)
 
-    menu_import_action_5 = plugin_menu.addAction("Export to Blender")
+    menu_import_action_5 = plugin_menu.addAction("Export to Blender (DOES NOT WORK YET)")
     menu_import_action_5.triggered.connect(menu_export)
 
 
@@ -197,6 +201,9 @@ def add_physics_data(file_path):
     fbx_key = os.path.join(fbx_folder, fbx_name + ".fbxkey")
     json_path = os.path.join(fbx_folder, fbx_name + ".json")
     #json_data = read_json(json_path)
+
+    # The idea here is to read in the json data, add the physics data then write the json back.
+    # But: RLPy.RFileIO.ExportFbxFile doesn't work and it's not possible to get physics_component for hair objects.
 
     avatar = RLPy.RScene.GetAvatars()[0]
     child_objects = RLPy.RScene.FindChildObjects(avatar, RLPy.EObjectType_Avatar)
@@ -524,7 +531,7 @@ class Importer:
         global TEXTURE_MAPS
 
         key_zero = RLPy.RKey()
-        key_zero.SetTime(RLPy.RTime.FromValue(1))
+        key_zero.SetTime(RLPy.RTime.FromValue(0))
 
         print(" - Beginning custom shader import...")
 
@@ -569,7 +576,6 @@ class Importer:
                             for param in shader_params:
                                 json_value = None
                                 if param.startswith("SSS "):
-                                    print(f"{mesh_name} / {mat_name} - {param}")
                                     json_value = get_sss_var(mat_json, param[4:])
                                 else:
                                     json_value = get_shader_var(mat_json, param)
@@ -599,7 +605,7 @@ class Importer:
                                 tex_info = get_pbr_texture_info(mat_json, tex_id)
                                 if tex_info and tex_info["Texture Path"] and tex_info["Texture Path"] != "":
                                     tex_path = convert_texture_path(tex_info, self.fbx_folder)
-                                    strength = float(tex_info["Strength"]) * 0.01
+                                    strength = float(tex_info["Strength"]) / 100.0
                                     offset = tex_info["Offset"]
                                     offset_vector = RLPy.RVector2(float(offset[0]), float(offset[1]))
                                     tiling = tex_info["Tiling"]
@@ -614,6 +620,7 @@ class Importer:
                                             material_component.LoadImageToTexture(mesh_name, mat_name, tex_channel, tex_path)
                                         material_component.AddUvDataKey(key_zero, mesh_name, mat_name, tex_channel, offset_vector, tiling_vector, rotation)
                                         material_component.AddTextureWeightKey(key_zero, mesh_name, mat_name, tex_channel, strength)
+                                        twl = material_component.GetTextureWeights(mesh_name, mat_name)
                                     if tex_id == "Displacement":
                                         level = 0
                                         multiplier = 0
@@ -1156,5 +1163,5 @@ def random_string(length):
 
 
 def run_script():
-    #menu_import_standard()
-    menu_export()
+    menu_import_standard()
+    #menu_export()
