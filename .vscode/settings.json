@@ -1,0 +1,16 @@
+{
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": false,
+    "python.autoComplete.extraPaths": [
+        "C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64",
+        "C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64\\Lib\\site-packages",
+      ],
+    "python.linting.pylintArgs": [
+        "--init-hook",
+        "import sys; sys.path.append('C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64'); sys.path.append('C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64\\Lib\\site-packages',);"
+    ],
+    "python.analysis.extraPaths": [
+        "C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64",
+        "C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64\\Lib\\site-packages",
+    ],
+}
