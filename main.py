@@ -26,7 +26,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -101,20 +101,11 @@ def initialize_plugin():
     # Add menu
     plugin_menu = wrapInstance(int(RLPy.RUi.AddMenu("Blender Autosetup", RLPy.EMenu_Plugins)), PySide2.QtWidgets.QMenu)
 
+    menu_import_action_5 = plugin_menu.addAction("Export Character to Blender")
+    menu_import_action_5.triggered.connect(menu_export)
+
     menu_import_action_1 = plugin_menu.addAction("Import Character From Blender")
     menu_import_action_1.triggered.connect(menu_import_standard)
-
-    #menu_import_action_2 = plugin_menu.addAction("Import Humanoid From Blender")
-    #menu_import_action_2.triggered.connect(menu_import_standard)
-
-    #menu_import_action_3 = plugin_menu.addAction("Import Creature From Blender")
-    #menu_import_action_3.triggered.connect(menu_import_standard)
-
-    #menu_import_action_4 = plugin_menu.addAction("Import Prop From Blender")
-    #menu_import_action_4.triggered.connect(menu_import_standard)
-
-    menu_import_action_5 = plugin_menu.addAction("Export to Blender (DOES NOT WORK YET)")
-    menu_import_action_5.triggered.connect(menu_export)
 
 
 FBX_IMPORTER = None
@@ -128,39 +119,6 @@ def menu_import_standard():
     if file_path and file_path != "":
         # keep hold of this instance, otherwise it is destroyed when this function ends...
         FBX_IMPORTER = Importer(file_path, "STANDARD")
-
-
-def menu_import_humanoid():
-    global FBX_IMPORTER
-
-    FBX_IMPORTER = None
-
-    file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
-    if file_path and file_path != "":
-        # keep hold of this instance, otherwise it is destroyed when this function ends...
-        FBX_IMPORTER = Importer(file_path, "HUMANOID")
-
-
-def menu_import_creature():
-    global FBX_IMPORTER
-
-    FBX_IMPORTER = None
-
-    file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
-    if file_path and file_path != "":
-        # keep hold of this instance, otherwise it is destroyed when this function ends...
-        FBX_IMPORTER = Importer(file_path, "CREATURE")
-
-
-def menu_import_prop():
-    global FBX_IMPORTER
-
-    FBX_IMPORTER = None
-
-    file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
-    if file_path and file_path != "":
-        # keep hold of this instance, otherwise it is destroyed when this function ends...
-        FBX_IMPORTER = Importer(file_path, "PROP")
 
 
 def menu_export():
@@ -187,35 +145,7 @@ def menu_export():
         result = RLPy.RFileIO.ExportFbxFile(avatar, file_path, options1, options2, options3,
                                             RLPy.EExportTextureSize_Original,
                                             RLPy.EExportTextureFormat_Default)
-
-        add_physics_data(file_path)
-
     return
-
-
-def add_physics_data(file_path):
-    fbx_path = file_path
-    fbx_file = os.path.basename(fbx_path)
-    fbx_folder = os.path.dirname(fbx_path)
-    fbx_name = os.path.splitext(fbx_file)[0]
-    fbx_key = os.path.join(fbx_folder, fbx_name + ".fbxkey")
-    json_path = os.path.join(fbx_folder, fbx_name + ".json")
-    #json_data = read_json(json_path)
-
-    # The idea here is to read in the json data, add the physics data then write the json back.
-    # But: RLPy.RFileIO.ExportFbxFile doesn't work and it's not possible to get physics_component for hair objects.
-
-    avatar = RLPy.RScene.GetAvatars()[0]
-    child_objects = RLPy.RScene.FindChildObjects(avatar, RLPy.EObjectType_Avatar)
-    for obj in child_objects:
-        obj_name = obj.GetName()
-        mesh_names = obj.GetMeshNames()
-        physics_component = obj.GetPhysicsComponent()
-        activate_physics_enable = physics_component.IsActivatePhysicsEnable()
-        print(f"Avatar Object: {obj_name} meshes: {mesh_names} physics_enabled: {activate_physics_enable}")
-
-    print("DONE")
-
 
 
 def clean_up_globals():
