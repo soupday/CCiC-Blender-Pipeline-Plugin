@@ -58,7 +58,7 @@ By default the FBX export settings have embed textures switched on, but this mak
 ## Changelog
 
 ### 1.0.6
-- SSS amd Tessellation data restoration added.
+- SSS and Tessellation data restoration added.
 - Physics data restoration added (Incomplete see Known Issues)
 - Added Export To Blender menu function.
 - Some support for Humanoid imports.
