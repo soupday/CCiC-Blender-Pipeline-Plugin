@@ -2,9 +2,9 @@
 
 This is a python plugin for Character Creator 3 to re-import a character from Blender generated using the **CC4 Blender Tools** auto-setup add-on: https://github.com/soupday/CC4_blender_tools.
 
-This plugin will re-import the selected character and reconstruct the materials exactly as specified in the character Json data, which is exported with all FbxKey exports to Blender as of **CC4** version **3.44**.
+This plugin will re-import the selected character and reconstruct the materials exactly as specified in the character Json data, which is exported with all FbxKey exports to Blender.
 
-The character export from Blender must be generated with the **CC4 Blender Tools** add-on as the Fbx export must be carefully altered to be compliant with CC4 and having exactly matching Object and Material names with the FbxKey, and also must have all relevent texture paths updated and changes to the material parameters written back to the exported Json data.
+The character export from Blender must be generated with the **CC/iC Blender Tools** add-on as the Fbx export must be carefully altered to be compliant with CC4 and having exactly matching Object and Material names with the FbxKey, and also must have all relevent texture paths updated and changes to the material parameters written back to the exported Json data.
 
 It is possible to include additional objects with the character exports from Blender by selecting them along with the character, but they must be parented to the character armature and have an armature modifier with valid vertex weights, otherwise CC4 will ignore them.
 
@@ -33,10 +33,10 @@ Links
 ### Manual Installation
 - Download the Zip file (__CC4-Blender-Tools-Plugin-main.zip__) from the **Code** button.
 - Unzip the zip file. There should be a folder: **CC4-Blender-Tools-Plugin-main**
-- Create the folder **OpenPlugin** in the <Character Creator 3 install directory>**\Bin64\OpenPlugin**
-    - e.g: **C:\Program Files\Reallusion\Character Creator 3\Bin64\OpenPlugin**
+- Create the folder **OpenPlugin** in the <Character Creator 4 install directory>**\Bin64\OpenPlugin**
+    - e.g: **C:\Program Files\Reallusion\Character Creator 4\Bin64\OpenPlugin**
 - Copy or move the folder CC4-Blender-Tools-Plugin-main into the **OpenPlugin** folder.
-    - e.g: **C:\Program Files\Reallusion\Character Creator 3\Bin64\OpenPlugin\CC4-Blender-Tools-Plugin-main**
+    - e.g: **C:\Program Files\Reallusion\Character Creator 4\Bin64\OpenPlugin\CC4-Blender-Tools-Plugin-main**
 - Load the script into the project from the **Plugins > Blender Auto-setup > Import From Blender** menu.
 
 Alternatively the main.py script can run as a standalone script from the **Script > Load Python** menu.
