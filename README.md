@@ -1,7 +1,5 @@
 # CC4 Blender Tools Plugin
 
-# CC4 Blender Tools Plugin
-
 This is a python plugin for Character Creator 3 to re-import a character from Blender generated using the **CC4 Blender Tools** auto-setup add-on: https://github.com/soupday/CC4_blender_tools.
 
 This plugin will re-import the selected character and reconstruct the materials exactly as specified in the character Json data, which is exported with all FbxKey exports to Blender as of **CC4** version **3.44**.
