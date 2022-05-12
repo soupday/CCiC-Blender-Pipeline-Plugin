@@ -14,8 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with CC4-Blender-Tools-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-from msilib.schema import MsiAssembly
-from sys import api_version
 import RLPy
 import json
 import os
