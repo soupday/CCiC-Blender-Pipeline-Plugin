@@ -98,10 +98,12 @@ def initialize_plugin():
     global menu_import_action_5
 
     # Add menu
-    plugin_menu = wrapInstance(int(RLPy.RUi.AddMenu("Blender Autosetup", RLPy.EMenu_Plugins)), PySide2.QtWidgets.QMenu)
+    plugin_menu = wrapInstance(int(RLPy.RUi.AddMenu("Blender Pipeline", RLPy.EMenu_Plugins)), PySide2.QtWidgets.QMenu)
 
-    menu_import_action_5 = plugin_menu.addAction("Export Character to Blender")
-    menu_import_action_5.triggered.connect(menu_export)
+    menu_import_action_5 = plugin_menu.addAction("Export Character to Blender (Mesh Only)")
+    menu_import_action_5.triggered.connect(menu_export_mesh_only)
+
+    plugin_menu.addSeparator()
 
     menu_import_action_1 = plugin_menu.addAction("Import Character From Blender")
     menu_import_action_1.triggered.connect(menu_import_standard)
@@ -117,10 +119,17 @@ def menu_import_standard():
     file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
     if file_path and file_path != "":
         # keep hold of this instance, otherwise it is destroyed when this function ends...
-        FBX_IMPORTER = Importer(file_path, "STANDARD")
+        FBX_IMPORTER = Importer(file_path)
 
 
-def menu_export():
+def menu_export_mesh_only():
+
+    avatar_list = RLPy.RScene.GetAvatars()
+    if len(avatar_list) == 0:
+        return
+
+    avatar = avatar_list[0]
+
     file_path = RLPy.RUi.SaveFileDialog("Fbx Files(*.fbx)")
     if file_path and file_path != "":
 
@@ -137,9 +146,6 @@ def menu_export():
         options3 = RLPy.EExportFbxOptions3__None
         options3 = options3 | RLPy.EExportFbxOptions3_ExportJson
         options3 = options3 | RLPy.EExportFbxOptions3_ExportVertexColor
-
-        avatar_list = RLPy.RScene.GetAvatars()
-        avatar = avatar_list[0]
 
         result = RLPy.RFileIO.ExportFbxFile(avatar, file_path, options1, options2, options3,
                                             RLPy.EExportTextureSize_Original,
@@ -182,9 +188,10 @@ class Importer:
     import_textures = True
     import_parameters = True
     character_type = None
+    generation = None
 
 
-    def __init__(self, file_path, character_type):
+    def __init__(self, file_path):
         print("================================================================")
         print("New character import, Fbx: " + file_path)
         self.fbx_path = file_path
@@ -194,7 +201,15 @@ class Importer:
         self.fbx_key = os.path.join(self.fbx_folder, self.fbx_name + ".fbxkey")
         self.json_path = os.path.join(self.fbx_folder, self.fbx_name + ".json")
         self.json_data = read_json(self.json_path)
-        self.character_type = character_type
+
+        self.generation = get_character_generation_json(self.json_data, self.fbx_name, self.fbx_name)
+        self.character_type = "STANDARD"
+        if self.generation == "Humanoid" or self.generation == "" or self.generation == "Unknown":
+            self.character_type = "HUMANOID"
+        elif self.generation == "Creature":
+            self.character_type = "CREATURE"
+        elif self.generation == "Prop":
+            self.character_type = "PROP"
 
         error = False
         if not self.json_data:
@@ -266,6 +281,10 @@ class Importer:
         label_2 = PySide2.QtWidgets.QLabel()
         label_2.setText(f"Character Path: {self.fbx_path}")
         layout.addWidget(label_2)
+
+        label_3 = PySide2.QtWidgets.QLabel()
+        label_3.setText(f"Type: {self.character_type}")
+        layout.addWidget(label_3)
 
         layout.addSpacing(10)
 
@@ -963,12 +982,11 @@ def read_json(json_path):
         return None
 
 
-def get_character_generation_json(character_json, file_name, character_id):
+def get_character_generation_json(json_data, file_name, character_id):
     try:
-        return character_json[file_name]["Object"][character_id]["Generation"]
+        return json_data[file_name]["Object"][character_id]["Generation"]
     except:
-        return None
-
+        return "Unknown"
 
 def get_character_root_json(json_data, file_name):
     if not json_data:
