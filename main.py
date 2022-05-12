@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CC4-Blender-Tools-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
+from msilib.schema import MsiAssembly
 from sys import api_version
 import RLPy
 import json
@@ -449,6 +450,8 @@ class Importer:
 
             self.import_custom_textures(char_json, material_component, mesh_names, obj_name_map)
 
+            self.import_physics(char_json, obj_name_map)
+
         RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Material)
 
         log_timer("Import complete! Materials applied in: ")
@@ -519,8 +522,8 @@ class Importer:
                             if shader_textures:
                                 for shader_texture in shader_textures:
                                     tex_info = get_shader_texture_info(mat_json, shader_texture)
-                                    if tex_info:
-                                        tex_path = convert_texture_path(tex_info, self.fbx_folder)
+                                    tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
+                                    if tex_path:
                                         material_component.LoadShaderTexture(mesh_name, mat_name, shader_texture, tex_path)
                                     self.update_custom_progress(1, pid)
 
@@ -533,8 +536,8 @@ class Importer:
                                 if not self.substance_import_success: # or if the substance texture import method failed
                                     is_substance = False              # import all textures individually
                                 tex_info = get_pbr_texture_info(mat_json, tex_id)
-                                if tex_info and tex_info["Texture Path"] and tex_info["Texture Path"] != "":
-                                    tex_path = convert_texture_path(tex_info, self.fbx_folder)
+                                tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
+                                if tex_path:
                                     strength = float(tex_info["Strength"]) / 100.0
                                     offset = tex_info["Offset"]
                                     offset_vector = RLPy.RVector2(float(offset[0]), float(offset[1]))
@@ -636,8 +639,8 @@ class Importer:
                                     tex_channel = TEXTURE_MAPS[tex_id][0]
                                     substance_postfix = TEXTURE_MAPS[tex_id][2]
                                     tex_info = get_pbr_texture_info(mat_json, tex_id)
-                                    if tex_info and tex_info["Texture Path"] and tex_info["Texture Path"] != "":
-                                        tex_path = convert_texture_path(tex_info, self.fbx_folder)
+                                    tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
+                                    if tex_path:
                                         tex_dir, tex_file = os.path.split(tex_path)
                                         tex_name, tex_type = os.path.splitext(tex_file)
                                         # copy valid texture files to the temporary texture cache
@@ -682,8 +685,8 @@ class Importer:
                                         tex_channel = TEXTURE_MAPS[tex_id][0]
                                         substance_postfix = TEXTURE_MAPS[tex_id][2]
                                         tex_info = get_pbr_texture_info(mat_json, tex_id)
-                                        if tex_info and tex_info["Texture Path"] and tex_info["Texture Path"] != "":
-                                            tex_path = convert_texture_path(tex_info, self.fbx_folder)
+                                        tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
+                                        if tex_path:
                                             tex_dir, tex_file = os.path.split(tex_path)
                                             tex_name, tex_type = os.path.splitext(tex_file)
                                             # copy valid texture files to the temporary texture cache
@@ -789,6 +792,68 @@ class Importer:
         PySide2.QtWidgets.QApplication.processEvents()
 
 
+    def import_physics(self, char_json, obj_name_map):
+        avatar = RLPy.RScene.GetAvatars()[0]
+        child_objects = RLPy.RScene.FindChildObjects(avatar, RLPy.EObjectType_Avatar)
+        done = []
+
+        print(f"Import Physics")
+
+        for obj in child_objects:
+            physics_component = obj.GetPhysicsComponent()
+
+            if physics_component:
+                mesh_names = physics_component.GetSoftPhysicsMeshNameList()
+
+                for mesh_name in mesh_names:
+
+                    if mesh_name not in done:
+                        done.append(mesh_name)
+
+                        physics_object_json = get_physics_object_json(char_json, mesh_name, obj_name_map)
+                        if physics_object_json:
+
+                            material_names = physics_component.GetSoftPhysicsMaterialNameList(mesh_name)
+
+                            for mat_name in material_names:
+                                physics_material_json = get_physics_material_json(physics_object_json, mat_name, obj_name_map)
+
+                                if physics_material_json:
+                                    print(f"Object: {obj.GetName()}, Mesh: {mesh_name}, Material: {mat_name}")
+                                    mass = None
+                                    for json_param_name in physics_material_json.keys():
+                                        phys_param_name = json_param_name.replace(' ', '').replace('_', '')
+                                        param_value = get_physics_var(physics_material_json, json_param_name)
+                                        print(f"  Param: {phys_param_name} = {param_value}")
+
+                                        if json_param_name == "Activate Physics": # activate physics
+                                            physics_component.SetActivatePhysicsEnable(param_value)
+
+                                        elif json_param_name == "Use Global Gravity": # global gravity
+                                            physics_component.SetObjectGravityEnable(mesh_name, mat_name, param_value)
+
+                                        elif json_param_name == "Weight Map Path": # weight map
+                                            tex_path = convert_texture_path(physics_material_json, json_param_name, self.fbx_folder)
+                                            if tex_path:
+                                                physics_component.SetPhysicsSoftColthWeightMap(mesh_name, mat_name, tex_path)
+
+                                        elif json_param_name == "Soft Vs Rigid Collision" or json_param_name == "Self Collision":
+                                            physics_component.SetSoftPhysXCollisionEnable(mesh_name, mat_name, phys_param_name, param_value)
+
+                                        elif json_param_name == "Soft Vs Rigid Collision_Margin" or json_param_name == "Self Collision Margin":
+                                            physics_component.SetSoftPhysXCollisionValue(mesh_name, mat_name, phys_param_name, param_value)
+
+                                        elif json_param_name == "Mass":
+                                            mass = param_value
+
+                                        else:
+                                            physics_component.SetSoftPhysXProperty(mesh_name, mat_name, phys_param_name, float(param_value))
+
+                                    # mass needs to be set last or set after something else, otherwise it gets reset back to 1
+                                    if mass is not None:
+                                        physics_component.SetSoftPhysXProperty(mesh_name, mat_name, "Mass", mass)
+
+
 #
 # Functions
 #
@@ -829,13 +894,15 @@ def fix_blender_name(name: str, import_mesh):
     return name
 
 
-def convert_texture_path(tex_info, folder):
+def convert_texture_path(tex_info, var_name, folder):
     """Get the Json texture path relative to the import character file.
     """
-    rel_path = tex_info["Texture Path"]
-    if os.path.isabs(rel_path):
-        return os.path.normpath(rel_path)
-    return os.path.join(folder, rel_path)
+    if tex_info and var_name in tex_info.keys():
+        rel_path = tex_info[var_name]
+        if os.path.isabs(rel_path):
+            return os.path.normpath(rel_path)
+        return os.path.join(folder, rel_path)
+    return None
 
 
 def get_json_mesh_name_map(avatar):
@@ -945,6 +1012,46 @@ def get_object_json(character_json, mesh_name, json_name_map):
     return None
 
 
+def get_physics_object_json(character_json, mesh_name, json_name_map):
+    if not character_json:
+        return None
+    try:
+        physics_object_json = character_json["Physics"]["Soft Physics"]["Meshes"]
+        for object_name in physics_object_json.keys():
+            if object_name == mesh_name:
+                return physics_object_json[object_name]
+        if json_name_map:
+            # look for the json mesh name from the original object name remaps
+            search_obj_name = json_name_map[mesh_name]
+            for object_name in physics_object_json.keys():
+                if object_name == search_obj_name:
+                    return physics_object_json[object_name]
+    except:
+        pass
+    #print("Could not find physics object json: " + mesh_name)
+    return None
+
+
+def get_physics_material_json(physics_object_json, mat_name, json_name_map):
+    if not physics_object_json:
+        return None
+    try:
+        physics_materials_json = physics_object_json["Materials"]
+        for material_name in physics_materials_json.keys():
+            if material_name == mat_name:
+                return physics_materials_json[material_name]
+        if json_name_map: # json_name_map used only to test for re-import over existing avatar
+            mat_name_ext = fix_json_name(mat_name)
+            # some materials are suffixed with _Transparency
+            for material_name in physics_materials_json.keys():
+                if material_name == mat_name_ext or material_name == mat_name_ext + "_Transparency":
+                    return physics_materials_json[material_name]
+    except:
+        pass
+    print("Could not find physics material json: " + mat_name)
+    return None
+
+
 def get_custom_shader(material_json):
     try:
         return material_json["Custom Shader"]["Shader Name"]
@@ -963,7 +1070,7 @@ def get_material_json(object_json, mat_name, json_name_map):
         for material_name in materials_json.keys():
             if material_name == mat_name:
                 return materials_json[material_name]
-        if json_name_map:
+        if json_name_map: # json_name_map used only to test for re-import over existing avatar
             mat_name_ext = fix_json_name(mat_name)
             # some materials are suffixed with _Transparency
             for material_name in materials_json.keys():
@@ -1030,8 +1137,6 @@ def rgb_to_float(rgb):
 
 
 def convert_var(var_name, var_value):
-    # TODO check var_name for color conversion?
-    # maybe not all float3's are colours?
     if type(var_value) == tuple or type(var_value) == list:
         if len(var_value) == 3:
             return rgb_to_float(var_value)
@@ -1039,6 +1144,13 @@ def convert_var(var_name, var_value):
             return var_value
     else:
         return [var_value]
+
+
+def convert_phys_var(var_name, var_value):
+    if type(var_value) == tuple or type(var_value) == list:
+        if var_name == "Inertia":
+            return var_value[0]
+    return var_value
 
 
 def get_shader_var(material_json, var_name):
@@ -1078,6 +1190,16 @@ def get_sss_var(material_json, var_name):
     try:
         result = material_json["Subsurface Scatter"][var_name]
         return convert_var(var_name, result)
+    except:
+        return None
+
+
+def get_physics_var(physics_material_json, var_name):
+    if not physics_material_json:
+        return None
+    try:
+        result = physics_material_json[var_name]
+        return convert_phys_var(var_name, result)
     except:
         return None
 
