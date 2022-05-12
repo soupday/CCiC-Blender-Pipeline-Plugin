@@ -63,6 +63,8 @@ By default the FBX export settings have embed textures switched on, but this mak
 - SSS amd Tessellation data restoration added.
 - Physics data restoration added (Incomplete see Known Issues)
 - Added Export To Blender menu function.
+- Some support for Humanoid imports.
+    - Recommended that you Save the HIK profile in the **Modify** > **Characterization** panel first, then reload the profile and activate the Human-IK on re-importing.
 
 ### 1.0.5
 - Ported to CC4
