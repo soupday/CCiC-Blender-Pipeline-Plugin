@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -213,11 +213,12 @@ class Importer:
 
         error = False
         if not self.json_data:
-            message_box("There is no JSON data with this character!\n\nCharacters must be exported from CC3.44.4709.1 or greater to generate compatible JSON data on exports.")
+            message_box("There is no JSON data with this character!\n\nThe plugin will be unable to set-up any materials.\n\nPlease use the standard character importer instead (File Menu > Import).")
             error = True
-        if not os.path.exists(self.fbx_key):
-            message_box("There is no Fbx Key with this character!\n\nCharacters cannot be imported back into Character Creator without a corresponding Fbx Key.\nThe Fbx Key will be generated when the character is exported as Mesh only, or in Calibration Pose, and with no hidden faces.")
-            error = True
+        if self.character_type == "STANDARD":
+            if not os.path.exists(self.fbx_key):
+                message_box("There is no Fbx Key with this character!\n\nCC3/4 Standard characters cannot be imported back into Character Creator without a corresponding Fbx Key.\nThe Fbx Key will be generated when the character is exported as Mesh only, or in Calibration Pose, and with no hidden faces.")
+                error = True
 
         if not error:
             self.create_options_window()
@@ -555,6 +556,8 @@ class Importer:
                                 tex_info = get_pbr_texture_info(mat_json, tex_id)
                                 tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
                                 if tex_path:
+                                    if tex_id == "Base Color" and os.path.splitext(tex_path)[-1].lower() == ".png":
+                                        is_substance = False
                                     strength = float(tex_info["Strength"]) / 100.0
                                     offset = tex_info["Offset"]
                                     offset_vector = RLPy.RVector2(float(offset[0]), float(offset[1]))

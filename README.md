@@ -57,6 +57,10 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.0.7
+- Unlocked import for non-standard characters (Humanoid, Creature, Prop), no longer requires an FBX key.
+- Fixed Diffuse maps with Alpha channels not applying Opacity channel on import.
+
 ### 1.0.6
 - SSS and Tessellation data restoration added.
 - Physics data restoration added (Incomplete see Known Issues)
