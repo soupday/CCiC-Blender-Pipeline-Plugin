@@ -59,6 +59,7 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ### 1.0.7
 - Unlocked import for non-standard characters (Humanoid, Creature, Prop), no longer requires an FBX key.
+    - But do still require JSON data from the CC/iC Blender Tools add-on export.
 - Fixed Diffuse maps with Alpha channels not applying Opacity channel on import.
 
 ### 1.0.6
