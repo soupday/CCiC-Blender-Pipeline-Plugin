@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -414,6 +414,11 @@ class Importer:
         """
         self.close_options_window()
         if self.json_data:
+
+            # importing changes the selection so store it first.
+            selected_objects = RLPy.RScene.GetSelectedObjects()
+            objects = []
+
             if self.import_mesh:
 
                 args = RLPy.EImportFbxOption__None
@@ -426,15 +431,33 @@ class Importer:
                 elif self.character_type == "PROP":
                     args = args | RLPy.EImportFbxOption_Prop
 
+                # to determine which prop(s) was imported, store a list of all current props
+                if self.character_type == "PROP":
+                    stored_props = RLPy.RScene.GetProps()
+
                 RLPy.RFileIO.LoadFbxFile(self.fbx_path, args)
 
-            avatars = RLPy.RScene.GetAvatars(RLPy.EAvatarType_All)
-            if len(avatars) > 0:
-                self.avatar = avatars[0]
-                self.rebuild_materials()
-                time.sleep(2)
-                RLPy.RScene.SelectObject(self.avatar)
-        self.close_progress_window()
+                # any prop not in the stored list is newly imported.
+                if self.character_type == "PROP":
+                    all_props = RLPy.RScene.GetProps()
+                    for prop in all_props:
+                        if prop not in stored_props:
+                            objects.append(prop)
+            else:
+
+                if self.character_type == "PROP":
+                   objects = selected_objects
+
+            # if not importing a prop, use the current avatar
+            if self.character_type != "PROP":
+                avatars = RLPy.RScene.GetAvatars(RLPy.EAvatarType_All)
+                objects = [avatars[0]]
+
+            if len(objects) > 0:
+                for obj in objects:
+                    self.avatar = obj
+                    self.rebuild_materials()
+                    RLPy.RScene.SelectObject(obj)
 
 
     def rebuild_materials(self):
@@ -463,12 +486,16 @@ class Importer:
             self.count(char_json, material_component, mesh_names, obj_name_map)
 
             # only need to import all the textures when importing a new mesh
-            if self.import_textures:
-                self.import_substance_textures(char_json, material_component, mesh_names, obj_name_map)
+            if self.character_type != "PROP":
+                if self.import_textures:
+                    self.import_substance_textures(char_json, material_component, mesh_names, obj_name_map)
 
             self.import_custom_textures(char_json, material_component, mesh_names, obj_name_map)
 
             self.import_physics(char_json, obj_name_map)
+
+            time.sleep(1)
+            self.close_progress_window()
 
         RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Material)
 
@@ -534,30 +561,44 @@ class Importer:
                                     material_component.SetShaderParameter(mesh_name, mat_name, param, json_value)
                                 self.update_custom_progress(1, pid)
 
-                        if self.import_textures:
+                        if self.import_textures and "Textures" in mat_json.keys():
+
                             # Custom shader textures
                             shader_textures = material_component.GetShaderTextureNames(mesh_name, mat_name)
                             if shader_textures:
                                 for shader_texture in shader_textures:
                                     tex_info = get_shader_texture_info(mat_json, shader_texture)
                                     tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
-                                    if tex_path:
+                                    if tex_path and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                         material_component.LoadShaderTexture(mesh_name, mat_name, shader_texture, tex_path)
                                     self.update_custom_progress(1, pid)
 
                             # Pbr Textures
+                            png_base_color = False
+                            has_opacity_map = "Opacity" in mat_json["Textures"].keys()
                             for tex_id in TEXTURE_MAPS.keys():
                                 tex_channel = TEXTURE_MAPS[tex_id][0]
                                 is_substance = TEXTURE_MAPS[tex_id][1]
-                                if self.mat_duplicates[mat_name]: # fully process textures for materials with duplicates,
-                                    is_substance = False          # as the substance texture import can't really deal with them.
-                                if not self.substance_import_success: # or if the substance texture import method failed
-                                    is_substance = False              # import all textures individually
+                                load_texture = not is_substance
+                                # fully process textures for materials with duplicates,
+                                # as the substance texture import can't really deal with them.
+                                if self.mat_duplicates[mat_name]:
+                                    load_texture = True
+                                # or if the substance texture import method failed, import all textures individually
+                                if not self.substance_import_success:
+                                    load_texture = True
+                                # prop objects don't work with substance texture import currently
+                                if self.character_type == "PROP":
+                                    load_texture = True
                                 tex_info = get_pbr_texture_info(mat_json, tex_id)
                                 tex_path = convert_texture_path(tex_info, "Texture Path", self.fbx_folder)
                                 if tex_path:
-                                    if tex_id == "Base Color" and os.path.splitext(tex_path)[-1].lower() == ".png":
-                                        is_substance = False
+                                    # PNG diffuse maps with alpha channels don't fill in opacity correctly with substance import method
+                                    if tex_id == "Base Color" and not has_opacity_map and os.path.splitext(tex_path)[-1].lower() == ".png":
+                                        png_base_color = True
+                                        load_texture = True
+                                    elif tex_id == "Opacity" and png_base_color:
+                                        load_texture = True
                                     strength = float(tex_info["Strength"]) / 100.0
                                     offset = tex_info["Offset"]
                                     offset_vector = RLPy.RVector2(float(offset[0]), float(offset[1]))
@@ -568,8 +609,8 @@ class Importer:
                                     if "Rotation" in tex_info.keys():
                                         rotation = float(tex_info["Rotation"])
                                     # set textures
-                                    if os.path.exists(tex_path):
-                                        if not is_substance:
+                                    if os.path.exists(tex_path) and os.path.isfile(tex_path):
+                                        if load_texture:
                                             material_component.LoadImageToTexture(mesh_name, mat_name, tex_channel, tex_path)
                                         material_component.AddUvDataKey(key_zero, mesh_name, mat_name, tex_channel, offset_vector, tiling_vector, rotation)
                                         material_component.AddTextureWeightKey(key_zero, mesh_name, mat_name, tex_channel, strength)
@@ -664,7 +705,7 @@ class Importer:
                                         tex_dir, tex_file = os.path.split(tex_path)
                                         tex_name, tex_type = os.path.splitext(tex_file)
                                         # copy valid texture files to the temporary texture cache
-                                        if os.path.exists(tex_path):
+                                        if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                             substance_name = first_mat_in_mesh + "_" + str(mat_index) + "_" + substance_postfix + tex_type
                                             substance_path = os.path.join(mesh_folder, substance_name)
                                             shutil.copyfile(tex_path, substance_path)
@@ -710,7 +751,7 @@ class Importer:
                                             tex_dir, tex_file = os.path.split(tex_path)
                                             tex_name, tex_type = os.path.splitext(tex_file)
                                             # copy valid texture files to the temporary texture cache
-                                            if os.path.exists(tex_path):
+                                            if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                                 substance_name = mat_name + "_" + str(mat_index) + "_" + substance_postfix + tex_type
                                                 substance_path = os.path.join(mesh_folder, substance_name)
                                                 shutil.copyfile(tex_path, substance_path)
@@ -780,7 +821,7 @@ class Importer:
                         if "Custom Shader" in mat_json.keys():
                             wanted_shader = SHADER_MAPS[mat_json["Custom Shader"]["Shader Name"]]
                         if imported_shader != wanted_shader:
-                            material_component.SetShader(mesh_name, mat_name, "PBR")
+                            #material_component.SetShader(mesh_name, mat_name, "PBR")
                             material_component.SetShader(mesh_name, mat_name, wanted_shader)
 
                         # Calculate stats
@@ -813,7 +854,10 @@ class Importer:
 
 
     def import_physics(self, char_json, obj_name_map):
-        avatar = RLPy.RScene.GetAvatars()[0]
+        avatars = RLPy.RScene.GetAvatars()
+        if avatars is None or len(avatars) == 0:
+            return
+        avatar = avatars[0]
         child_objects = RLPy.RScene.FindChildObjects(avatar, RLPy.EObjectType_Avatar)
         done = []
 

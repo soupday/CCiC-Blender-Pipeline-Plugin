@@ -57,6 +57,10 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.0.8
+- Support for importing props.
+- Fix for empty texture paths.
+
 ### 1.0.7
 - Unlocked import for non-standard characters (Humanoid, Creature, Prop), no longer requires an FBX key.
     - But do still require JSON data from the CC/iC Blender Tools add-on export.
