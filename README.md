@@ -50,10 +50,6 @@ By default the FBX export settings have embed textures switched on, but this mak
 ### Known Issues
 
 - Hidden faces information for clothing and accessories is lost upon re-importing into CC4.
-- Currently unable to restore Physics Component settings for Hair meshes. (Requires API update)
-- After importing character from Blender, the collision shapes are missing.
-    - Saving the project and reloading seems to fix it.
-- Remember to turn on Soft Cloth Simulation (The toolbar Icon that looks like a "P"), otherwise the physics won't work in the CC4 Animation player.
 
 ## Changelog
 
