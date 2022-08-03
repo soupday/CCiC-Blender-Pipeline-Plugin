@@ -57,6 +57,10 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.0.9
+- Physics data reconstruction now includes hair meshes.
+- Added export menu option to export with current pose. (For replace mesh and/or accessory editing)
+
 ### 1.0.8
 - Support for importing props.
 - Fix for empty texture paths.
@@ -68,7 +72,7 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ### 1.0.6
 - SSS and Tessellation data restoration added.
-- Physics data restoration added (Incomplete see Known Issues)
+- Physics data restoration added.
 - Added Export To Blender menu function.
 - Some support for Humanoid imports.
     - Recommended that you Save the HIK profile in the **Modify** > **Characterization** panel first, then reload the profile and activate the Human-IK on re-importing.

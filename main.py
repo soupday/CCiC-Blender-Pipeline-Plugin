@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -105,6 +105,11 @@ def initialize_plugin():
 
     plugin_menu.addSeparator()
 
+    menu_import_action_5 = plugin_menu.addAction("Export Character to Blender (Current Pose)")
+    menu_import_action_5.triggered.connect(menu_export_current_pose)
+
+    plugin_menu.addSeparator()
+
     menu_import_action_1 = plugin_menu.addAction("Import Character From Blender")
     menu_import_action_1.triggered.connect(menu_import_standard)
 
@@ -150,6 +155,45 @@ def menu_export_mesh_only():
         result = RLPy.RFileIO.ExportFbxFile(avatar, file_path, options1, options2, options3,
                                             RLPy.EExportTextureSize_Original,
                                             RLPy.EExportTextureFormat_Default)
+    return
+
+
+def menu_export_current_pose():
+
+    avatar_list = RLPy.RScene.GetAvatars()
+    if len(avatar_list) == 0:
+        return
+
+    avatar = avatar_list[0]
+
+    file_path = RLPy.RUi.SaveFileDialog("Fbx Files(*.fbx)")
+    if file_path and file_path != "":
+
+        options1 = RLPy.EExportFbxOptions__None
+        options1 = options1 | RLPy.EExportFbxOptions_FbxKey
+        options1 = options1 | RLPy.EExportFbxOptions_AutoSkinRigidMesh
+        options1 = options1 | RLPy.EExportFbxOptions_RemoveAllUnused
+        options1 = options1 | RLPy.EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
+
+        options2 = RLPy.EExportFbxOptions2__None
+        options2 = options2 | RLPy.EExportFbxOptions2_ResetBoneScale
+        options2 = options2 | RLPy.EExportFbxOptions2_ResetSelfillumination
+
+        options3 = RLPy.EExportFbxOptions3__None
+        options3 = options3 | RLPy.EExportFbxOptions3_ExportJson
+        options3 = options3 | RLPy.EExportFbxOptions3_ExportVertexColor
+
+        export_fbx_setting = RLPy.RExportFbxSetting()
+        export_fbx_setting.SetOption(options1)
+        export_fbx_setting.SetOption2(options2)
+        export_fbx_setting.SetOption3(options3)
+        export_fbx_setting.EnableExportMotion(True)
+        export_fbx_setting.SetTextureFormat(RLPy.EExportTextureFormat_Default)
+        export_fbx_setting.SetTextureSize(RLPy.EExportTextureSize_Original)
+        export_fbx_setting.SetExportMotionRange(RLPy.RRangePair(0, 1))
+        export_fbx_setting.SetExportMotionFps(RLPy.RFps.Fps60)
+        result = RLPy.RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
+
     return
 
 
@@ -264,7 +308,7 @@ class Importer:
 
     def create_options_window(self):
         window = RLPy.RUi.CreateRDockWidget()
-        window.SetWindowTitle("Blender Auto-setup Character Import - Options")
+        window.SetWindowTitle(f"Blender Auto-setup Character Import ({VERSION}) - Options")
         print(PySide2.QtWidgets.QDockWidget)
         dock = wrapInstance(int(window.GetWindow()), PySide2.QtWidgets.QDockWidget)
         dock.setFixedWidth(500)
@@ -858,64 +902,77 @@ class Importer:
         if avatars is None or len(avatars) == 0:
             return
         avatar = avatars[0]
-        child_objects = RLPy.RScene.FindChildObjects(avatar, RLPy.EObjectType_Avatar)
         done = []
+        physics_components = []
 
         print(f"Import Physics")
 
+        # get physics components of all child objects
+        child_objects = RLPy.RScene.FindChildObjects(avatar, RLPy.EObjectType_Avatar)
         for obj in child_objects:
-            physics_component = obj.GetPhysicsComponent()
+            obj_physics_component = obj.GetPhysicsComponent()
+            if obj_physics_component and obj_physics_component not in physics_components:
+                physics_components.append(obj_physics_component)
 
-            if physics_component:
-                mesh_names = physics_component.GetSoftPhysicsMeshNameList()
+        # get physics components of all hair meshes
+        hairs = avatar.GetHairs()
+        for hair in hairs:
+            hair_physics_component = hair.GetPhysicsComponent()
+            if hair_physics_component and hair_physics_component not in physics_components:
+                physics_components.append(hair_physics_component)
 
-                for mesh_name in mesh_names:
+        # process each physics component and reconstruct from the JSON data
+        for physics_component in physics_components:
 
-                    if mesh_name not in done:
-                        done.append(mesh_name)
+            mesh_names = physics_component.GetSoftPhysicsMeshNameList()
 
-                        physics_object_json = get_physics_object_json(char_json, mesh_name, obj_name_map)
-                        if physics_object_json:
+            for mesh_name in mesh_names:
 
-                            material_names = physics_component.GetSoftPhysicsMaterialNameList(mesh_name)
+                if mesh_name not in done:
+                    done.append(mesh_name)
 
-                            for mat_name in material_names:
-                                physics_material_json = get_physics_material_json(physics_object_json, mat_name, obj_name_map)
+                    physics_object_json = get_physics_object_json(char_json, mesh_name, obj_name_map)
+                    if physics_object_json:
 
-                                if physics_material_json:
-                                    print(f"Object: {obj.GetName()}, Mesh: {mesh_name}, Material: {mat_name}")
-                                    mass = None
-                                    for json_param_name in physics_material_json.keys():
-                                        phys_param_name = json_param_name.replace(' ', '').replace('_', '')
-                                        param_value = get_physics_var(physics_material_json, json_param_name)
-                                        print(f"  Param: {phys_param_name} = {param_value}")
+                        material_names = physics_component.GetSoftPhysicsMaterialNameList(mesh_name)
 
-                                        if json_param_name == "Activate Physics": # activate physics
-                                            physics_component.SetActivatePhysicsEnable(param_value)
+                        for mat_name in material_names:
+                            physics_material_json = get_physics_material_json(physics_object_json, mat_name, obj_name_map)
 
-                                        elif json_param_name == "Use Global Gravity": # global gravity
-                                            physics_component.SetObjectGravityEnable(mesh_name, mat_name, param_value)
+                            if physics_material_json:
+                                print(f"Object: {obj.GetName()}, Mesh: {mesh_name}, Material: {mat_name}")
+                                mass = None
+                                for json_param_name in physics_material_json.keys():
+                                    phys_param_name = json_param_name.replace(' ', '').replace('_', '')
+                                    param_value = get_physics_var(physics_material_json, json_param_name)
+                                    print(f"  Param: {phys_param_name} = {param_value}")
 
-                                        elif json_param_name == "Weight Map Path": # weight map
-                                            tex_path = convert_texture_path(physics_material_json, json_param_name, self.fbx_folder)
-                                            if tex_path:
-                                                physics_component.SetPhysicsSoftColthWeightMap(mesh_name, mat_name, tex_path)
+                                    if json_param_name == "Activate Physics": # activate physics
+                                        physics_component.SetActivatePhysicsEnable(param_value)
 
-                                        elif json_param_name == "Soft Vs Rigid Collision" or json_param_name == "Self Collision":
-                                            physics_component.SetSoftPhysXCollisionEnable(mesh_name, mat_name, phys_param_name, param_value)
+                                    elif json_param_name == "Use Global Gravity": # global gravity
+                                        physics_component.SetObjectGravityEnable(mesh_name, mat_name, param_value)
 
-                                        elif json_param_name == "Soft Vs Rigid Collision_Margin" or json_param_name == "Self Collision Margin":
-                                            physics_component.SetSoftPhysXCollisionValue(mesh_name, mat_name, phys_param_name, param_value)
+                                    elif json_param_name == "Weight Map Path": # weight map
+                                        tex_path = convert_texture_path(physics_material_json, json_param_name, self.fbx_folder)
+                                        if tex_path:
+                                            physics_component.SetPhysicsSoftColthWeightMap(mesh_name, mat_name, tex_path)
 
-                                        elif json_param_name == "Mass":
-                                            mass = param_value
+                                    elif json_param_name == "Soft Vs Rigid Collision" or json_param_name == "Self Collision":
+                                        physics_component.SetSoftPhysXCollisionEnable(mesh_name, mat_name, phys_param_name, param_value)
 
-                                        else:
-                                            physics_component.SetSoftPhysXProperty(mesh_name, mat_name, phys_param_name, float(param_value))
+                                    elif json_param_name == "Soft Vs Rigid Collision_Margin" or json_param_name == "Self Collision Margin":
+                                        physics_component.SetSoftPhysXCollisionValue(mesh_name, mat_name, phys_param_name, param_value)
 
-                                    # mass needs to be set last or set after something else, otherwise it gets reset back to 1
-                                    if mass is not None:
-                                        physics_component.SetSoftPhysXProperty(mesh_name, mat_name, "Mass", mass)
+                                    elif json_param_name == "Mass":
+                                        mass = param_value
+
+                                    else:
+                                        physics_component.SetSoftPhysXProperty(mesh_name, mat_name, phys_param_name, float(param_value))
+
+                                # mass needs to be set last or set after something else, otherwise it gets reset back to 1
+                                if mass is not None:
+                                    physics_component.SetSoftPhysXProperty(mesh_name, mat_name, "Mass", mass)
 
 
 #
