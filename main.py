@@ -309,7 +309,7 @@ class Importer:
     def create_options_window(self):
         window = RLPy.RUi.CreateRDockWidget()
         window.SetWindowTitle(f"Blender Auto-setup Character Import ({VERSION}) - Options")
-        print(PySide2.QtWidgets.QDockWidget)
+
         dock = wrapInstance(int(window.GetWindow()), PySide2.QtWidgets.QDockWidget)
         dock.setFixedWidth(500)
 
