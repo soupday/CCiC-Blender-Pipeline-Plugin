@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.0.9"
+VERSION = "1.0.10"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -707,7 +707,8 @@ class Importer:
         if os.path.exists(temp_folder):
             shutil.rmtree(temp_folder)
         # make a new temporary folder
-        os.mkdir(temp_folder)
+        if not os.path.exists(temp_folder):
+            os.mkdir(temp_folder)
 
         for mesh_name in mesh_names:
 
@@ -724,7 +725,8 @@ class Importer:
                     # create folder with first matertial name in each mesh
                     first_mat_in_mesh = mat_names[0]
                     mesh_folder = os.path.join(temp_folder, first_mat_in_mesh)
-                    os.mkdir(mesh_folder)
+                    if not os.path.exists(mesh_folder):
+                        os.mkdir(mesh_folder)
 
                     mat_index = 1001
 
@@ -751,8 +753,8 @@ class Importer:
                                         # copy valid texture files to the temporary texture cache
                                         if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                             substance_name = first_mat_in_mesh + "_" + str(mat_index) + "_" + substance_postfix + tex_type
-                                            substance_path = os.path.join(mesh_folder, substance_name)
-                                            shutil.copyfile(tex_path, substance_path)
+                                            substance_path = os.path.normpath(os.path.join(mesh_folder, substance_name))
+                                            shutil.copyfile("\\\\?\\" + tex_path, "\\\\?\\" + substance_path)
 
                                     self.update_pbr_progress(2, pid)
 
@@ -779,7 +781,8 @@ class Importer:
 
                                 # create folder with the matertial name
                                 mesh_folder = os.path.join(temp_folder, mat_name)
-                                os.mkdir(mesh_folder)
+                                if not os.path.exists(mesh_folder):
+                                    os.mkdir(mesh_folder)
 
                                 mat_index = 1001
 
@@ -797,8 +800,8 @@ class Importer:
                                             # copy valid texture files to the temporary texture cache
                                             if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                                 substance_name = mat_name + "_" + str(mat_index) + "_" + substance_postfix + tex_type
-                                                substance_path = os.path.join(mesh_folder, substance_name)
-                                                shutil.copyfile(tex_path, substance_path)
+                                                substance_path = os.path.normpath(os.path.join(mesh_folder, substance_name))
+                                                shutil.copyfile("\\\\?\\" + tex_path, "\\\\?\\" + substance_path)
 
                                         self.update_pbr_progress(2, pid)
 
@@ -1022,7 +1025,7 @@ def convert_texture_path(tex_info, var_name, folder):
         rel_path = tex_info[var_name]
         if os.path.isabs(rel_path):
             return os.path.normpath(rel_path)
-        return os.path.join(folder, rel_path)
+        return os.path.normpath(os.path.join(folder, rel_path))
     return None
 
 

@@ -53,6 +53,9 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.0.10
+- Fixed long path names causing textures to fail to load.
+
 ### 1.0.9
 - Physics data reconstruction now includes hair meshes.
 - Added export menu option to export with current pose. (For replace mesh and/or accessory editing)
