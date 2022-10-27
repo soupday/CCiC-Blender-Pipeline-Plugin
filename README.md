@@ -53,6 +53,11 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.1.0
+- Added HIK profile export/import for Humanoid Characters.
+- Added Facial profile export/import for Standard and humanoid Characters.
+- Added Facial expression Blend shape import for Standard and humanoid Characters.
+
 ### 1.0.10
 - Fixed long path names causing textures to fail to load.
 
