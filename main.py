@@ -250,6 +250,10 @@ class Importer:
                         self.option_import_profile = True
                     if "Categories" in self.json_data[self.name]["Facial_Profile"].keys():
                         self.option_import_expressions = True
+        if self.character_type == "HUMANOID":
+            self.option_import_hik = False
+            self.option_import_profile = False
+            self.option_import_expressions = False
 
         if not error:
             self.create_options_window()
@@ -1263,7 +1267,7 @@ class Exporter:
         self.option_hik_data = False
         self.option_profile_data = False
         self.option_t_pose = True
-        self.option_current_pose = True
+        self.option_current_pose = False
         self.option_remove_hidden = True
         self.update_options()
 
