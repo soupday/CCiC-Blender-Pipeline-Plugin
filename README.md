@@ -1,6 +1,6 @@
-# CC4 Blender Tools Plugin
+# CC4 Blender Pipeline Tool (Installed in CC4)
 
-This is a python plugin for Character Creator 3 to re-import a character from Blender generated using the **CC4 Blender Tools** auto-setup add-on: https://github.com/soupday/CC4_blender_tools.
+This is a python plugin for Character Creator 4 to re-import a character from Blender generated using the **CC4 Blender Pipeline Tool** auto-setup add-on: https://github.com/soupday/cc_blender_tools.
 
 This plugin will re-import the selected character and reconstruct the materials exactly as specified in the character Json data, which is exported with all FbxKey exports to Blender.
 
@@ -10,7 +10,7 @@ It is possible to include additional objects with the character exports from Ble
 
 Links
 =====
-[CC/iClone Blender Tools](https://github.com/soupday/CC3_blender_tools)
+[CC/iC Blender Tools](https://github.com/soupday/cc_blender_tools)
 
 [Baking Add-on](https://github.com/soupday/CC3_blender_bake)
 
