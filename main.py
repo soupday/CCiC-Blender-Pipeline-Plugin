@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -250,10 +250,6 @@ class Importer:
                         self.option_import_profile = True
                     if "Categories" in self.json_data[self.name]["Facial_Profile"].keys():
                         self.option_import_expressions = True
-        if self.character_type == "HUMANOID":
-            self.option_import_hik = False
-            self.option_import_profile = False
-            self.option_import_expressions = False
 
         if not error:
             self.create_options_window()
@@ -557,6 +553,7 @@ class Importer:
             self.import_hik_profile()
 
         if self.character_type == "STANDARD" or self.character_type == "HUMANOID":
+            self.window_progress.Close()
             self.import_facial_profile()
 
         time.sleep(1)
@@ -1044,7 +1041,8 @@ class Importer:
         if self.option_import_hik:
             if os.path.exists(self.hik_path):
                 log(f"Restoring HIK Profile: {self.hik_path}")
-                avatar.LoadHikProfile(self.hik_path, True, True, True)
+                #avatar.LoadHikProfile(self.hik_path, True, True, True)
+                avatar.DoCharacterization(self.hik_path, True, True, True)
 
 
 
