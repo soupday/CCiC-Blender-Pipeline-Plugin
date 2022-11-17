@@ -936,11 +936,11 @@ class Importer:
                 physics_components.append(obj_physics_component)
 
         # get physics components of all accessory_objects
-        #accessories = avatar.GetAccessories()
-        #for obj in accessories:
-        #    obj_physics_component = obj.GetPhysicsComponent()
-        #    if obj_physics_component and obj_physics_component not in physics_components:
-        #        physics_components.append(obj_physics_component)
+        accessories = avatar.GetAccessories()
+        for obj in accessories:
+            obj_physics_component = obj.GetPhysicsComponent()
+            if obj_physics_component and obj_physics_component not in physics_components:
+                physics_components.append(obj_physics_component)
 
         # get physics components of all hair meshes
         hairs = avatar.GetHairs()
@@ -1291,7 +1291,6 @@ class Exporter:
             self.close_options_window()
             self.export_fbx()
             self.export_extra_data()
-            #self.export_physics()
             log("Done!")
             clean_up_globals()
         else:
@@ -1381,18 +1380,21 @@ class Exporter:
                     slider_names = facial_profile.GetExpressionSliderNames(category)
                     json_data[self.name]["Facial_Profile"]["Categories"][category] = slider_names
 
+
+        self.export_physics(json_data)
+
         # Update JSON data
         log(f"Re-writing JSON data: {self.json_path}")
 
         write_json(json_data, self.json_path)
 
 
-    def export_physics(self):
+    def export_physics(self, json_data):
 
         done = []
         physics_components = []
         obj_name_map = get_json_mesh_name_map(self.avatar)
-        char_json = get_character_json(self.json_data, self.name, self.name)
+        char_json = get_character_json(json_data, self.name, self.name)
 
         log(f"Exporting Extra Physics Data")
 
@@ -1404,11 +1406,11 @@ class Exporter:
                 physics_components.append(obj_physics_component)
 
         # get physics components of all accessory_objects
-        #accessories = avatar.GetAccessories()
-        #for obj in accessories:
-        #    obj_physics_component = obj.GetPhysicsComponent()
-        #    if obj_physics_component and obj_physics_component not in physics_components:
-        #        physics_components.append(obj_physics_component)
+        accessories = self.avatar.GetAccessories()
+        for obj in accessories:
+            obj_physics_component = obj.GetPhysicsComponent()
+            if obj_physics_component and obj_physics_component not in physics_components:
+                physics_components.append(obj_physics_component)
 
         # get physics components of all hair meshes
         hairs = self.avatar.GetHairs()
@@ -1428,7 +1430,6 @@ class Exporter:
                     done.append(mesh_name)
 
                     safe_mesh_name = safe_export_name(mesh_name)
-                    log(f"MESH: {mesh_name} {safe_mesh_name}")
 
                     physics_object_json = get_physics_object_json(char_json, safe_mesh_name, obj_name_map)
                     if physics_object_json:
@@ -1438,23 +1439,29 @@ class Exporter:
                         for mat_name in material_names:
 
                             safe_mat_name = safe_export_name(mat_name, True)
-                            log(f"  MATERIAL: {mat_name} {safe_mat_name}")
 
                             physics_material_json = get_physics_material_json(physics_object_json, safe_mat_name, obj_name_map)
 
                             if physics_material_json:
 
-                                log("    PHYSICS JSON FOUND")
-
                                 if "Weight Map Path" in physics_material_json.keys():
                                     if not physics_material_json["Weight Map Path"]:
-                                        log("      NO WEIGHT MAP")
+
+                                        log(f"No weightmap texture path in physics component: {mesh_name} / {mat_name}")
+
                                         weight_map_path = os.path.join(self.folder, "textures", self.name, safe_mesh_name,
                                                                        safe_mesh_name, safe_mat_name,
                                                                        f"{safe_mat_name}_WeightMap.png")
+
+                                        if not os.path.exists(weight_map_path):
+                                            log(f"Weightmap missing, attempting to save: {weight_map_path}")
+                                            physics_component.SavePhysicsSoftColthWeightMap(mesh_name, mat_name, weight_map_path)
                                         if os.path.exists(weight_map_path):
                                             physics_material_json["Weight Map Path"] = os.path.relpath(weight_map_path, self.folder)
-                                            physics_component.SavePhysicsSoftColthWeightMap(mesh_name, mat_name, weight_map_path)
+                                            log(f"Adding weightmap path: {physics_material_json['Weight Map Path']}")
+                                        else:
+                                            log(f"Unable to save missing weightmap: {weight_map_path}")
+
 
 
 
@@ -1869,5 +1876,5 @@ def random_string(length):
 
 
 def run_script():
-    #menu_export()
-    menu_import()
+    menu_export()
+    #menu_import()

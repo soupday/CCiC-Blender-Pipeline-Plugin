@@ -53,6 +53,10 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.1.1
+- Characterization import for non-standard humanoid characters now working.
+- Accessory physics export / import fixed.
+
 ### 1.1.0
 - Added HIK profile export/import for Humanoid Characters.
 - Added Facial profile export/import for Standard and humanoid Characters.
