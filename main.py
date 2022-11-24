@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -314,14 +314,17 @@ class Importer:
 
         label_1 = PySide2.QtWidgets.QLabel()
         label_1.setText(f"Character Name: {self.name}")
+        label_1.setStyleSheet("color: white; font: bold")
         layout.addWidget(label_1)
 
         label_2 = PySide2.QtWidgets.QLabel()
         label_2.setText(f"Character Path: {self.path}")
+        label_2.setStyleSheet("color: white; font: bold")
         layout.addWidget(label_2)
 
         label_3 = PySide2.QtWidgets.QLabel()
         label_3.setText(f"Type: {self.character_type}")
+        label_3.setStyleSheet("color: white; font: bold")
         layout.addWidget(label_3)
 
         layout.addSpacing(10)
@@ -1087,6 +1090,10 @@ class Exporter:
     option_hik_data = False
     option_profile_data = True
     option_remove_hidden = False
+    preset_button_1 = None
+    preset_button_2 = None
+    preset_button_3 = None
+    label_desc = None
 
 
     def __init__(self):
@@ -1148,23 +1155,35 @@ class Exporter:
 
         button1 = PySide2.QtWidgets.QPushButton("Mesh Only", minimumHeight=24)
         button1.clicked.connect(self.preset_mesh_only)
+        button1.setCheckable(True)
+        button1.setChecked(True)
         row.addWidget(button1)
+        self.preset_button_1 = button1
 
         button2 = PySide2.QtWidgets.QPushButton("Current Pose", minimumHeight=24)
         button2.clicked.connect(self.preset_current_pose)
+        button2.setCheckable(True)
         row.addWidget(button2)
+        self.preset_button_2 = button2
 
-        button3 = PySide2.QtWidgets.QPushButton("Unity", minimumHeight=24)
+        button3 = PySide2.QtWidgets.QPushButton("Blender > Unity", minimumHeight=24)
         button3.clicked.connect(self.preset_unity)
+        button3.setCheckable(True)
         row.addWidget(button3)
+        self.preset_button_3 = button3
+
+        self.label_desc = PySide2.QtWidgets.QLabel()
+        self.label_desc.setText("")
+        layout.addWidget(self.label_desc)
+        self.label_desc.setStyleSheet("color: #d2ff7b; font: italic 13px")
+        self.label_desc.setWordWrap(True)
+
+        layout.addSpacing(10)
 
         label_1 = PySide2.QtWidgets.QLabel()
-        label_1.setText(f"Avatar Type: {self.avatar_type_string}")
+        label_1.setText(f"Avatar: {self.avatar_type_string}  -  Profile: {self.profile_type_string}")
+        label_1.setStyleSheet("color: white; font: bold")
         layout.addWidget(label_1)
-
-        label_2 = PySide2.QtWidgets.QLabel()
-        label_2.setText(f"Facial Profile: {self.profile_type_string}")
-        layout.addWidget(label_2)
 
         layout.addSpacing(10)
 
@@ -1238,6 +1257,16 @@ class Exporter:
 
 
     def preset_mesh_only(self):
+        self.preset_button_1.setChecked(True)
+        self.preset_button_2.setChecked(False)
+        self.preset_button_3.setChecked(False)
+        self.preset_button_1.setStyleSheet("background-color: #82be0f; color: black; font: bold")
+        self.preset_button_2.setStyleSheet("background-color: none; color: white; font: bold")
+        self.preset_button_3.setStyleSheet("background-color: none; color: white; font: bold")
+        self.label_desc.setText("Round Trip Editing:\n\n" +
+                                "Export the character as mesh only in the bind pose without animation, " +
+                                "with full facial expression data and human IK profile (non-standard), " +
+                                "for complete round trip character editing.")
         self.option_bakehair = False
         self.option_bakeskin = False
         self.option_hik_data = True
@@ -1249,6 +1278,15 @@ class Exporter:
 
 
     def preset_current_pose(self):
+        self.preset_button_1.setChecked(False)
+        self.preset_button_2.setChecked(True)
+        self.preset_button_3.setChecked(False)
+        self.preset_button_1.setStyleSheet("background-color: none; color: white; font: bold")
+        self.preset_button_2.setStyleSheet("background-color: #82be0f; color: black; font: bold")
+        self.preset_button_3.setStyleSheet("background-color: none; color: white; font: bold")
+        self.label_desc.setText("Accessory Creation / Replace Mesh:\n\n" +
+                                "Export the full character in the current pose, " +
+                                "for accessory creation or replacement mesh editing.\n")
         self.option_bakehair = True
         self.option_bakeskin = True
         self.option_hik_data = True
@@ -1260,6 +1298,15 @@ class Exporter:
 
 
     def preset_unity(self):
+        self.preset_button_1.setChecked(False)
+        self.preset_button_2.setChecked(False)
+        self.preset_button_3.setChecked(True)
+        self.preset_button_1.setStyleSheet("background-color: none; color: white; font: bold")
+        self.preset_button_2.setStyleSheet("background-color: none; color: white; font: bold")
+        self.preset_button_3.setStyleSheet("background-color: #82be0f; color: black; font: bold")
+        self.label_desc.setText("Blender to Unity Pipeline:\n\n" +
+                                "Export the character with hidden faces removed, skin & hair textures baked and " +
+                                "with T-pose bind pose, for editing in Blender before exporting from Blender to Unity.")
         self.option_bakehair = True
         self.option_bakeskin = True
         self.option_hik_data = False
