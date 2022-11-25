@@ -53,6 +53,9 @@ By default the FBX export settings have embed textures switched on, but this mak
 
 ## Changelog
 
+### 1.1.2
+- Export toggle buttons and info labels.
+
 ### 1.1.1
 - Characterization import for non-standard humanoid characters now working.
 - Accessory physics export / import fixed.
