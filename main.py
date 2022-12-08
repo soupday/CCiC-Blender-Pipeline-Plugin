@@ -1562,9 +1562,10 @@ def convert_texture_path(tex_info, var_name, folder):
     """
     if tex_info and var_name in tex_info.keys():
         rel_path = tex_info[var_name]
-        if os.path.isabs(rel_path):
-            return os.path.normpath(rel_path)
-        return os.path.normpath(os.path.join(folder, rel_path))
+        if rel_path:
+            if os.path.isabs(rel_path):
+                return os.path.normpath(rel_path)
+            return os.path.normpath(os.path.join(folder, rel_path))
     return None
 
 

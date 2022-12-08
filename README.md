@@ -1,5 +1,7 @@
 # CC4 Blender Pipeline Tool (Installed in CC4)
 
+**This plugin is for Character Creator 4, for Character Creator 3 [look here](https://github.com/soupday/CC3-Blender-Tools-Plugin)**
+
 This is a python plugin for Character Creator 4 to re-import a character from Blender generated using the **CC4 Blender Pipeline Tool** auto-setup add-on: https://github.com/soupday/cc_blender_tools.
 
 This plugin will re-import the selected character and reconstruct the materials exactly as specified in the character Json data, which is exported with all FbxKey exports to Blender.
@@ -43,11 +45,8 @@ Alternatively the main.py script can run as a standalone script from the **Scrip
 
 ## Known Issues
 
-By default the FBX export settings have embed textures switched on, but this makes the export incompatible with re-importing the character back into CC4 as the textures are hidden in the original fbx and are not accessible to the file system.
-
+- By default the FBX export settings have embed textures switched on, but this makes the export incompatible with re-importing the character back into CC4 as the textures are hidden in the original fbx and are not accessible to the file system.
 **Always turn off embed textures.**
-
-### Known Issues
 
 - Hidden faces information for clothing and accessories is lost upon re-importing into CC4.
 
