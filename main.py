@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -669,6 +669,10 @@ class Importer:
                                     offset_vector = RLPy.RVector2(float(offset[0]), float(offset[1]))
                                     tiling = tex_info["Tiling"]
                                     tiling_vector = RLPy.RVector2(float(tiling[0]), float(tiling[1]))
+                                    if offset_vector.x != 0.0 or offset_vector.y != 0.0:
+                                        if tiling_vector.x != 1.0 or tiling_vector.y != 1.0:
+                                            load_texture = True
+                                    load_texture = True
                                     # Note: rotation doesn't seem to be exported to the Json?
                                     rotation = float(0.0)
                                     if "Rotation" in tex_info.keys():
@@ -677,9 +681,11 @@ class Importer:
                                     if os.path.exists(tex_path) and os.path.isfile(tex_path):
                                         if load_texture:
                                             material_component.LoadImageToTexture(mesh_name, mat_name, tex_channel, tex_path)
+                                        # this function is broken, it does not take negative tiling values
+                                        # also UV settings are disabled for Accessories...
                                         material_component.AddUvDataKey(key_zero, mesh_name, mat_name, tex_channel, offset_vector, tiling_vector, rotation)
                                         material_component.AddTextureWeightKey(key_zero, mesh_name, mat_name, tex_channel, strength)
-                                        twl = material_component.GetTextureWeights(mesh_name, mat_name)
+                                        #twl = material_component.GetTextureWeights(mesh_name, mat_name)
                                     if tex_id == "Displacement":
                                         level = 0
                                         multiplier = 0
@@ -1032,10 +1038,11 @@ class Importer:
                 if "Categories" in profile_json.keys():
                     categories_json = profile_json["Categories"]
                     for category in categories_json.keys():
-                        log(f"Gathering Expressions for Category: {category}")
-                        sliders.extend(categories_json[category])
-                log(f"Importing Facial Expressions:")
-                facial_profile.ImportMorphs(self.path, True, sliders, "")
+                        if category != "Jaw" and category != "EyeLook" and category != "Head":
+                            log(f"Gathering Expressions for Category: {category}")
+                            sliders.extend(categories_json[category])
+                    log(f"Importing Facial Expressions:")
+                    facial_profile.ImportMorphs(self.path, True, sliders, "Custom")
 
 
     def import_hik_profile(self):
@@ -1080,6 +1087,7 @@ class Exporter:
     check_bakeskin = None
     check_t_pose = None
     check_current_pose = None
+    check_current_animation = None
     check_hik_data = None
     check_profile_data = None
     check_remove_hidden = None
@@ -1087,6 +1095,7 @@ class Exporter:
     option_bakeskin = False
     option_t_pose = False
     option_current_pose = False
+    option_current_animation = False
     option_hik_data = False
     option_profile_data = True
     option_remove_hidden = False
@@ -1219,6 +1228,10 @@ class Exporter:
         self.check_current_pose.setText("Current Pose")
         layout.addWidget(self.check_current_pose)
 
+        self.check_current_animation = PySide2.QtWidgets.QCheckBox()
+        self.check_current_animation.setText("Current Animation")
+        layout.addWidget(self.check_current_animation)
+
         self.check_remove_hidden = PySide2.QtWidgets.QCheckBox()
         self.check_remove_hidden.setText("Delete Hidden Faces")
         layout.addWidget(self.check_remove_hidden)
@@ -1243,6 +1256,7 @@ class Exporter:
         if self.check_bakeskin: self.check_bakeskin.setChecked(self.option_bakeskin)
         if self.check_t_pose: self.check_t_pose.setChecked(self.option_t_pose)
         if self.check_current_pose: self.check_current_pose.setChecked(self.option_current_pose)
+        if self.check_current_animation: self.check_current_animation.setChecked(self.option_current_animation)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
 
 
@@ -1250,6 +1264,7 @@ class Exporter:
         if self.check_bakehair: self.option_bakehair = self.check_bakehair.isChecked()
         if self.check_bakeskin: self.option_bakeskin = self.check_bakeskin.isChecked()
         if self.check_current_pose: self.option_current_pose = self.check_current_pose.isChecked()
+        if self.check_current_animation: self.option_current_animation = self.check_current_animation.isChecked()
         if self.check_hik_data: self.option_hik_data = self.check_hik_data.isChecked()
         if self.check_profile_data: self.option_profile_data = self.check_profile_data.isChecked()
         if self.check_t_pose: self.option_t_pose = self.check_t_pose.isChecked()
@@ -1273,6 +1288,7 @@ class Exporter:
         self.option_profile_data = True
         self.option_t_pose = False
         self.option_current_pose = False
+        self.option_current_animation = False
         self.option_remove_hidden = False
         self.update_options()
 
@@ -1293,6 +1309,7 @@ class Exporter:
         self.option_profile_data = False
         self.option_t_pose = False
         self.option_current_pose = True
+        self.option_current_animation = False
         self.option_remove_hidden = False
         self.update_options()
 
@@ -1313,6 +1330,7 @@ class Exporter:
         self.option_profile_data = False
         self.option_t_pose = True
         self.option_current_pose = False
+        self.option_current_animation = False
         self.option_remove_hidden = True
         self.update_options()
 
@@ -1324,6 +1342,7 @@ class Exporter:
         self.check_bakehair = None
         self.check_bakeskin = None
         self.check_current_pose = None
+        self.check_current_animation = None
         self.check_hik_data = None
         self.check_profile_data = None
         self.check_t_pose = None
@@ -1382,6 +1401,13 @@ class Exporter:
         if self.option_current_pose:
             export_fbx_setting.EnableExportMotion(True)
             export_fbx_setting.SetExportMotionRange(RLPy.RRangePair(0, 1))
+            export_fbx_setting.SetExportMotionFps(RLPy.RFps.Fps60)
+        elif self.option_current_animation:
+            fps = RLPy.RGlobal.GetFps()
+            startFrame = fps.GetFrameIndex(RLPy.RGlobal.GetStartTime())
+            endFrame = fps.GetFrameIndex(RLPy.RGlobal.GetEndTime())
+            export_fbx_setting.EnableExportMotion(True)
+            export_fbx_setting.SetExportMotionRange(RLPy.RRangePair(startFrame, endFrame))
             export_fbx_setting.SetExportMotionFps(RLPy.RFps.Fps60)
         else:
             export_fbx_setting.EnableExportMotion(False)
@@ -1924,5 +1950,5 @@ def random_string(length):
 
 
 def run_script():
-    menu_export()
-    #menu_import()
+    #menu_export()
+    menu_import()

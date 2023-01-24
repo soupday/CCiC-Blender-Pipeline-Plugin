@@ -69,6 +69,9 @@ Known Issues
 Changelog
 =========
 
+### 1.1.3
+- Temporarily blocked the facial expression import of Jaw, EyeLook and Head categories as a bug in CC4 breaks the relationship between the expression blend shape and the facial bones.
+
 ### 1.1.2
 - Export toggle buttons and info labels.
 
