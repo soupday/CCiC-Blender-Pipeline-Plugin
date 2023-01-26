@@ -249,7 +249,7 @@ class Importer:
                         self.profile_path = os.path.join(self.folder, self.json_data[self.name]["Facial_Profile"]["Profile_Path"])
                         self.option_import_profile = True
                     if "Categories" in self.json_data[self.name]["Facial_Profile"].keys():
-                        self.option_import_expressions = True
+                        self.option_import_expressions = False
 
         if not error:
             self.create_options_window()
@@ -672,7 +672,6 @@ class Importer:
                                     if offset_vector.x != 0.0 or offset_vector.y != 0.0:
                                         if tiling_vector.x != 1.0 or tiling_vector.y != 1.0:
                                             load_texture = True
-                                    load_texture = True
                                     # Note: rotation doesn't seem to be exported to the Json?
                                     rotation = float(0.0)
                                     if "Rotation" in tex_info.keys():
