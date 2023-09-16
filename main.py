@@ -25,7 +25,7 @@ from PySide2 import *
 from shiboken2 import wrapInstance
 from enum import IntEnum
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
@@ -780,7 +780,7 @@ class Importer:
                                         if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                             substance_name = first_mat_in_mesh + "_" + str(mat_index) + "_" + substance_postfix + tex_type
                                             substance_path = os.path.normpath(os.path.join(mesh_folder, substance_name))
-                                            shutil.copyfile("\\\\?\\" + tex_path, "\\\\?\\" + substance_path)
+                                            copy_file(tex_path, substance_path)
 
                                     self.update_pbr_progress(2, pid)
 
@@ -827,7 +827,7 @@ class Importer:
                                             if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                                                 substance_name = mat_name + "_" + str(mat_index) + "_" + substance_postfix + tex_type
                                                 substance_path = os.path.normpath(os.path.join(mesh_folder, substance_name))
-                                                shutil.copyfile("\\\\?\\" + tex_path, "\\\\?\\" + substance_path)
+                                                copy_file(tex_path, substance_path)
 
                                         self.update_pbr_progress(2, pid)
 
@@ -1096,7 +1096,7 @@ class Exporter:
     option_current_pose = False
     option_current_animation = False
     option_hik_data = False
-    option_profile_data = True
+    option_profile_data = False
     option_remove_hidden = False
     preset_button_1 = None
     preset_button_2 = None
@@ -1284,7 +1284,7 @@ class Exporter:
         self.option_bakehair = False
         self.option_bakeskin = False
         self.option_hik_data = True
-        self.option_profile_data = True
+        self.option_profile_data = False
         self.option_t_pose = False
         self.option_current_pose = False
         self.option_current_animation = False
@@ -1946,6 +1946,19 @@ def random_string(length):
         r = random.randrange(0, l)
         res += chars[r]
     return res
+
+
+def safe_long_unc_path(path):
+    if path.startswith("//") or path.startswith("\\\\"):
+        return "\\\\?\\UNC" + path[1:]
+    else:
+        return "\\\\?\\" + path
+
+
+def copy_file(from_path, to_path):
+    safe_from_path = safe_long_unc_path(from_path)
+    safe_to_path = safe_long_unc_path(to_path)
+    shutil.copyfile(safe_from_path, safe_to_path)
 
 
 def run_script():
