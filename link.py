@@ -70,7 +70,7 @@ class DataLink(QObject):
 
     def create_window(self):
         self.window, layout = qt.window("Data Link", 400)
-        qt.label(layout, "A LABAL")
+        qt.label(layout, "Some Labels")
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
         self.combo_target = qt.combobox(row, "", options=["Blender", "Unity"], update=self.update_target)
