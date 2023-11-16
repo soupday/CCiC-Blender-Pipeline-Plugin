@@ -19,12 +19,14 @@ import importer
 import exporter
 import link
 import qt
+import tests
 
 rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
 
 FBX_IMPORTER: importer.Importer = None
 FBX_EXPORTER: exporter.Exporter = None
 LINK: link.DataLink = None
+
 
 def initialize_plugin():
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
@@ -39,7 +41,6 @@ def initialize_plugin():
 def menu_import():
     global FBX_IMPORTER
     FBX_IMPORTER = None
-
     file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
     if file_path and file_path != "":
         FBX_IMPORTER = importer.Importer(file_path)
@@ -48,7 +49,6 @@ def menu_import():
 def menu_export():
     global FBX_EXPORTER
     FBX_EXPORTER = None
-
     avatar_list = RLPy.RScene.GetAvatars()
     if len(avatar_list) > 0:
         FBX_EXPORTER = exporter.Exporter()
@@ -56,7 +56,6 @@ def menu_export():
 
 def menu_link():
     global LINK
-
     if not LINK:
         LINK = link.DataLink()
     else:
@@ -65,3 +64,5 @@ def menu_link():
 
 def run_script():
     initialize_plugin()
+
+
