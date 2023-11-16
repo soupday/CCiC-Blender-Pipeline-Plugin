@@ -21,21 +21,6 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 
 
-def blender_matrix4():
-    M4 = RLPy.RMatrix4( 1,  0,  0,  1,
-                        0, -1,  0,  1,
-                        0,  0,  1,  1,
-                        0,  0,  0,  1)
-    return M4
-
-
-def blender_matrix3():
-    M3 = RLPy.RMatrix3( 1,  0,  0,
-                        0, -1,  0,
-                        0,  0,  1)
-    return M3
-
-
 def get_skeleton(avatar: RLPy.RIAvatar):
     SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
     skin_bones: list = SC.GetSkinBones()
@@ -49,6 +34,8 @@ def get_skeleton(avatar: RLPy.RIAvatar):
 
 
 def get_world_pose(avatar: RLPy.RIAvatar):
+    """Get the current pose in world transforms.
+       Note: this produces valid world transforms for Blender."""
     SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
     skin_bones: list = SC.GetSkinBones()
     bone: RLPy.RIObject
@@ -71,6 +58,8 @@ def get_world_pose(avatar: RLPy.RIAvatar):
 
 
 def get_local_pose(avatar: RLPy.RIAvatar):
+    """Get the current pose in local transforms.
+       Note: this *does not* produce valid local transforms for Blender pose bones."""
     SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
     skin_bones: list = SC.GetSkinBones()
     bone: RLPy.RIObject
@@ -93,6 +82,7 @@ def get_local_pose(avatar: RLPy.RIAvatar):
 
 
 def get_original_axis_pose(avatar: RLPy.RIAvatar):
+    """Not sure what this generates TBH"""
     SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
     pose_data = {}
     T: RLPy.RTransform
