@@ -82,40 +82,35 @@ class Exporter:
     label_desc = None
 
 
-    def __init__(self):
+    def __init__(self, avatar, no_window=False):
         utils.log("================================================================")
         utils.log("New character export, Fbx")
 
-        avatar_list = RLPy.RScene.GetAvatars()
+        self.avatar = avatar
 
-        if len(avatar_list) > 0:
+        if self.avatar:
 
-            self.avatar = avatar_list[0]
+            self.avatar_type = self.avatar.GetAvatarType()
+            self.avatar_type_string = "None"
+            if self.avatar_type in AVATAR_TYPES.keys():
+                self.avatar_type_string = AVATAR_TYPES[self.avatar_type]
 
-            if self.avatar:
+            self.profile_type = RLPy.EFacialProfile__None
+            self.profile_type_string = "None"
+            if (self.avatar_type == RLPy.EAvatarType_NonStandard or
+                self.avatar_type == RLPy.EAvatarType_Standard or
+                self.avatar_type == RLPy.EAvatarType_StandardSeries):
+                facial_profile = self.avatar.GetFacialProfileComponent()
+                self.profile_type = facial_profile.GetProfileType()
+                if self.profile_type in FACIAL_PROFILES.keys():
+                    self.profile_type_string = FACIAL_PROFILES[self.profile_type]
 
-                self.avatar_type = self.avatar.GetAvatarType()
-                self.avatar_type_string = "None"
-                if self.avatar_type in AVATAR_TYPES.keys():
-                    self.avatar_type_string = AVATAR_TYPES[self.avatar_type]
-
-                self.profile_type = RLPy.EFacialProfile__None
-                self.profile_type_string = "None"
-                if (self.avatar_type == RLPy.EAvatarType_NonStandard or
-                    self.avatar_type == RLPy.EAvatarType_Standard or
-                    self.avatar_type == RLPy.EAvatarType_StandardSeries):
-                    facial_profile = self.avatar.GetFacialProfileComponent()
-                    self.profile_type = facial_profile.GetProfileType()
-                    if self.profile_type in FACIAL_PROFILES.keys():
-                        self.profile_type_string = FACIAL_PROFILES[self.profile_type]
-
+            if not no_window:
                 self.create_options_window()
-
 
     def clean_up_globals(self):
         global FBX_EXPORTER
         FBX_EXPORTER = None
-
 
     def set_paths(self, file_path):
         self.fbx_path = file_path
@@ -126,7 +121,6 @@ class Exporter:
         self.json_path = os.path.join(self.folder, self.character_id + ".json")
         self.hik_path = os.path.join(self.folder, self.character_id + ".3dxProfile")
         self.profile_path = os.path.join(self.folder, self.character_id + ".ccFacialProfile")
-
 
     def create_options_window(self):
         title = f"Blender Auto-setup Character Export ({vars.VERSION}) - Options"
@@ -170,7 +164,6 @@ class Exporter:
         self.preset_mesh_only()
         self.window_options.Show()
 
-
     def update_options(self):
         if self.check_hik_data: self.check_hik_data.setChecked(self.option_hik_data)
         if self.check_profile_data: self.check_profile_data.setChecked(self.option_profile_data)
@@ -181,7 +174,6 @@ class Exporter:
         if self.check_current_animation: self.check_current_animation.setChecked(self.option_current_animation)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
 
-
     def fetch_options(self):
         if self.check_bakehair: self.option_bakehair = self.check_bakehair.isChecked()
         if self.check_bakeskin: self.option_bakeskin = self.check_bakeskin.isChecked()
@@ -191,7 +183,6 @@ class Exporter:
         if self.check_profile_data: self.option_profile_data = self.check_profile_data.isChecked()
         if self.check_t_pose: self.option_t_pose = self.check_t_pose.isChecked()
         if self.check_remove_hidden: self.option_remove_hidden = self.check_remove_hidden.isChecked()
-
 
     def preset_mesh_only(self):
         self.preset_button_1.setChecked(True)
@@ -214,7 +205,6 @@ class Exporter:
         self.option_remove_hidden = False
         self.update_options()
 
-
     def preset_current_pose(self):
         self.preset_button_1.setChecked(False)
         self.preset_button_2.setChecked(True)
@@ -234,7 +224,6 @@ class Exporter:
         self.option_current_animation = False
         self.option_remove_hidden = False
         self.update_options()
-
 
     def preset_unity(self):
         self.preset_button_1.setChecked(False)
@@ -256,7 +245,6 @@ class Exporter:
         self.option_remove_hidden = True
         self.update_options()
 
-
     def close_options_window(self):
         if self.window_options:
             self.window_options.Close()
@@ -270,6 +258,16 @@ class Exporter:
         self.check_t_pose = None
         self.check_remove_hidden = None
 
+    def set_data_link_export(self, file_path):
+        self.option_bakehair = False
+        self.option_bakeskin = False
+        self.option_hik_data = False
+        self.option_profile_data = False
+        self.option_t_pose = False
+        self.option_current_pose = False
+        self.option_current_animation = False
+        self.option_remove_hidden = False
+        self.set_paths(file_path)
 
     def do_export(self):
         file_path = RLPy.RUi.SaveFileDialog("Fbx Files(*.fbx)")
@@ -283,7 +281,6 @@ class Exporter:
             self.clean_up_globals()
         else:
             utils.log("Export Cancelled.")
-
 
     def export_fbx(self):
         avatar = self.avatar
@@ -336,7 +333,6 @@ class Exporter:
 
         result = RLPy.RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
 
-
     def export_extra_data(self):
 
         json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
@@ -386,7 +382,6 @@ class Exporter:
         utils.log(f"Re-writing JSON data: {self.json_path}")
 
         json_data.write()
-
 
     def export_physics(self, mesh_materials):
         utils.log(f"Exporting Extra Physics Data")

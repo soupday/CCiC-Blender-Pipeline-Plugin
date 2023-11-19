@@ -406,15 +406,17 @@ class CCJsonData():
 
         if character_json:
 
-            meshes_json = character_json["Meshes"]
-            for mesh_name in meshes_json:
-                mesh_json = meshes_json[mesh_name]
-                meshes[mesh_name] = CCMeshJson(mesh_json, mesh_name)
+            meshes_json = get_json(character_json, "Meshes")
+            if meshes_json:
+                for mesh_name in meshes_json:
+                    mesh_json = meshes_json[mesh_name]
+                    meshes[mesh_name] = CCMeshJson(mesh_json, mesh_name)
 
-            physics_meshes_json = character_json["Physics"]["Soft Physics"]["Meshes"]
-            for phys_mesh_name in physics_meshes_json:
-                physics_mesh_json = physics_meshes_json[phys_mesh_name]
-                physics_meshes[phys_mesh_name] = CCPhysicsMeshJson(physics_mesh_json, phys_mesh_name)
+            physics_meshes_json = get_json(character_json, "Physics/Soft Physics/Meshes")
+            if physics_meshes_json:
+                for phys_mesh_name in physics_meshes_json:
+                    physics_mesh_json = physics_meshes_json[phys_mesh_name]
+                    physics_meshes[phys_mesh_name] = CCPhysicsMeshJson(physics_mesh_json, phys_mesh_name)
 
         self.meshes = meshes
         self.physics_meshes = physics_meshes
@@ -920,9 +922,14 @@ def custom_content_path():
     return res[1]
 
 
-def temp_files_path():
+def temp_files_path(sub_path=None, create=False):
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
-    return res[1]
+    path = res[1]
+    if sub_path:
+        path = os.path.join(path, sub_path)
+        if create:
+            os.makedirs(path, exist_ok=True)
+    return path
 
 
 def key_zero():
@@ -1098,6 +1105,16 @@ def convert_from_json_param(var_name, var_value):
             return var_value
     else:
         return var_value
+
+
+def get_json(json_data, path: str):
+    keys = path.split("/")
+    for key in keys:
+        if key in json_data:
+            json_data = json_data[key]
+        else:
+            return None
+    return json_data
 
 
 def convert_phys_var(var_name, var_value):

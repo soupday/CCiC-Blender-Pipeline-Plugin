@@ -21,19 +21,20 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random
-import pose, blender, cc, qt, utils, vars
+import blender, exporter, cc, qt, utils, vars
 from enum import IntEnum
 
 LOCALHOST = "127.0.0.1"
 BLENDER_PORT = 9334
 UNITY_PORT = 9335
 RL_PORT = 9333
-INTERVAL_MS = 100
+TIMER_INTERVAL = 1000/30
 MAX_CHUNK_SIZE = 32768
 HANDSHAKE_TIMEOUT_S = 60
 KEEPALIVE_TIMEOUT_S = 30
 PING_INTERVAL_S = 10
 SERVER_ONLY = True
+CLIENT_ONLY = False
 EMPTY_SOCKETS = []
 
 class OpCodes(IntEnum):
@@ -42,12 +43,124 @@ class OpCodes(IntEnum):
     PING = 2
     STOP = 10
     DISCONNECT = 11
-    POSE = 100
+    CHARACTER = 100
+    RIGIFY = 110
+    SKELETON = 200
+    POSE = 201
+    SEQUENCE = 202
+    SEQUENCE_REQ = 203
+    SEQUENCE_FRAME = 204
 
-def byte_serialize(json_data):
+
+def pack_string(s):
+    buffer = bytearray()
+    buffer += struct.pack("!I", len(s))
+    buffer += bytes(s, encoding="utf-8")
+    return buffer
+
+
+def unpack_string(buffer, offset=0):
+    length = struct.unpack_from("!I", buffer, offset)[0]
+    offset += 4
+    string: bytearray = buffer[offset:offset+length]
+    offset += length
+    return offset, string.decode(encoding="utf-8")
+
+
+def encode_from_json(json_data):
     json_string = json.dumps(json_data)
     json_bytes = bytearray(json_string, "utf-8")
     return json_bytes
+
+
+def decode_to_json(data):
+    text = data.decode("utf-8")
+    json_data = json.loads(text)
+    return json_data
+
+
+def encode_skeleton_data(avatar: RLPy.RIAvatar):
+    # num_bones: int,
+    # bone_name: str (x num_bones)
+
+    SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
+    skin_bones = SC.GetSkinBones()
+
+    data = bytearray()
+    data += struct.pack("!I", len(skin_bones))
+    for bone in skin_bones:
+        name = bone.GetName()
+        print(f"Name: {name}")
+        data += pack_string(name)
+    return data
+
+
+def encode_pose_data(avatar: RLPy.RIAvatar):
+    SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
+    skin_bones = SC.GetSkinBones()
+
+    data = bytearray()
+    data += struct.pack("!I", get_current_frame())
+    for bone in skin_bones:
+        T: RLPy.RTransform = bone.WorldTransform()
+        t: RLPy.RVector3 = T.T()
+        r: RLPy.RQuaternion = T.R()
+        s: RLPy.RVector3 = T.S()
+        data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+    return data
+
+
+def get_animation_data(avatar: RLPy.RIAvatar):
+    fps: RLPy.RFps = RLPy.RGlobal.GetFps()
+    current_time: RLPy.RTime = RLPy.RGlobal.GetTime()
+    start_time: RLPy.RTime = RLPy.RGlobal.GetStartTime()
+    end_time: RLPy.RTime = RLPy.RGlobal.GetEndTime()
+    current_frame = fps.GetFrameIndex(current_time)
+    start_frame = fps.GetFrameIndex(start_time)
+    end_frame = fps.GetFrameIndex(end_time)
+    data = {
+        "name": avatar.GetName(),
+        "fps": fps.ToFloat(),
+        "current_time": current_time.ToFloat(),
+        "start_time": start_time.ToFloat(),
+        "end_time": end_time.ToFloat(),
+        "current_frame": current_frame,
+        "start_frame": start_frame,
+        "end_frame": end_frame,
+    }
+    return data
+
+
+def reset_animation():
+    start_time = RLPy.RGlobal.GetStartTime()
+    RLPy.RGlobal.SetTime(start_time)
+    return start_time
+
+
+def get_current_frame():
+    fps: RLPy.RFps = RLPy.RGlobal.GetFps()
+    current_time = RLPy.RGlobal.GetTime()
+    current_frame = fps.GetFrameIndex(current_time)
+    return current_frame
+
+def get_end_frame():
+    fps: RLPy.RFps = RLPy.RGlobal.GetFps()
+    end_time: RLPy.RTime = RLPy.RGlobal.GetEndTime()
+    end_frame = fps.GetFrameIndex(end_time)
+    return end_frame
+
+
+def next_frame(time):
+    fps: RLPy.RFps = RLPy.RGlobal.GetFps()
+    next_time = fps.GetNextFrameTime(time)
+    RLPy.RGlobal.SetTime(next_time)
+    return next_time
+
+
+
+
+
+
 
 
 class LinkService(QObject):
@@ -59,57 +172,66 @@ class LinkService(QObject):
     empty_sockets = []
     client_ip: str = "127.0.0.1"
     client_port: int = BLENDER_PORT
-    is_server: bool = False
-    is_client: bool = False
     is_listening: bool = False
     is_connected: bool = False
-    is_initializing: bool = False
+    is_connecting: bool = False
     ping_timer: float = 0
     keepalive_timer: float = 0
     time: float = 0
     # Signals
     listening = Signal()
-    initializing = Signal()
+    connecting = Signal()
     connected = Signal()
     lost_connection = Signal()
     server_stopped = Signal()
     client_stopped = Signal()
-    received = Signal()
-    accepted = Signal()
+    received = Signal(int, bytearray)
+    accepted = Signal(str, int)
     sent = Signal()
     changed = Signal()
+    sequence = Signal()
+    # local props
+    local_app: str = None
+    local_version: str = None
+    local_path: str = None
+    # remote props
+    remote_app: str = None
+    remote_version: str = None
+    remote_path: str = None
 
     def start_server(self):
-        self.is_listening = False
-        try:
-            self.keepalive_timer = HANDSHAKE_TIMEOUT_S
-            self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_sock.bind(('', RL_PORT))
-            self.server_sock.listen(5)
-            self.server_sockets = [self.server_sock]
-            self.is_listening = True
-            utils.log_info(f"Listening on TCP *:{RL_PORT}")
-            self.listening.emit()
-            self.changed.emit()
-        except:
-            utils.log_error(f"Unable to start server on TCP *:{RL_PORT}")
+        if not self.server_sock:
+            try:
+                self.keepalive_timer = HANDSHAKE_TIMEOUT_S
+                self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.server_sock.bind(('', RL_PORT))
+                self.server_sock.listen(5)
+                self.server_sockets = [self.server_sock]
+                self.is_listening = True
+                utils.log_info(f"Listening on TCP *:{RL_PORT}")
+                self.listening.emit()
+                self.changed.emit()
+            except:
+                self.server_sock = None
+                self.server_sockets = []
+                self.is_listening = True
+                utils.log_error(f"Unable to start server on TCP *:{RL_PORT}")
 
     def stop_server(self):
-        self.is_listening = False
         if self.server_sock:
             utils.log_info(f"Closing Server Socket")
             self.server_sock.close()
-            self.server_sock = None
-            self.server_sockets = []
-            self.is_server = False
-            self.server_stopped.emit()
-            self.changed.emit()
+        self.is_listening = False
+        self.server_sock = None
+        self.server_sockets = []
+        self.server_stopped.emit()
+        self.changed.emit()
 
     def start_timer(self):
         self.time = time.time()
         if not self.timer:
             self.timer = QTimer(self)
-            self.timer.setInterval(INTERVAL_MS)
+            self.timer.setInterval(TIMER_INTERVAL)
             self.timer.timeout.connect(self.loop)
         self.timer.start()
         utils.log_info(f"Service timer started")
@@ -120,42 +242,61 @@ class LinkService(QObject):
             utils.log_info(f"Service timer stopped")
 
     def try_start_client(self, host, port):
-        self.is_connected = False
-        utils.log_info(f"Attempting to connect")
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((host, port))
-            self.is_connected = False
-            self.is_initializing = True
-            self.is_client = True
-            self.client_sock = sock
-            self.client_sockets = [sock]
-            self.client_ip = self.host_ip
-            self.client_port = self.host_port
-            self.keepalive_timer = KEEPALIVE_TIMEOUT_S
-            self.ping_timer = PING_INTERVAL_S
-            self.send(OpCodes.HELLO)
-            utils.log_info(f"Initializing data link server on {self.host_ip}:{self.host_port}")
-            self.initializing.emit()
-            self.changed.emit()
+        if not self.client_sock:
+            utils.log_info(f"Attempting to connect")
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect((host, port))
+                self.is_connected = False
+                self.is_connecting = True
+                self.client_sock = sock
+                self.client_sockets = [sock]
+                self.client_ip = self.host_ip
+                self.client_port = self.host_port
+                self.keepalive_timer = KEEPALIVE_TIMEOUT_S
+                self.ping_timer = PING_INTERVAL_S
+                self.send_hello()
+                utils.log_info(f"Connecting to data link server on {self.host_ip}:{self.host_port}")
+                self.connecting.emit()
+                self.changed.emit()
+                return True
+            except:
+                self.client_sock = None
+                self.client_sockets = []
+                self.is_connected = False
+                self.is_connecting = False
+                utils.log_info(f"Host not listening...")
+                return False
+        else:
+            utils.log_info(f"Client already connected!")
             return True
-        except:
-            utils.log_info(f"Host not listening...")
-            return False
+
+    def send_hello(self):
+        self.local_app = RLPy.RApplication.GetProductName()
+        self.local_version = RLPy.RApplication.GetProductVersion()
+        self.local_path = cc.temp_files_path("Data Link", True)
+        json_data = {
+            "Application": self.local_app,
+            "Version": self.local_version,
+            "Path": self.local_path
+        }
+        self.send(OpCodes.HELLO, encode_from_json(json_data))
 
     def stop_client(self):
-        self.is_connected = False
         if self.client_sock:
             utils.log_info(f"Closing Client Socket")
             self.client_sock.close()
-            self.client_sock = None
-            self.client_sockets = []
-            self.is_client = False
-            self.client_stopped.emit()
-            self.changed.emit()
+        self.is_connected = False
+        self.is_connecting = False
+        self.client_sock = None
+        self.client_sockets = []
+        if self.listening:
+            self.keepalive_timer = HANDSHAKE_TIMEOUT_S
+        self.client_stopped.emit()
+        self.changed.emit()
 
     def recv(self):
-        if self.client_sock:
+        if self.client_sock and (self.is_connected or self.is_connecting):
             r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
             if r:
                 header = self.client_sock.recv(8)
@@ -173,7 +314,7 @@ class LinkService(QObject):
                     self.received.emit(op_code, data)
 
     def accept(self):
-        if self.server_sock:
+        if self.server_sock and self.is_listening:
             r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
             if r:
                 sock, address = self.server_sock.accept()
@@ -181,21 +322,27 @@ class LinkService(QObject):
                 self.client_sockets = [sock]
                 self.client_ip = address[0]
                 self.client_port = address[1]
-                self.is_connected = True
-                self.is_server = True
+                self.is_connected = False
+                self.is_connecting = True
                 self.keepalive_timer = KEEPALIVE_TIMEOUT_S
                 self.ping_timer = PING_INTERVAL_S
                 utils.log_info(f"Incoming connection received from: {address[0]}:{address[1]}")
-                self.send(OpCodes.PING)
+                self.send_hello()
                 self.accepted.emit(self.client_ip, self.client_port)
                 self.changed.emit()
 
-    def parse(self, op_code):
+    def parse(self, op_code, data):
+        self.keepalive_timer = KEEPALIVE_TIMEOUT_S
         if op_code == OpCodes.HELLO:
             utils.log_info(f"Hello Received")
-            if self.is_initializing:
-                self.is_initializing = False
-                self.is_connected = True
+            self.service_initialize()
+            if data:
+                json_data = decode_to_json(data)
+                self.remote_app = json_data["Application"]
+                self.remote_version = json_data["Version"]
+                self.remote_path = json_data["Path"]
+                utils.log_info(f"Connected to: {self.remote_app} {self.remote_version}")
+                utils.log_info(f"Using file path: {self.remote_path}")
         if op_code == OpCodes.PING:
             utils.log_info(f"Ping Received")
             pass
@@ -207,15 +354,21 @@ class LinkService(QObject):
             self.service_disconnect()
 
     def service_start(self, host, port):
-        if not self.is_listening and not self.is_connected:
+        if not self.is_listening:
             self.start_timer()
             if SERVER_ONLY:
                 self.start_server()
             else:
                 if not self.try_start_client(host, port):
-                    self.start_server()
-        elif self.is_listening and self.is_connected:
-            self.service_disconnect()
+                    if not CLIENT_ONLY:
+                        self.start_server()
+
+    def service_initialize(self):
+        if self.is_connecting:
+            self.is_connecting = False
+            self.is_connected = True
+            self.connected.emit()
+            self.changed.emit()
 
     def service_disconnect(self):
         self.send(OpCodes.DISCONNECT)
@@ -250,25 +403,24 @@ class LinkService(QObject):
                 utils.log_info("no connection within time limit!")
                 self.service_stop()
 
-        if self.is_listening and not self.is_connected:
-            self.accept()
+        # accept incoming connections
+        self.accept()
 
-        if self.is_connected:
-            self.recv()
+        # receive client data
+        self.recv()
 
-    def send(self, op_code, json_data = None):
-        if self.client_sock and self.is_connected:
+        # run anything in sequence
+        self.sequence.emit()
+
+    def send(self, op_code, binary_data = None):
+        if self.client_sock and (self.is_connected or self.is_connecting):
             try:
-                json_bytes = None
-                json_len = 0
-                if json_data:
-                    json_bytes = byte_serialize(json_data)
-                    json_len = len(json_bytes)
-                header = struct.pack("!II", op_code, json_len)
+                data_length = len(binary_data) if binary_data else 0
+                header = struct.pack("!II", op_code, data_length)
                 data = bytearray()
                 data.extend(header)
-                if json_bytes:
-                    data.extend(json_bytes)
+                if binary_data:
+                    data.extend(binary_data)
                 self.client_sock.sendall(data)
                 self.ping_timer = PING_INTERVAL_S
                 self.sent.emit()
@@ -276,6 +428,10 @@ class LinkService(QObject):
                 utils.log_error("Error sending message, disconnecting...")
                 self.lost_connection.emit()
                 self.stop_client()
+
+
+
+
 
 
 
@@ -292,6 +448,10 @@ class DataLink(QObject):
     combo_target: QComboBox = None
     # Service
     service: LinkService = None
+    #
+    frame_time: RLPy.RTime = 0
+    frame: int = 0
+    sent_frame: int = 0
 
     def __init__(self):
         QObject.__init__(self)
@@ -317,7 +477,10 @@ class DataLink(QObject):
 
         qt.spacing(layout, 10)
 
-        qt.button(layout, "TEST", self.send_test)
+        qt.button(layout, "Send Character", self.send_character)
+        qt.button(layout, "Rigify Character", self.send_rigify)
+        qt.button(layout, "Send Pose", self.send_pose)
+        qt.button(layout, "Send Animation", self.send_sequence)
 
         qt.stretch(layout, 10)
 
@@ -369,13 +532,11 @@ class DataLink(QObject):
                 self.button_link.setText("Connect")
 
     def link_start(self):
-        if self.service:
-            self.service.service_start(self.host_ip, self.host_port)
-        else:
+        if not self.service:
             self.service = LinkService(self)
             self.service.changed.connect(self.show_link_state)
             self.service.received.connect(self.parse)
-            self.service.service_start(self.host_ip, self.host_port)
+        self.service.service_start(self.host_ip, self.host_port)
 
     def link_stop(self):
         if self.service:
@@ -385,17 +546,83 @@ class DataLink(QObject):
         if self.service:
             self.service.service_disconnect()
 
-    def parse(self, op_code, message):
-        if message:
-            text = message.decode("utf-8")
-            json_data = json.load(text)
-            print(f"Message: {json_data}")
-
+    def parse(self, op_code, data):
         if op_code == OpCodes.POSE:
             print(f"Do something with the pose...")
 
-    def send_test(self):
+        if op_code == OpCodes.SEQUENCE_REQ:
+            print(f"Sequence Request")
+            self.receive_sequence_req(data)
+
+    def get_export_path(self, name):
+        remote_path = self.service.remote_path
+        local_path = self.service.local_path
+        if remote_path:
+            export_folder = remote_path
+        else:
+            export_folder = local_path
+        return os.path.join(export_folder, name)
+
+    def send_character(self):
         avatar = cc.get_first_avatar()
-        pose_data = pose.get_pose_data(avatar)
+        export_path = self.get_export_path(avatar.GetName() + ".fbx")
+        export = exporter.Exporter(avatar, no_window=True)
+        export.set_data_link_export(export_path)
+        export.export_fbx()
+        export.export_extra_data()
+        export_data = { "path": export_path, "name": avatar.GetName() }
+        self.service.send(OpCodes.CHARACTER, encode_from_json(export_data))
+
+    def send_rigify(self):
+        avatar = cc.get_first_avatar()
+        rigify_data = { "name": avatar.GetName() }
+        self.service.send(OpCodes.RIGIFY, encode_from_json(rigify_data))
+
+    def send_pose(self):
+        avatar = cc.get_first_avatar()
+        # send skeleton data first
+        skeleton_data = encode_skeleton_data(avatar)
+        self.service.send(OpCodes.SKELETON, skeleton_data)
+        # send pose data
+        pose_data = encode_pose_data(avatar)
         self.service.send(OpCodes.POSE, pose_data)
+
+    def send_sequence(self):
+        avatar = cc.get_first_avatar()
+        # reset animation to start
+        self.frame_time = reset_animation()
+        self.frame = get_current_frame()
+        # send animation meta data
+        anim_data = get_animation_data(avatar)
+        self.service.send(OpCodes.SEQUENCE, encode_from_json(anim_data))
+        # send skeleton data first
+        skeleton_data = encode_skeleton_data(avatar)
+        self.service.send(OpCodes.SKELETON, skeleton_data)
+        # start the sending sequence
+        self.service.timer.setInterval(1000/60)
+        self.service.sequence.connect(self.send_sequence_frame)
+
+    def send_sequence_frame(self):
+        avatar = cc.get_first_avatar()
+        # send current sequence frame pose
+        pose_data = encode_pose_data(avatar)
+        self.service.send(OpCodes.SEQUENCE_FRAME, pose_data)
+        self.sent_frame = get_current_frame()
+        # check for end
+        if self.sent_frame == get_end_frame():
+            self.service.sequence.disconnect()
+            self.service.timer.setInterval(TIMER_INTERVAL)
+            return
+        # advance to next frame now
+        self.frame_time = next_frame(self.frame_time)
+        self.frame = get_current_frame()
+
+    def receive_sequence_req(self, data):
+        req_data = decode_to_json(data)
+        end_frame = get_end_frame()
+        req_frame = req_data["frame"]
+        req_count = req_data["count"]
+        print(f"frame: {self.frame}, end_frame: {end_frame}, req_frame: {req_frame}")
+
+
 

@@ -51,7 +51,7 @@ def menu_export():
     FBX_EXPORTER = None
     avatar_list = RLPy.RScene.GetAvatars()
     if len(avatar_list) > 0:
-        FBX_EXPORTER = exporter.Exporter()
+        FBX_EXPORTER = exporter.Exporter(avatar_list[0])
 
 
 def menu_link():
