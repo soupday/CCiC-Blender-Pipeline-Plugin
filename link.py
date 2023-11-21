@@ -21,14 +21,14 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random
-import blender, exporter, cc, qt, utils, vars
+import blender, exporter, cc, qt, utils, vars, tests
 from enum import IntEnum
 
 LOCALHOST = "127.0.0.1"
 BLENDER_PORT = 9334
 UNITY_PORT = 9335
 RL_PORT = 9333
-TIMER_INTERVAL = 1000/30
+TIMER_INTERVAL = 1000/60
 MAX_CHUNK_SIZE = 32768
 HANDSHAKE_TIMEOUT_S = 60
 KEEPALIVE_TIMEOUT_S = 30
@@ -36,6 +36,7 @@ PING_INTERVAL_S = 10
 SERVER_ONLY = True
 CLIENT_ONLY = False
 EMPTY_SOCKETS = []
+MAX_RECEIVE = 24
 
 class OpCodes(IntEnum):
     NONE = 0
@@ -50,6 +51,18 @@ class OpCodes(IntEnum):
     SEQUENCE = 202
     SEQUENCE_REQ = 203
     SEQUENCE_FRAME = 204
+
+
+class LinkData():
+    link_host: str = "localhost"
+    link_host_ip: str = "127.0.0.1"
+    link_target: str = "BLENDER"
+    link_port: int = 9333
+
+    sequence_read_count: int = 24
+    current_frame: int = 0
+    start_frame: int = 0
+    end_frame: int = 0
 
 
 def pack_string(s):
@@ -157,6 +170,209 @@ def next_frame(time):
     return next_time
 
 
+def decode_skeleton_data(skeleton_data):
+    # num_bones: int,
+    # bone_name: str (x num_bones)
+    num_bones = struct.unpack_from("!I", skeleton_data, 0)[0]
+    p = 4
+    skeleton = []
+    for i in range(0, num_bones):
+        p, name = unpack_string(skeleton_data, p)
+        skeleton.append(name)
+    return skeleton
+
+
+def decode_pose_data(skeleton, pose_data):
+    pose = {}
+    # unpack the binary transform data directly into the datalink rig pose bones
+    offset = 0
+    frame = struct.unpack_from("!I", pose_data, offset)
+    offset += 4
+    for bone_name in skeleton:
+        tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
+        pose[bone_name] = [tx,ty,tz,rx,ry,rz,rw,sx,sy,sz]
+        offset += 40
+    return pose
+
+
+def set_frame_range(start_frame, end_frame):
+    fps: RLPy.RFps = RLPy.RGlobal.GetFps()
+    RLPy.RGlobal.SetStartTime(fps.IndexedFrameTime(start_frame))
+    RLPy.RGlobal.SetEndTime(fps.IndexedFrameTime(end_frame))
+
+
+def set_frame(frame):
+    fps: RLPy.RFps = RLPy.RGlobal.GetFps()
+    RLPy.RGlobal.SetTime(fps.IndexedFrameTime(frame))
+
+
+def prep_pose_clip():
+    avatar = cc.get_first_avatar()
+    SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
+    animation_clip = SC.AddClip(RLPy.RGlobal.GetTime())
+    #RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Transform)
+    avatar.Update()
+    t_pose_data = get_pose_local(avatar)
+    return animation_clip, t_pose_data
+
+
+def apply_pose(clip, pose_data, t_pose_data):
+    current_time = RLPy.RGlobal.GetTime()
+    avatar = cc.get_first_avatar()
+    SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
+    root_bone = SC.GetRootBone()
+    root_rot = RLPy.RQuaternion(RLPy.RVector4(0,0,0,1))
+    root_tra = RLPy.RVector3(RLPy.RVector3(0,0,0))
+    root_sca = RLPy.RVector3(RLPy.RVector3(1,1,1))
+    apply_world_pose(clip, current_time, root_bone, pose_data, t_pose_data,
+                     root_rot, root_tra, root_sca)
+    avatar.Update()
+    RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Transform)
+    #RLPy.RGlobal.ForceViewportUpdate()
+    #RLPy.RGlobal.SetTime(current_time)
+
+
+def get_pose_local(avatar: RLPy.RIAvatar):
+    SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
+    skin_bones = SC.GetSkinBones()
+    pose = {}
+    for bone in skin_bones:
+        T: RLPy.RTransform = bone.LocalTransform()
+        t: RLPy.RVector3 = T.T()
+        r: RLPy.RQuaternion = T.R()
+        s: RLPy.RVector3 = T.S()
+        pose[bone.GetName()] = [
+            t.x, t.y, t.z,
+            r.x, r.y, r.z, r.w,
+            s.x, s.y, s.z,
+        ]
+    return pose
+
+
+def get_pose_world(avatar: RLPy.RIAvatar):
+    SC: RLPy.RISkeletonComponent = avatar.GetSkeletonComponent()
+    skin_bones = SC.GetSkinBones()
+    pose = {}
+    for bone in skin_bones:
+        T: RLPy.RTransform = bone.WorldTransform()
+        t: RLPy.RVector3 = T.T()
+        r: RLPy.RQuaternion = T.R()
+        s: RLPy.RVector3 = T.S()
+        pose[bone.GetName()] = [
+            t.x, t.y, t.z,
+            r.x, r.y, r.z, r.w,
+            s.x, s.y, s.z,
+        ]
+    return pose
+
+
+def fetch_transform_data(pose_data, bone_name):
+    D = pose_data[bone_name]
+    tra = RLPy.RVector3(D[0], D[1], D[2])
+    rot = RLPy.RQuaternion(RLPy.RVector4(D[3], D[4], D[5], D[6]))
+    sca = RLPy.RVector3(D[7], D[8], D[9])
+    return tra, rot, sca
+
+
+def log_transform(name, rot, tra, sca):
+    utils.log_info(f" - {name}: ({utils.fd2(tra.x)}, {utils.fd2(tra.y)}, {utils.fd2(tra.z)}) - ({utils.fd2(rot.x)}, {utils.fd2(rot.x)}, {utils.fd2(rot.z)}, {utils.fd2(rot.w)}) - ({utils.fd2(sca.x)}, {utils.fd2(sca.y)}, {utils.fd2(sca.z)})")
+
+
+TRY_BONES = {
+    "RL_BoneRoot": ["CC_Base_BoneRoot", "BoneRoot", "root"]
+}
+
+def try_get_pose_bone(name, pose_data):
+    if name not in pose_data and name in TRY_BONES:
+        names = TRY_BONES[name]
+        for n in names:
+            if n in pose_data:
+                return n
+    return name
+
+def apply_world_pose(clip, time, bone, pose_data, t_pose_data,
+                     parent_world_rot, parent_world_tra, parent_world_sca):
+
+    source_name = bone.GetName()
+    bone_name = try_get_pose_bone(source_name, pose_data)
+    #print(f"Trying: {bone_name}")
+    if bone_name in pose_data:
+        #print(f"Found: {bone_name} / {source_name}")
+
+        world_tra, world_rot, world_sca = fetch_transform_data(pose_data, bone_name)
+        t_pose_tra, t_pose_rot, t_pose_sca = fetch_transform_data(t_pose_data, source_name)
+        #log_transform("WORLD", world_rot, world_tra, world_sca)
+        #log_transform("TPOSE", t_pose_rot, t_pose_tra, t_pose_sca)
+
+        local_rot, local_tra, local_sca = calc_local(world_rot, world_tra, world_sca,
+                                                     parent_world_rot, parent_world_tra, parent_world_sca)
+
+        #log_transform("LOCAL", local_rot, local_tra, local_sca)
+
+        set_bone_control(clip, bone, time,
+                         t_pose_rot, t_pose_tra, t_pose_sca,
+                         local_rot, local_tra, local_sca)
+
+        children = bone.GetChildren()
+        for child in children:
+            apply_world_pose(clip, time, child, pose_data, t_pose_data,
+                             world_rot, world_tra, world_sca)
+
+
+def calc_world(local_rot: RLPy.RQuaternion, local_tra: RLPy.RVector3, local_sca: RLPy.RVector3,
+              parent_world_rot: RLPy.RQuaternion, parent_world_tra: RLPy.RVector3, parent_world_sca: RLPy.RVector3):
+    world_rot = parent_world_rot.Multiply(local_rot)
+    world_tra = parent_world_rot.MultiplyVector(local_tra * parent_world_sca) + parent_world_tra
+    world_sca = local_sca
+    return world_rot, world_tra, world_sca
+
+
+def calc_local(world_rot: RLPy.RQuaternion, world_tra: RLPy.RVector3, world_sca: RLPy.RVector3,
+               parent_world_rot: RLPy.RQuaternion, parent_world_tra: RLPy.RVector3, parent_world_sca: RLPy.RVector3):
+    parent_world_rot_inv: RLPy.RQuaternion = parent_world_rot.Conjugate()
+    local_rot = parent_world_rot_inv.Multiply(world_rot)
+    local_tra = parent_world_rot_inv.MultiplyVector(world_tra - parent_world_tra) / parent_world_sca
+    return local_rot, local_tra, world_sca
+
+
+def set_bone_transform(clip, bone, time,
+                       t_pose_rot: RLPy.RQuaternion, t_pose_tra: RLPy.RVector3, t_pose_sca: RLPy.RVector3,
+                       local_rot: RLPy.RQuaternion, local_tra: RLPy.RVector3, local_sca: RLPy.RVector3):
+    transform_control: RLPy.RTransformControl = clip.GetControl("Transform", bone)
+    if transform_control:
+        t_pose_rot_inv: RLPy.RQuaternion = t_pose_rot.Conjugate()
+        rot = local_rot.Multiply(t_pose_rot_inv)
+        tra = t_pose_rot_inv.MultiplyVector(local_tra - t_pose_tra) / t_pose_sca
+        sca = local_sca / t_pose_sca
+        T: RLPy.RTransform = RLPy.RTransform(sca, rot, tra)
+        transform_control.SetValue(time, T)
+
+
+def set_bone_control(clip, bone, time,
+                           t_pose_rot: RLPy.RQuaternion, t_pose_tra: RLPy.RVector3, t_pose_sca: RLPy.RVector3,
+                           local_rot: RLPy.RQuaternion, local_tra: RLPy.RVector3, local_sca: RLPy.RVector3):
+    bone_control: RLPy.RControl = clip.GetControl("Layer", bone)
+    if bone_control:
+        data_block: RLPy.RDataBlock = bone_control.GetDataBlock()
+        sca = local_sca / t_pose_sca
+        tra = local_tra - t_pose_tra
+        rot = local_rot.Multiply(t_pose_rot.Inverse())
+        rot_matrix = rot.ToRotationMatrix()
+        x = y = z = 0
+        euler = rot_matrix.ToEulerAngle(RLPy.EEulerOrder_XYZ, x, y, z)
+        # Set key for the bone
+        data_block.GetControl("Rotation/RotationX").SetValue(time, euler[0])
+        data_block.GetControl("Rotation/RotationY").SetValue(time, euler[1])
+        data_block.GetControl("Rotation/RotationZ").SetValue(time, euler[2])
+        if data_block.GetControl("Position/PositionX") is not None:
+            data_block.GetControl("Position/PositionX").SetValue(time, tra.x)
+            data_block.GetControl("Position/PositionY").SetValue(time, tra.y)
+            data_block.GetControl("Position/PositionZ").SetValue(time, tra.z)
+        if data_block.GetControl("Position/ScaleX") is not None:
+            data_block.GetControl("Position/ScaleX").SetValue(time, sca.x)
+            data_block.GetControl("Position/ScaleY").SetValue(time, sca.y)
+            data_block.GetControl("Position/ScaleZ").SetValue(time, sca.z)
+
 
 
 
@@ -178,6 +394,8 @@ class LinkService(QObject):
     ping_timer: float = 0
     keepalive_timer: float = 0
     time: float = 0
+    is_data: bool = False
+    is_sequence: bool = False
     # Signals
     listening = Signal()
     connecting = Signal()
@@ -296,9 +514,11 @@ class LinkService(QObject):
         self.changed.emit()
 
     def recv(self):
+        self.is_data = False
         if self.client_sock and (self.is_connected or self.is_connecting):
             r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
-            if r:
+            count = 0
+            while r:
                 header = self.client_sock.recv(8)
                 if header and len(header) == 8:
                     op_code, size = struct.unpack("!II", header)
@@ -312,6 +532,13 @@ class LinkService(QObject):
                             size -= len(chunk)
                     self.parse(op_code, data)
                     self.received.emit(op_code, data)
+                    count += 1
+                self.is_data = False
+                r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
+                if r:
+                    self.is_data = True
+                    if count >= MAX_RECEIVE:
+                        return
 
     def accept(self):
         if self.server_sock and self.is_listening:
@@ -429,6 +656,17 @@ class LinkService(QObject):
                 self.lost_connection.emit()
                 self.stop_client()
 
+    def start_sequence(self, func=None):
+        self.is_sequence = True
+        if func:
+            self.sequence.connect(func)
+        else:
+            self.sequence.disconnect()
+
+    def stop_sequence(self):
+        self.is_sequence = False
+        try: self.sequence.disconnect()
+        except: pass
 
 
 
@@ -448,10 +686,19 @@ class DataLink(QObject):
     combo_target: QComboBox = None
     # Service
     service: LinkService = None
-    #
+    # Send Props
     frame_time: RLPy.RTime = 0
     frame: int = 0
     sent_frame: int = 0
+    # Receive Props
+    clip = None
+    clip_t_pose_data = None
+    clip_time = None
+    sequence_read_count: int = 24
+    current_frame: int = 0
+    start_frame: int = 0
+    end_frame: int = 0
+
 
     def __init__(self):
         QObject.__init__(self)
@@ -481,6 +728,11 @@ class DataLink(QObject):
         qt.button(layout, "Rigify Character", self.send_rigify)
         qt.button(layout, "Send Pose", self.send_pose)
         qt.button(layout, "Send Animation", self.send_sequence)
+
+        qt.spacing(layout, 10)
+
+        qt.button(layout, "Test 2", tests.calculate_avatar_world_hierarchy)
+        qt.button(layout, "Test 3", tests.compare_clip_with_bones)
 
         qt.stretch(layout, 10)
 
@@ -547,12 +799,21 @@ class DataLink(QObject):
             self.service.service_disconnect()
 
     def parse(self, op_code, data):
+
+        if op_code == OpCodes.SKELETON:
+            self.receive_skeleton(data)
+
         if op_code == OpCodes.POSE:
-            print(f"Do something with the pose...")
+            self.receive_pose(data)
 
         if op_code == OpCodes.SEQUENCE_REQ:
-            print(f"Sequence Request")
             self.receive_sequence_req(data)
+
+        if op_code == OpCodes.SEQUENCE:
+            self.receive_sequence(data)
+
+        if op_code == OpCodes.SEQUENCE_FRAME:
+            self.receive_sequence_frame(data)
 
     def get_export_path(self, name):
         remote_path = self.service.remote_path
@@ -599,30 +860,64 @@ class DataLink(QObject):
         skeleton_data = encode_skeleton_data(avatar)
         self.service.send(OpCodes.SKELETON, skeleton_data)
         # start the sending sequence
-        self.service.timer.setInterval(1000/60)
+        self.service.timer.setInterval(1000/120)
         self.service.sequence.connect(self.send_sequence_frame)
 
     def send_sequence_frame(self):
         avatar = cc.get_first_avatar()
-        # send current sequence frame pose
-        pose_data = encode_pose_data(avatar)
-        self.service.send(OpCodes.SEQUENCE_FRAME, pose_data)
-        self.sent_frame = get_current_frame()
-        # check for end
-        if self.sent_frame == get_end_frame():
-            self.service.sequence.disconnect()
-            self.service.timer.setInterval(TIMER_INTERVAL)
-            return
-        # advance to next frame now
-        self.frame_time = next_frame(self.frame_time)
-        self.frame = get_current_frame()
+
+        for i in range(0, 3):
+            # send current sequence frame pose
+            pose_data = encode_pose_data(avatar)
+            self.service.send(OpCodes.SEQUENCE_FRAME, pose_data)
+            self.sent_frame = get_current_frame()
+            # check for end
+            if self.sent_frame == get_end_frame():
+                self.service.sequence.disconnect()
+                self.service.timer.setInterval(TIMER_INTERVAL)
+                return
+            # advance to next frame now
+            self.frame_time = next_frame(self.frame_time)
+            self.frame = get_current_frame()
+            #qt.do_events()
 
     def receive_sequence_req(self, data):
+        print(f"Sequence Request")
         req_data = decode_to_json(data)
         end_frame = get_end_frame()
         req_frame = req_data["frame"]
         req_count = req_data["count"]
-        print(f"frame: {self.frame}, end_frame: {end_frame}, req_frame: {req_frame}")
 
+    def receive_skeleton(self, data):
+        utils.log_info(f"Skeleton Received")
+        self.clip_skeleton = decode_skeleton_data(data)
+        self.clip, self.clip_t_pose_data = prep_pose_clip()
 
+    def receive_pose(self, data):
+        utils.log_info(f"Pose Received")
+        pose_data = decode_pose_data(self.clip_skeleton, data)
+        apply_pose(self.clip, pose_data, self.clip_t_pose_data)
+        print("Done!")
+
+    def receive_sequence(self, data):
+        utils.log_info(f"Sequence Received")
+        json_data = decode_to_json(data)
+        name = json_data["name"]
+        self.start_frame = json_data["start_frame"]
+        self.end_frame = json_data["end_frame"]
+        self.current_frame = json_data["current_frame"]
+        self.service.is_sequence = True
+        set_frame_range(self.start_frame, self.end_frame)
+        set_frame(self.current_frame)
+        self.service.start_sequence()
+
+    def receive_sequence_frame(self, data):
+        utils.log_info(f"Sequence Frame Received")
+        self.current_frame = struct.unpack_from("!I", data, 0)[0]
+        set_frame(self.current_frame)
+        pose_data = decode_pose_data(self.clip_skeleton, data)
+        apply_pose(self.clip, pose_data, self.clip_t_pose_data)
+        if self.current_frame == self.end_frame:
+            self.service.stop_sequence()
+            utils.log_info(f"Sequence Complete!")
 

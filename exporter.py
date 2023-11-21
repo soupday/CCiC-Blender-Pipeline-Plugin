@@ -266,7 +266,7 @@ class Exporter:
         self.option_t_pose = False
         self.option_current_pose = False
         self.option_current_animation = False
-        self.option_remove_hidden = False
+        self.option_remove_hidden = True
         self.set_paths(file_path)
 
     def do_export(self):

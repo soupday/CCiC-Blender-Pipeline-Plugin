@@ -243,7 +243,7 @@ def make_folder(path):
     return False
 
 
-def d2(s):
+def fd2(s):
     return '{0:.2f}'.format(s)
 
 
