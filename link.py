@@ -841,9 +841,9 @@ class DataLink(QObject):
 
         qt.stretch(layout, 20)
 
-        qt.button(layout, "Test 1", tests.show_foot_effector_transforms)
-        qt.button(layout, "Test 2", tests.test2)
-        qt.button(layout, "Test 3", tests.compare_clip_with_bones)
+        #qt.button(layout, "Test 1", tests.show_foot_effector_transforms)
+        #qt.button(layout, "Test 2", tests.test2)
+        #qt.button(layout, "Test 3", tests.compare_clip_with_bones)
 
         self.show_link_state()
         self.window.Show()
