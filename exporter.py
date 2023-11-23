@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CC4-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import RLPy
+from RLPy import *
 import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
@@ -28,19 +28,19 @@ FBX_EXPORTER = None
 
 
 AVATAR_TYPES = {
-    RLPy.EAvatarType__None: "None",
-    RLPy.EAvatarType_Standard: "Standard",
-    RLPy.EAvatarType_NonHuman: "NonHuman",
-    RLPy.EAvatarType_NonStandard: "NonStandard",
-    RLPy.EAvatarType_StandardSeries: "StandardSeries",
-    RLPy.EAvatarType_All: "All",
+    EAvatarType__None: "None",
+    EAvatarType_Standard: "Standard",
+    EAvatarType_NonHuman: "NonHuman",
+    EAvatarType_NonStandard: "NonStandard",
+    EAvatarType_StandardSeries: "StandardSeries",
+    EAvatarType_All: "All",
 }
 
 FACIAL_PROFILES = {
-    RLPy.EFacialProfile__None: "None",
-    RLPy.EFacialProfile_CC4Extended: "CC4Extended",
-    RLPy.EFacialProfile_CC4Standard: "CC4Standard",
-    RLPy.EFacialProfile_Traditional: "Traditional",
+    EFacialProfile__None: "None",
+    EFacialProfile_CC4Extended: "CC4Extended",
+    EFacialProfile_CC4Standard: "CC4Standard",
+    EFacialProfile_Traditional: "Traditional",
 }
 
 
@@ -54,7 +54,7 @@ class Exporter:
     hik_path = "C:/folder/dummy.3dxProfile"
     profile_path = "C:/folder/dummy.ccFacialProfile"
     json_data = None
-    avatar = None
+    avatar: RIAvatar = None
     avatar_type = None
     avatar_type_string = "None"
     profile_type = None
@@ -95,11 +95,11 @@ class Exporter:
             if self.avatar_type in AVATAR_TYPES.keys():
                 self.avatar_type_string = AVATAR_TYPES[self.avatar_type]
 
-            self.profile_type = RLPy.EFacialProfile__None
+            self.profile_type = EFacialProfile__None
             self.profile_type_string = "None"
-            if (self.avatar_type == RLPy.EAvatarType_NonStandard or
-                self.avatar_type == RLPy.EAvatarType_Standard or
-                self.avatar_type == RLPy.EAvatarType_StandardSeries):
+            if (self.avatar_type == EAvatarType_NonStandard or
+                self.avatar_type == EAvatarType_Standard or
+                self.avatar_type == EAvatarType_StandardSeries):
                 facial_profile = self.avatar.GetFacialProfileComponent()
                 self.profile_type = facial_profile.GetProfileType()
                 if self.profile_type in FACIAL_PROFILES.keys():
@@ -139,13 +139,13 @@ class Exporter:
         qt.spacing(layout, 10)
 
         self.check_hik_data = None
-        if self.avatar_type == RLPy.EAvatarType_NonStandard:
+        if self.avatar_type == EAvatarType_NonStandard:
             self.check_hik_data = qt.checkbox(layout, "Export HIK Profile", False)
 
         self.check_profile_data = None
-        if (self.avatar_type == RLPy.EAvatarType_NonStandard or
-            self.avatar_type == RLPy.EAvatarType_Standard or
-            self.avatar_type == RLPy.EAvatarType_StandardSeries):
+        if (self.avatar_type == EAvatarType_NonStandard or
+            self.avatar_type == EAvatarType_Standard or
+            self.avatar_type == EAvatarType_StandardSeries):
             self.check_profile_data = qt.checkbox(layout, "Export Facial Expression Profile", False)
 
         qt.spacing(layout, 10)
@@ -188,9 +188,9 @@ class Exporter:
         self.preset_button_1.setChecked(True)
         self.preset_button_2.setChecked(False)
         self.preset_button_3.setChecked(False)
-        self.preset_button_1.setStyleSheet("background-color: #82be0f; color: black; font: bold")
-        self.preset_button_2.setStyleSheet("background-color: none; color: white; font: bold")
-        self.preset_button_3.setStyleSheet("background-color: none; color: white; font: bold")
+        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB_SELECTED)
+        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB)
+        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB)
         self.label_desc.setText("Round Trip Editing:\n\n" +
                                 "Export the character as mesh only in the bind pose without animation, " +
                                 "with full facial expression data and human IK profile (non-standard), " +
@@ -209,9 +209,9 @@ class Exporter:
         self.preset_button_1.setChecked(False)
         self.preset_button_2.setChecked(True)
         self.preset_button_3.setChecked(False)
-        self.preset_button_1.setStyleSheet("background-color: none; color: white; font: bold")
-        self.preset_button_2.setStyleSheet("background-color: #82be0f; color: black; font: bold")
-        self.preset_button_3.setStyleSheet("background-color: none; color: white; font: bold")
+        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB)
+        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB_SELECTED)
+        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB)
         self.label_desc.setText("Accessory Creation / Replace Mesh:\n\n" +
                                 "Export the full character in the current pose, " +
                                 "for accessory creation or replacement mesh editing.\n")
@@ -229,9 +229,9 @@ class Exporter:
         self.preset_button_1.setChecked(False)
         self.preset_button_2.setChecked(False)
         self.preset_button_3.setChecked(True)
-        self.preset_button_1.setStyleSheet("background-color: none; color: white; font: bold")
-        self.preset_button_2.setStyleSheet("background-color: none; color: white; font: bold")
-        self.preset_button_3.setStyleSheet("background-color: #82be0f; color: black; font: bold")
+        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB)
+        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB)
+        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB_SELECTED)
         self.label_desc.setText("Blender to Unity Pipeline:\n\n" +
                                 "Export the character with hidden faces removed, skin & hair textures baked and " +
                                 "with T-pose bind pose, for editing in Blender before exporting from Blender to Unity.")
@@ -270,7 +270,7 @@ class Exporter:
         self.set_paths(file_path)
 
     def do_export(self):
-        file_path = RLPy.RUi.SaveFileDialog("Fbx Files(*.fbx)")
+        file_path = RUi.SaveFileDialog("Fbx Files(*.fbx)")
         if file_path and file_path != "":
             self.set_paths(file_path)
             self.fetch_options()
@@ -288,23 +288,23 @@ class Exporter:
 
         utils.log(f"Exporting FBX: {file_path}")
 
-        options1 = RLPy.EExportFbxOptions__None
-        options1 = options1 | RLPy.EExportFbxOptions_FbxKey
-        options1 = options1 | RLPy.EExportFbxOptions_AutoSkinRigidMesh
-        options1 = options1 | RLPy.EExportFbxOptions_RemoveAllUnused
-        options1 = options1 | RLPy.EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
+        options1 = EExportFbxOptions__None
+        options1 = options1 | EExportFbxOptions_FbxKey
+        options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
+        options1 = options1 | EExportFbxOptions_RemoveAllUnused
+        options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
         if self.option_remove_hidden:
-            options1 = options1 | RLPy.EExportFbxOptions_RemoveHiddenMesh
+            options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
 
-        options2 = RLPy.EExportFbxOptions2__None
-        options2 = options2 | RLPy.EExportFbxOptions2_ResetBoneScale
-        options2 = options2 | RLPy.EExportFbxOptions2_ResetSelfillumination
+        options2 = EExportFbxOptions2__None
+        options2 = options2 | EExportFbxOptions2_ResetBoneScale
+        options2 = options2 | EExportFbxOptions2_ResetSelfillumination
 
-        options3 = RLPy.EExportFbxOptions3__None
-        options3 = options3 | RLPy.EExportFbxOptions3_ExportJson
-        options3 = options3 | RLPy.EExportFbxOptions3_ExportVertexColor
+        options3 = EExportFbxOptions3__None
+        options3 = options3 | EExportFbxOptions3_ExportJson
+        options3 = options3 | EExportFbxOptions3_ExportVertexColor
 
-        export_fbx_setting = RLPy.RExportFbxSetting()
+        export_fbx_setting = RExportFbxSetting()
 
         export_fbx_setting.SetOption(options1)
         export_fbx_setting.SetOption2(options2)
@@ -314,24 +314,24 @@ class Exporter:
         export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
         export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
 
-        export_fbx_setting.SetTextureFormat(RLPy.EExportTextureFormat_Default)
-        export_fbx_setting.SetTextureSize(RLPy.EExportTextureSize_Original)
+        export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
+        export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
         if self.option_current_pose:
             export_fbx_setting.EnableExportMotion(True)
-            export_fbx_setting.SetExportMotionRange(RLPy.RRangePair(0, 1))
-            export_fbx_setting.SetExportMotionFps(RLPy.RFps.Fps60)
+            export_fbx_setting.SetExportMotionRange(RRangePair(0, 1))
+            export_fbx_setting.SetExportMotionFps(RFps.Fps60)
         elif self.option_current_animation:
-            fps = RLPy.RGlobal.GetFps()
-            startFrame = fps.GetFrameIndex(RLPy.RGlobal.GetStartTime())
-            endFrame = fps.GetFrameIndex(RLPy.RGlobal.GetEndTime())
+            fps = RGlobal.GetFps()
+            startFrame = fps.GetFrameIndex(RGlobal.GetStartTime())
+            endFrame = fps.GetFrameIndex(RGlobal.GetEndTime())
             export_fbx_setting.EnableExportMotion(True)
-            export_fbx_setting.SetExportMotionRange(RLPy.RRangePair(startFrame, endFrame))
-            export_fbx_setting.SetExportMotionFps(RLPy.RFps.Fps60)
+            export_fbx_setting.SetExportMotionRange(RRangePair(startFrame, endFrame))
+            export_fbx_setting.SetExportMotionFps(RFps.Fps60)
         else:
             export_fbx_setting.EnableExportMotion(False)
 
-        result = RLPy.RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
+        result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
 
     def export_extra_data(self):
 
@@ -341,13 +341,14 @@ class Exporter:
         mesh_materials = cc.get_avatar_mesh_materials(self.avatar, json_data=json_data)
 
         root_json["Avatar_Type"] = self.avatar_type_string
+        root_json["Link_ID"] = str(self.avatar.GetID())
 
         utils.log(f"Avatar Type: {self.avatar_type_string}")
 
         if self.option_hik_data:
 
             # Non-standard HIK profile
-            if self.avatar_type == RLPy.EAvatarType_NonStandard:
+            if self.avatar_type == EAvatarType_NonStandard:
 
                 utils.log(f"Exporting HIK profile: {self.hik_path}")
 
@@ -358,9 +359,9 @@ class Exporter:
         if self.option_profile_data:
 
             # Standard and Non-standard facial profiles
-            if (self.avatar_type == RLPy.EAvatarType_NonStandard or
-                self.avatar_type == RLPy.EAvatarType_Standard or
-                self.avatar_type == RLPy.EAvatarType_StandardSeries):
+            if (self.avatar_type == EAvatarType_NonStandard or
+                self.avatar_type == EAvatarType_Standard or
+                self.avatar_type == EAvatarType_StandardSeries):
 
                 utils.log(f"Exporting Facial Expression profile ({self.profile_type_string}): {self.profile_path}")
 

@@ -902,9 +902,10 @@ def get_parent_avatar(obj):
 
 def get_first_avatar():
     avatars = RLPy.RScene.GetAvatars()
+    avatar: RLPy.RIAvatar = None
     if avatars:
-        return avatars[0]
-    return None
+        avatar = avatars[0]
+    return avatar
 
 
 def find_content_in_folder(folder, search):

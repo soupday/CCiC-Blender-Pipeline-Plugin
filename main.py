@@ -21,7 +21,7 @@ import link
 import qt
 import tests
 
-rl_plugin_info = {"ap": "CC4", "ap_version": "4.0"}
+rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
 FBX_IMPORTER: importer.Importer = None
 FBX_EXPORTER: exporter.Exporter = None

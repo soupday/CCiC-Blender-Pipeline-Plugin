@@ -26,6 +26,10 @@ from shiboken2 import wrapInstance
 STYLE_NONE = ""
 STYLE_TITLE = "color: white; font: bold"
 STYLE_BUTTON_BOLD = "color: white; font: bold 14px"
+STYLE_RL_DESC = "color: #d2ff7b; font: italic 13px"
+STYLE_RL_TITLEBAR = "background-color: #82be0f; color: black; font: bold"
+STYLE_RL_TAB = "background-color: none; color: white; font: bold"
+STYLE_RL_TAB_SELECTED = "background-color: gray; color: white; font: bold"
 TINY_TEXT = "font: bold 4px"
 BUTTON_HEIGHT = 32
 ALIGN_CENTRE = Qt.AlignCenter
