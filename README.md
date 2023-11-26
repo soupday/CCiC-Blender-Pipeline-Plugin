@@ -69,6 +69,9 @@ Known Issues
 Changelog
 =========
 
+### 2.0.0
+- WIP Data Link added
+
 ### 1.1.4
 - Fix for importing from UNC network paths.
 

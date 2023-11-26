@@ -791,7 +791,7 @@ def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=
 
     obj: RLPy.RIObject
     for obj in selected_objects:
-        actor = find_parent_actor(obj)
+        actor = find_actor_parent(obj)
         obj_name = obj.GetName()
         if actor:
             material_component = actor.GetMaterialComponent()
@@ -976,7 +976,7 @@ def find_node(node : RLPy.RINode, id):
     return None
 
 
-def find_parent_actor(obj : RLPy.RIObject):
+def find_actor_parent(obj : RLPy.RIObject):
     avatars = RLPy.RScene.GetAvatars()
     props = RLPy.RScene.GetProps()
     root : RLPy.RINode = RLPy.RScene.GetRootNode()
@@ -990,6 +990,32 @@ def find_parent_actor(obj : RLPy.RIObject):
             if prop.GetID() == node_id:
                 return prop
         node = node.GetParent()
+    return None
+
+
+def find_object_by_id(object_id):
+    avatar = find_avatar_by_id(object_id)
+    if avatar:
+        return avatar
+    prop = find_prop_by_id(object_id)
+    if prop:
+        return prop
+    return None
+
+
+def find_avatar_by_id(avatar_id):
+    avatars = RLPy.RScene.GetAvatars()
+    for avatar in avatars:
+        if avatar.GetID() == avatar_id:
+            return avatar
+    return None
+
+
+def find_prop_by_id(prop_id):
+    props = RLPy.RScene.GetProps()
+    for prop in props:
+        if prop.GetID() == prop_id:
+            return prop
     return None
 
 

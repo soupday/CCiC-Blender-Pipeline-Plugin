@@ -50,8 +50,46 @@ class OpCodes(IntEnum):
     TEMPLATE = 200
     POSE = 201
     SEQUENCE = 202
-    SEQUENCE_REQ = 203
-    SEQUENCE_FRAME = 204
+    SEQUENCE_FRAME = 203
+    SEQUENCE_END = 204
+
+
+class LinkActor():
+    name: str = "Name"
+    object: RIObject = None
+    link_id: str = "1234567890"
+    template: list = []
+    t_pose: dict = None
+
+    def __init__(self, object):
+        self.name = object.GetName()
+        self.link_id = str(object.GetID())
+        self.object = object
+        return
+
+    def get_avatar(self) -> RIAvatar:
+        return self.object
+
+    def get_prop(self) -> RIProp:
+        return self.object
+
+    def get_object(self) -> RIObject:
+        return self.object
+
+    def get_skeleton_component(self) -> RISkeletonComponent:
+        return self.object.GetSkeletonComponent()
+
+    def set_template(self, template):
+        self.template = template
+
+    def set_t_pose(self, t_pose):
+        self.t_pose = t_pose
+
+    def is_avatar(self):
+        return type(self.object) is RIAvatar
+
+    def is_prop(self):
+        return type(self.object) is RIProp
 
 
 class LinkData():
@@ -59,11 +97,35 @@ class LinkData():
     link_host_ip: str = "127.0.0.1"
     link_target: str = "BLENDER"
     link_port: int = 9333
+    actors: list = []
+    # Sequence Props
+    sequence_start_frame: int = 0
+    sequence_end_frame: int = 0
+    sequence_current_frame_time: RTime = 0
+    sequence_actors: list = None
 
-    sequence_read_count: int = 24
-    current_frame: int = 0
-    start_frame: int = 0
-    end_frame: int = 0
+    def __init__(self):
+        return
+
+    def get_actor(self, link_id) -> LinkActor:
+        actor: LinkActor
+        for actor in self.actors:
+            if actor.link_id == link_id:
+                return actor
+        object = cc.find_object_by_id(int(link_id))
+        if object:
+            return self.add_actor(object)
+        return None
+
+    def add_actor(self, object) -> LinkActor:
+        for actor in self.actors:
+            if actor.object == object:
+                return actor
+        actor = LinkActor(object)
+        self.actors.append(actor)
+        return actor
+
+LINK_DATA = LinkData()
 
 
 def pack_string(s):
@@ -93,55 +155,14 @@ def decode_to_json(data):
     return json_data
 
 
-def encode_character_template(avatar: RIAvatar):
-    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
-    skin_bones = SC.GetSkinBones()
-    bones = []
-    for bone in skin_bones:
-        bones.append(bone.GetName())
-    character_template = {
-        "name": avatar.GetName(),
-        "link_id": str(avatar.GetID()),
-        "bones": bones
-    }
-    return encode_from_json(character_template)
-
-
-def encode_pose_data(avatar: RIAvatar):
-    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
-    skin_bones = SC.GetSkinBones()
-
-    data = bytearray()
-    data += struct.pack("!I", get_current_frame())
-    for bone in skin_bones:
-        T: RTransform = bone.WorldTransform()
-        t: RVector3 = T.T()
-        r: RQuaternion = T.R()
-        s: RVector3 = T.S()
-        data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
-    return data
-
-
-def get_animation_data(avatar: RIAvatar):
-    fps: RFps = RGlobal.GetFps()
-    current_time: RTime = RGlobal.GetTime()
-    start_time: RTime = RGlobal.GetStartTime()
-    end_time: RTime = RGlobal.GetEndTime()
-    current_frame = fps.GetFrameIndex(current_time)
-    start_frame = fps.GetFrameIndex(start_time)
-    end_frame = fps.GetFrameIndex(end_time)
-    data = {
-        "name": avatar.GetName(),
-        "link_id": str(avatar.GetID()),
-        "fps": fps.ToFloat(),
-        "current_time": current_time.ToFloat(),
-        "start_time": start_time.ToFloat(),
-        "end_time": end_time.ToFloat(),
-        "current_frame": current_frame,
-        "start_frame": start_frame,
-        "end_frame": end_frame,
-    }
-    return data
+def get_selected_actor_objects():
+    selected = RScene.GetSelectedObjects()
+    actor_objects = []
+    for obj in selected:
+        actor_object = cc.find_actor_parent(obj)
+        if actor_object:
+            actor_objects.append(actor_object)
+    return actor_objects
 
 
 def reset_animation():
@@ -155,6 +176,7 @@ def get_current_frame():
     current_time = RGlobal.GetTime()
     current_frame = fps.GetFrameIndex(current_time)
     return current_frame
+
 
 def get_end_frame():
     fps: RFps = RGlobal.GetFps()
@@ -171,24 +193,6 @@ def next_frame(time):
     return next_time
 
 
-def decode_character_template(template_data):
-    template_json = decode_to_json(template_data)
-    return template_json
-
-
-def decode_pose_data(character_template, pose_data):
-    pose = {}
-    # unpack the binary transform data directly into the datalink rig pose bones
-    offset = 0
-    frame = struct.unpack_from("!I", pose_data, offset)
-    offset += 4
-    for bone_name in character_template["bones"]:
-        tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
-        pose[bone_name] = [tx,ty,tz,rx,ry,rz,rw,sx,sy,sz]
-        offset += 40
-    return pose
-
-
 def set_frame_range(start_frame, end_frame):
     fps: RFps = RGlobal.GetFps()
     RGlobal.SetStartTime(fps.IndexedFrameTime(start_frame))
@@ -200,9 +204,15 @@ def set_frame(frame):
     RGlobal.SetTime(fps.IndexedFrameTime(frame))
 
 
-def get_clip_time(frame):
+def get_frame_time(frame):
     fps: RFps = RGlobal.GetFps()
     return fps.IndexedFrameTime(frame)
+
+
+def get_clip_frame(clip: RIClip, scene_time: RTime):
+    fps: RFps = RGlobal.GetFps()
+    clip_time = clip.SceneTimeToClipTime(scene_time)
+    return fps.GetFrameIndex(clip_time)
 
 
 def update_timeline(to_time=None):
@@ -233,39 +243,13 @@ def get_clip_at_or_before(avatar: RIAvatar, time: RTime):
     return found_clip
 
 
-def make_avatar_clip(avatar, clip_start_time, num_frames):
+def make_avatar_clip(avatar, start_time, num_frames):
     fps: RFps = RGlobal.GetFps()
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
-    clip: RIClip = SC.AddClip(clip_start_time)
-    clip_start_frame = 0
-    clip_start_time = fps.IndexedFrameTime(clip_start_frame)
-    clip_end_frame = clip_start_frame + num_frames
-    clip_end_time = fps.IndexedFrameTime(clip_end_frame)
-    length = clip_end_time - clip_start_time
+    clip: RIClip = SC.AddClip(start_time)
+    length = fps.IndexedFrameTime(num_frames)
     clip.SetLength(length)
-    # move the time to the end of the clip and the animation will play as it is being created
-    scene_start_time = clip.ClipTimeToSceneTime(clip_end_time)
-    scene_end_time = clip.ClipTimeToSceneTime(clip_end_time)
-    #update_timeline(scene_end_time)
-    RGlobal.SetTime(scene_end_time)
-    #update_timeline(scene_end_time)
     return clip
-
-
-def prep_avatar_clip(avatar, num_frames, scene_time=None):
-    """Creates an empty clip and grabs the t-pose data for the character"""
-    fps: RFps = RGlobal.GetFps()
-    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
-    if not scene_time:
-        scene_time = RGlobal.GetTime()
-    #existing_clip: RIClip = SC.GetClipByTime(scene_time)
-    #if existing_clip:
-    #    next_frame_time = fps.GetNextFrameTime(scene_time)
-    #    SC.BreakClip(next_frame_time)
-    animation_clip = make_avatar_clip(avatar, scene_time, num_frames)
-    avatar.Update()
-    t_pose_data = get_pose_local(avatar)
-    return animation_clip, t_pose_data
 
 
 def finalize_avatar_clip(avatar, clip):
@@ -286,7 +270,6 @@ def apply_pose(avatar, clip: RIClip, clip_time: RTime, pose_data, t_pose_data):
     SC.BakeFkToIk(scene_time, False)
     avatar.Update()
     RGlobal.ObjectModified(avatar, EObjectModifiedType_Transform)
-
 
 
 def get_pose_local(avatar: RIAvatar):
@@ -336,7 +319,7 @@ def log_transform(name, rot, tra, sca):
 
 
 TRY_BONES = {
-    "RL_BoneRoot": ["CC_Base_BoneRoot", "Rigify_BoneRoot", "BoneRoot", "root"]
+    "RL_BoneRoot": ["CC_Base_BoneRoot", "Rigify_BoneRoot", "BoneRoot", "root"],
 }
 
 def try_get_pose_bone(name, pose_data):
@@ -359,9 +342,6 @@ def apply_world_fk_pose(SC, clip, time, bone, pose_data, t_pose_data,
                      parent_world_rot, parent_world_tra, parent_world_sca):
 
     source_name = bone.GetName()
-    #if "Ribs" in source_name or "Breast" in source_name:
-    #    return
-
     bone_name = try_get_pose_bone(source_name, pose_data)
     #print(f"Trying: {bone_name}")
     if bone_name in pose_data:
@@ -756,9 +736,11 @@ class LinkService(QObject):
         else:
             try: self.sequence.disconnect()
             except: pass
+        self.timer.setInterval(0)
 
     def stop_sequence(self):
         self.is_sequence = False
+        self.timer.setInterval(TIMER_INTERVAL)
         try: self.sequence.disconnect()
         except: pass
 
@@ -791,18 +773,9 @@ class DataLink(QObject):
     combo_target: QComboBox = None
     # Service
     service: LinkService = None
-    # Send Props
-    frame_time: RTime = 0
-    frame: int = 0
-    sent_frame: int = 0
-    # Receive Props
-    clip = None
-    clip_t_pose_data = None
-    clip_time = None
-    sequence_read_count: int = 24
-    current_frame: int = 0
-    start_frame: int = 0
-    end_frame: int = 0
+    # Data
+    data = LinkData()
+
 
 
     def __init__(self):
@@ -833,7 +806,7 @@ class DataLink(QObject):
 
         qt.spacing(layout, 20)
 
-        qt.button(layout, "Send Character", self.send_character)
+        qt.button(layout, "Send Character", self.send_actor)
         qt.button(layout, "Rigify Character", self.send_rigify)
         qt.button(layout, "Send Pose", self.send_pose)
         qt.button(layout, "Send Animation", self.send_animation)
@@ -925,14 +898,14 @@ class DataLink(QObject):
         if op_code == OpCodes.POSE:
             self.receive_pose(data)
 
-        if op_code == OpCodes.SEQUENCE_REQ:
-            self.receive_sequence_req(data)
-
         if op_code == OpCodes.SEQUENCE:
             self.receive_sequence(data)
 
         if op_code == OpCodes.SEQUENCE_FRAME:
             self.receive_sequence_frame(data)
+
+        if op_code == OpCodes.SEQUENCE_END:
+            self.receive_sequence_end(data)
 
     def on_connected(self):
         self.send_notify("Connected")
@@ -945,7 +918,7 @@ class DataLink(QObject):
         notify_json = decode_to_json(data)
         self.update_link_status(notify_json["message"])
 
-    def get_export_path(self, name):
+    def get_remote_export_path(self, name):
         remote_path = self.service.remote_path
         local_path = self.service.local_path
         if remote_path:
@@ -954,120 +927,288 @@ class DataLink(QObject):
             export_folder = local_path
         return os.path.join(export_folder, name)
 
-    def send_character(self):
-        avatar = cc.get_first_avatar()
-        self.update_link_status(f"Sending Character for Import: {avatar.GetName()}")
-        self.send_notify(f"Exporting: {avatar.GetName()}")
-        export_path = self.get_export_path(avatar.GetName() + ".fbx")
-        export = exporter.Exporter(avatar, no_window=True)
-        export.set_data_link_export(export_path)
-        export.export_fbx()
-        export.export_extra_data()
-        self.send_notify(f"Character Import: {avatar.GetName()}")
-        export_data = { "path": export_path, "name": avatar.GetName(), "link_id": str(avatar.GetID()) }
-        self.service.send(OpCodes.CHARACTER, encode_from_json(export_data))
+    def get_selected_actors(self):
+        selected = RScene.GetSelectedObjects()
+        actors = []
+        for obj in selected:
+            actor_object = cc.find_actor_parent(obj)
+            if actor_object:
+                link_id = actor_object.GetID()
+                actor = self.data.get_actor(link_id)
+                if actor:
+                    actors.append(actor)
+        return actors
+
+    def send_actor(self):
+        actors = self.get_selected_actors()
+        actor: LinkActor
+        for actor in actors:
+            self.update_link_status(f"Sending Character for Import: {actor.name}")
+            self.send_notify(f"Exporting: {actor.name}")
+            export_path = self.get_remote_export_path(actor.name + ".fbx")
+            export = exporter.Exporter(actor.object, no_window=True)
+            export.set_data_link_export(export_path)
+            export.export_fbx()
+            export.export_extra_data()
+            self.send_notify(f"Character Import: {actor.name}")
+            export_data = encode_from_json({
+                "path": export_path,
+                "name": actor.name,
+                "link_id": actor.link_id,
+            })
+            self.service.send(OpCodes.CHARACTER, export_data)
 
     def send_rigify(self):
-        avatar = cc.get_first_avatar()
-        self.update_link_status(f"Requesting Rigify Character: {avatar.GetName()}")
-        self.send_notify(f"Rigify: {avatar.GetName()}")
-        rigify_data = { "name": avatar.GetName(), "link_id": str(avatar.GetID()) }
-        self.service.send(OpCodes.RIGIFY, encode_from_json(rigify_data))
+        actors = self.get_selected_actors()
+        actor: LinkActor
+        for actor in actors:
+            if type(actor.object) is RIAvatar:
+                self.update_link_status(f"Requesting Rigify Character: {actor.name}")
+                self.send_notify(f"Rigify: {actor.name}")
+                rigify_data = encode_from_json({
+                    "name": actor.name,
+                    "link_id": actor.link_id,
+                })
+                self.service.send(OpCodes.RIGIFY, rigify_data)
+
+    def encode_character_templates(self, actors: list):
+        actor_data = []
+        character_template = {
+            "count": len(actors),
+            "actors": actor_data
+        }
+        actor: LinkActor
+        for actor in actors:
+            SC: RISkeletonComponent = actor.get_skeleton_component()
+            skin_bones = SC.GetSkinBones()
+            bones = []
+            for bone_node in skin_bones:
+                bones.append(bone_node.GetName())
+            actor_data.append({
+                "name": actor.name,
+                "link_id": actor.link_id,
+                "bones": bones
+            })
+        return encode_from_json(character_template)
+
+    def encode_pose_data(self, actors: list):
+        data = bytearray()
+        data += struct.pack("!II", len(actors), get_current_frame())
+        actor: LinkActor
+        for actor in actors:
+            SC: RISkeletonComponent = actor.get_skeleton_component()
+            skin_bones = SC.GetSkinBones()
+            data += pack_string(actor.name)
+            data += pack_string(actor.link_id)
+            bone: RIObject
+            for bone in skin_bones:
+                T: RTransform = bone.WorldTransform()
+                t: RVector3 = T.T()
+                r: RQuaternion = T.R()
+                s: RVector3 = T.S()
+                data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+        return data
+
+    def encode_sequence_data(self, actors):
+        fps: RFps = RGlobal.GetFps()
+        start_time: RTime = RGlobal.GetStartTime()
+        end_time: RTime = RGlobal.GetEndTime()
+        start_frame = fps.GetFrameIndex(start_time)
+        end_frame = fps.GetFrameIndex(end_time)
+        actors_data = []
+        data = {
+            "fps": fps.ToFloat(),
+            "start_time": start_time.ToFloat(),
+            "end_time": end_time.ToFloat(),
+            "start_frame": start_frame,
+            "end_frame": end_frame,
+            "actors": actors_data,
+        }
+        actor: LinkActor
+        for actor in actors:
+            actors_data.append({
+                "name": actor.name,
+                "link_id": actor.link_id,
+            })
+        return encode_from_json(data)
 
     def send_pose(self):
-        avatar = cc.get_first_avatar()
-        self.update_link_status(f"Sending Current Pose: {avatar.GetName()}")
-        self.send_notify(f"Pose: {avatar.GetName()}")
+        self.update_link_status(f"Sending Current Pose Set")
+        self.send_notify(f"Pose Set")
+        # get actors
+        actors = self.get_selected_actors()
         # send template data first
-        character_template = encode_character_template(avatar)
-        self.service.send(OpCodes.TEMPLATE, character_template)
+        template_data = self.encode_character_templates(actors)
+        self.service.send(OpCodes.TEMPLATE, template_data)
         # send pose data
-        pose_data = encode_pose_data(avatar)
+        pose_data = self.encode_pose_data(actors)
         self.service.send(OpCodes.POSE, pose_data)
 
     def send_animation(self):
         return
 
     def send_sequence(self):
-        avatar = cc.get_first_avatar()
-        self.update_link_status(f"Sending Animation Sequence: {avatar.GetName()}")
-        self.send_notify(f"Animation Sequence: {avatar.GetName()}")
+        self.update_link_status(f"Sending Animation Sequence")
+        self.send_notify(f"Animation Sequence")
+        # get actors
+        actors = self.get_selected_actors()
         # reset animation to start
-        self.frame_time = reset_animation()
-        self.frame = get_current_frame()
+        self.data.sequence_current_frame_time = reset_animation()
         # send animation meta data
-        anim_data = get_animation_data(avatar)
-        self.service.send(OpCodes.SEQUENCE, encode_from_json(anim_data))
+        sequence_data = self.encode_sequence_data(actors)
+        self.service.send(OpCodes.SEQUENCE, sequence_data)
         # send template data first
-        template_data = encode_character_template(avatar)
+        template_data = self.encode_character_templates(actors)
         self.service.send(OpCodes.TEMPLATE, template_data)
         # start the sending sequence
-        self.service.timer.setInterval(0)
-        self.service.sequence.connect(self.send_sequence_frame)
+        self.data.sequence_actors = actors
+        self.service.start_sequence(self.send_sequence_frame)
 
     def send_sequence_frame(self):
-        avatar = cc.get_first_avatar()
-        # send current sequence frame pose
-        self.update_link_status(f"Sending Animation Frame: {get_current_frame()}")
-        pose_data = encode_pose_data(avatar)
+        # set/fetch the current frame in the sequence
+        if RGlobal.GetTime() != self.data.sequence_current_frame_time:
+            RGlobal.SetTime(self.data.sequence_current_frame_time)
+        current_frame = get_current_frame()
+        self.update_link_status(f"Sending Sequence Frame: {current_frame}")
+        # send current sequence frame actor poses
+        pose_data = self.encode_pose_data(self.data.sequence_actors)
         self.service.send(OpCodes.SEQUENCE_FRAME, pose_data)
-        self.sent_frame = get_current_frame()
         # check for end
-        if self.sent_frame == get_end_frame():
-            self.service.sequence.disconnect()
-            self.service.timer.setInterval(TIMER_INTERVAL)
+        if current_frame >= get_end_frame():
+            self.data.sequence_actors = None
+            self.service.stop_sequence()
+            self.send_sequence_end()
             return
-        # advance to next frame now
-        self.frame_time = next_frame(self.frame_time)
-        self.frame = get_current_frame()
-        #qt.do_events()
+        # advance to next frame
+        self.data.sequence_current_frame_time = next_frame(self.data.sequence_current_frame_time)
+
+    def send_sequence_end(self):
+        self.service.send(OpCodes.SEQUENCE_END)
+
+    def prep_actor_clip(self, actor: LinkActor, start_time, num_frames):
+        """Creates an empty clip and grabs the t-pose data for the character"""
+        SC = actor.get_skeleton_component()
+        existing_clip: RIClip = SC.GetClipByTime(start_time)
+        clip = make_avatar_clip(actor.object, start_time, num_frames)
+        actor.object.Update()
+        t_pose = get_pose_local(actor.object) if actor.is_avatar() else None
+        actor.set_t_pose(t_pose)
+        #if existing_clip:
+        #    SC.MergeClips(existing_clip, clip)
+
+    def decode_character_templates(self, template_data):
+        template_json = decode_to_json(template_data)
+        count = template_json["count"]
+        for actor_data in template_json["actors"]:
+            link_id = actor_data["link_id"]
+            name = actor_data["name"]
+            actor = self.data.get_actor(link_id)
+            if actor:
+                actor.set_template(actor_data["bones"])
+            else:
+                utils.log_error(f"Unable to find actor: {name} ({link_id})")
+        return template_json
+
+    def decode_pose_data(self, pose_data):
+        count, frame = struct.unpack_from("!II", pose_data)
+        offset = 8
+        actors_list = []
+        pose_json = {
+            "count": count,
+            "frame": frame,
+            "actors": actors_list,
+        }
+        for i in range(0, count):
+            pose = {}
+            offset, name = unpack_string(pose_data, offset)
+            offset, link_id = unpack_string(pose_data, offset)
+            actor = self.data.get_actor(link_id)
+            actor_data = {
+                "name": name,
+                "link_id": link_id,
+                "actor": actor,
+                "pose": pose,
+            }
+            actors_list.append(actor_data)
+            for bone_name in actor.template:
+                tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
+                pose[bone_name] = [tx,ty,tz,rx,ry,rz,rw,sx,sy,sz]
+                offset += 40
+        return pose_json
 
     def receive_character_template(self, data):
-        utils.log_info(f"Character Template Received")
-        self.update_link_status(f"Character Template Data Recevied")
-        self.character_template = decode_character_template(data)
+        self.update_link_status(f"Character Templates Received")
+        self.decode_character_templates(data)
 
     def receive_pose(self, data):
-        avatar = cc.get_first_avatar()
-        self.update_link_status(f"Character Pose Recevied")
-        self.clip, self.clip_t_pose_data = prep_avatar_clip(avatar, 1)
-        pose_data = decode_pose_data(self.character_template, data)
-        apply_pose(avatar, self.clip, get_clip_time(0), pose_data, self.clip_t_pose_data)
-        #RGlobal.SetTime(self.clip.ClipTimeToSceneTime(get_clip_time(0)))
+        pose_data = self.decode_pose_data(data)
+        frame = pose_data["frame"]
+        scene_time = get_frame_time(frame)
+        self.update_link_status(f"Pose Data Recevied: {frame}")
+        # update all actor poses
+        for actor_data in pose_data["actors"]:
+            actor: LinkActor = actor_data["actor"]
+            SC: RISkeletonComponent = actor.get_skeleton_component()
+            self.prep_actor_clip(actor, scene_time, 1)
+            clip: RIClip = SC.GetClipByTime(scene_time)
+            clip_time = clip.SceneTimeToClipTime(scene_time)
+            apply_pose(actor.object, clip, clip_time, actor_data["pose"], actor.t_pose)
+        # set the scene time to the end of the clip(s)
+        RGlobal.SetTime(scene_time + get_frame_time(1))
         scene_start_time = RGlobal.GetTime()
         scene_end_time = RGlobal.GetTime()
         RGlobal.Play(scene_start_time, scene_end_time)
-        print("Done!")
 
     def receive_sequence(self, data):
-        self.update_link_status(f"Character Animation Sequence Incoming...")
+        self.update_link_status(f"Receiving Live Sequence...")
         json_data = decode_to_json(data)
-        name = json_data["name"]
-        avatar = cc.get_first_avatar()
-        self.start_frame = json_data["start_frame"]
-        self.end_frame = json_data["end_frame"]
-        self.current_frame = json_data["current_frame"]
-        num_frames = self.end_frame - self.start_frame
-        self.service.is_sequence = True
-        self.clip, self.clip_t_pose_data = prep_avatar_clip(avatar, num_frames)
+        # sequence frame range
+        self.data.sequence_start_frame = json_data["start_frame"]
+        self.data.sequence_end_frame = json_data["end_frame"]
+        num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
+        start_time = get_frame_time(self.data.sequence_start_frame)
+        # sequence actors
+        actors = []
+        for actor_data in json_data["actors"]:
+            name = actor_data["name"]
+            link_id = actor_data["link_id"]
+            actor = self.data.get_actor(link_id)
+            if actor:
+                self.prep_actor_clip(actor, start_time, num_frames)
+                actors.append(actor)
+        self.data.sequence_actors = actors
+        # move to end of range
+        RGlobal.SetTime(get_frame_time(self.data.sequence_end_frame))
+        # start the sequence
         self.service.start_sequence()
 
     def receive_sequence_frame(self, data):
-        #utils.log_info(f"Sequence Frame Received")
-        self.current_frame = struct.unpack_from("!I", data, 0)[0]
-        self.update_link_status(f"Character Animation Frame: {self.current_frame} Received")
-        clip_time = get_clip_time(self.current_frame)
-        avatar = cc.get_first_avatar()
-        pose_data = decode_pose_data(self.character_template, data)
-        apply_pose(avatar, self.clip, clip_time, pose_data, self.clip_t_pose_data)
-        #scene_time = self.clip.ClipTimeToSceneTime(clip_time)
-        #RGlobal.SetTime(scene_time)
-        if self.current_frame == self.end_frame:
-            num_frames = self.end_frame - self.start_frame
-            self.service.stop_sequence()
-            scene_start_time = self.clip.SceneTimeToClipTime(get_clip_time(0))
-            scene_end_time = self.clip.SceneTimeToClipTime(get_clip_time(self.current_frame))
-            RGlobal.Play(scene_start_time, scene_end_time)
-            self.update_link_status(f"Character Animation Sequence Complete: {num_frames} frames")
+        pose_data = self.decode_pose_data(data)
+        frame = pose_data["frame"]
+        scene_time = get_frame_time(frame)
+        self.data.sequence_current_frame_time = scene_time
+        self.update_link_status(f"Sequence Frame: {frame} Received")
+        # update all actor poses
+        for actor_data in pose_data["actors"]:
+            actor: LinkActor = actor_data["actor"]
+            SC = actor.get_skeleton_component()
+            scene_time = get_frame_time(frame)
+            clip: RIClip = SC.GetClipByTime(scene_time)
+            clip_time = clip.SceneTimeToClipTime(scene_time)
+            apply_pose(actor.object, clip, clip_time, actor_data["pose"], actor.t_pose)
+
+    def receive_sequence_end(self, data):
+        num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
+        self.service.stop_sequence()
+        self.data.sequence_actors = None
+        scene_start_time = get_frame_time(self.data.sequence_start_frame)
+        scene_end_time = get_frame_time(self.data.sequence_end_frame)
+        self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
+        RGlobal.Play(scene_start_time, scene_end_time)
+
+
+
+
+
 
 
