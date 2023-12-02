@@ -1,18 +1,18 @@
 # Copyright (C) 2023 Victor Soupday
-# This file is part of CC4-Blender-Pipeline-Plugin <https://github.com/soupday/CC4-Blender-Pipeline-Plugin>
+# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CC/iC-Blender-Pipeline-Plugin>
 #
-# CC4-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
+# CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CC4-Blender-Pipeline-Plugin is distributed in the hope that it will be useful,
+# CC/iC-Blender-Pipeline-Plugin is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CC4-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
+# along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import RLPy
@@ -1064,11 +1064,14 @@ def find_actor_object(actor, mesh_name):
 def get_actor_physics_object(actor, mesh_name, mat_name):
     objects = get_actor_objects(actor)
     for obj in objects:
-        physics_component = obj.GetPhysicsComponent()
-        if physics_component:
-            if mesh_name in physics_component.GetSoftPhysicsMeshNameList():
-                if mat_name in physics_component.GetSoftPhysicsMaterialNameList(mesh_name):
-                    return obj, physics_component
+        if (type(obj) == RLPy.RIAccessory or
+            type(obj) == RLPy.RIHair or
+            type(obj) == RLPy.RIAvatar):
+            physics_component = obj.GetPhysicsComponent()
+            if physics_component:
+                if mesh_name in physics_component.GetSoftPhysicsMeshNameList():
+                    if mat_name in physics_component.GetSoftPhysicsMaterialNameList(mesh_name):
+                        return obj, physics_component
     return None, None
 
 
@@ -1076,9 +1079,12 @@ def get_actor_physics_components(actor: RLPy.RIAvatar):
     physics_components = []
     objects = get_actor_objects(actor)
     for obj in objects:
-        obj_physics_component = obj.GetPhysicsComponent()
-        if obj_physics_component and obj_physics_component not in physics_components:
-            physics_components.append(obj_physics_component)
+        if (type(obj) == RLPy.RIAccessory or
+            type(obj) == RLPy.RIHair or
+            type(obj) == RLPy.RIAvatar):
+            obj_physics_component = obj.GetPhysicsComponent()
+            if obj_physics_component and obj_physics_component not in physics_components:
+                physics_components.append(obj_physics_component)
     return physics_components
 
 
