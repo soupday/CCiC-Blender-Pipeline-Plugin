@@ -634,7 +634,6 @@ class LinkService(QObject):
         if op_code == OpCodes.HELLO:
             utils.log_info(f"Hello Received")
             self.service_initialize()
-            print(data)
             if data:
                 json_data = decode_to_json(data)
                 self.remote_app = json_data["Application"]

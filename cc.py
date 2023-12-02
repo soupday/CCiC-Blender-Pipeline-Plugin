@@ -1039,14 +1039,17 @@ IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
 
 def get_actor_objects(actor):
     objects = []
+    child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
+    for obj in child_objects:
+        name = obj.GetName()
+        if name not in IGNORE_NODES:
+            objects.append(obj)
     if actor and type(actor) is RLPy.RIAvatar:
-        child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
-        for obj in child_objects:
-            name = obj.GetName()
-            if name not in IGNORE_NODES:
-                objects.append(obj)
-        objects.extend(actor.GetAccessories())
-        objects.extend(actor.GetHairs())
+        avatar: RLPy.RIAvatar = actor
+        objects.extend(avatar.GetAccessories())
+        objects.extend(avatar.GetHairs())
+        if avatar.GetAvatarType() != RLPy.EAvatarType_Standard:
+            objects.append(avatar)
     else:
         objects.append(actor)
     return objects

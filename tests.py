@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
 from RLPy import *
 import importer, exporter, link, qt, cc, utils
 
@@ -180,5 +181,11 @@ def test2():
     avatar.Update()
 
 
-
-
+def test_face():
+    avatar = cc.get_first_avatar()
+    FC: RIFacialProfileComponent = avatar.GetFacialProfileComponent()
+    path = "F:\\Testing\\T1.ccFacialProfile"
+    print(path)
+    FC.LoadProfile(path)
+    # broken for non-standard humanoids
+    return

@@ -96,10 +96,10 @@ class Importer:
         if self.json_data:
             root_json = self.json_data.get_root_json()
             if "HIK" in root_json and "Profile_Path" in root_json["HIK"]:
-                self.hik_path = os.path.join(self.folder, root_json["HIK"]["Profile_Path"])
+                self.hik_path = os.path.normpath(os.path.join(self.folder, root_json["HIK"]["Profile_Path"]))
                 self.option_import_hik = True
             if "Facial_Profile" in root_json and "Profile_Path" in root_json["Facial_Profile"]:
-                self.profile_path = os.path.join(self.folder, root_json["Facial_Profile"]["Profile_Path"])
+                self.profile_path = os.path.normpath(os.path.join(self.folder, root_json["Facial_Profile"]["Profile_Path"]))
                 self.option_import_profile = True
             if "Facial_Profile" in root_json and "Categories" in root_json["Facial_Profile"]:
                 self.option_import_expressions = False
@@ -368,7 +368,8 @@ class Importer:
             self.update_progress(0, "Skipping Substance Import", True)
             return
 
-        utils.log(" - Beginning substance texture import...")
+        utils.log("Beginning substance texture import:")
+        utils.log_indent()
 
         self.update_progress(1, "Collecting Substance Textures", True)
 
@@ -376,10 +377,10 @@ class Importer:
         # safest not to write temporary files in random locations...
         temp_path = cc.temp_files_path()
         if not os.path.exists(temp_path):
-            utils.log(" - Unable to determine temporary file location, skipping substance import!")
+            utils.log("Unable to determine temporary file location, skipping substance import!")
             return
         temp_folder = os.path.join(temp_path, "CC3_BTP_Temp_" + utils.random_string(8))
-        utils.log(" - Using temp folder: " + temp_folder)
+        utils.log("Using temp folder: " + temp_folder)
 
         # delete if exists
         if os.path.exists(temp_folder):
@@ -391,6 +392,7 @@ class Importer:
 
         F: cc.CCMeshMaterial = None
         M: cc.CCMeshMaterial = None
+
         for M in mesh_materials:
 
             if not F or F.mesh_name != M.mesh_name or M.mesh_name != "CC_Base_Body":
@@ -411,6 +413,7 @@ class Importer:
             mat_index = F.increment_substance_index()
 
             pid = M.mesh_name + " / " + M.mat_name
+            utils.log(f"Mesh: {M.mesh_name}, Material: {M.mat_name}")
 
             # for each texture channel that can be imported with the substance texture method:
             for json_channel in cc.TEXTURE_MAPS.keys():
@@ -433,8 +436,9 @@ class Importer:
         RLPy.RFileIO.LoadSubstancePainterTextures(self.avatar, temp_folder)
         self.substance_import_success = True
 
-        utils.log(" - Substance texture import successful!")
-        utils.log(" - Cleaning up temp folder: " + temp_folder)
+        utils.log_recess()
+        utils.log("Substance texture import successful!")
+        utils.log("Cleaning up temp folder: " + temp_folder)
 
         # delete temp folder
         if os.path.exists(temp_folder):
@@ -449,7 +453,8 @@ class Importer:
            texture settings, custom shader textures and parameters from the json data.
         """
 
-        utils.log(" - Beginning custom shader import...")
+        utils.log("Beginning custom shader import...")
+        utils.log_indent()
 
         M: cc.CCMeshMaterial = None
         for M in mesh_materials:
@@ -546,12 +551,14 @@ class Importer:
 
             self.update_progress(1, pid, True)
 
-        utils.log(" - Custom shader import complete!")
+        utils.log_recess()
+        utils.log("Custom shader import complete!")
 
 
     def import_physics(self, cc_mesh_materials):
 
         utils.log(f"Import Physics")
+        utils.log_indent()
 
         self.update_progress(0, "Importing Physics", True)
 
@@ -573,6 +580,9 @@ class Importer:
 
         self.update_progress(1, "Importing Physics", True)
 
+        utils.log_recess()
+        utils.log("Physics import complete!")
+
 
     def import_facial_profile(self):
         avatar = self.avatar
@@ -583,7 +593,7 @@ class Importer:
             utils.log("Importing Facial Profile")
 
             profile_json = json_data[self.name]["Facial_Profile"]
-            facial_profile = avatar.GetFacialProfileComponent()
+            facial_profile:RLPy.RIFacialProfileComponent = avatar.GetFacialProfileComponent()
 
             if self.option_import_profile:
 
