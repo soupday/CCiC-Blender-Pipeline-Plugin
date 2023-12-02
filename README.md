@@ -1,4 +1,5 @@
-# CC/iClone Blender Pipeline Plugin (Installed in CC4 and iClone 8)
+# CC/iClone Blender Pipeline Plugin
+## (Installed in CC4 and iClone 8)
 
 **This plugin is for Character Creator 4 and iClone 8, for Character Creator 3 [look here](https://github.com/soupday/CC3-Blender-Tools-Plugin)**
 
