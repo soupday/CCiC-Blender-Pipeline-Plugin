@@ -70,6 +70,7 @@ Changelog
 =========
 
 ### 2.0.0
+- Code refactored
 - WIP Data Link added
 
 ### 1.1.4
