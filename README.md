@@ -1,6 +1,7 @@
-# CC4 Blender Pipeline Tool (Installed in CC4)
+# CC/iClone Blender Pipeline Plugin
+**(Installed in CC4 and iClone 8)**
 
-**This plugin is for Character Creator 4, for Character Creator 3 [look here](https://github.com/soupday/CC3-Blender-Tools-Plugin)**
+**This plugin is for Character Creator 4 and iClone 8, for Character Creator 3 [look here](https://github.com/soupday/CC3-Blender-Tools-Plugin)**
 
 This is a python plugin for Character Creator 4 to re-import a character from Blender generated using the **CC4 Blender Pipeline Tool** auto-setup add-on: https://github.com/soupday/cc_blender_tools.
 
@@ -14,16 +15,16 @@ Installation
 ============
 
 ### Installer
-- Download and run the installer (__Install-CC3.Blender.Tools.Plugin-X.X.X.exe__) from the [release page](https://github.com/soupday/CC4-Blender-Tools-Plugin/releases)
+- Download and run the installer (__Install-CCiCBlenderPipelinePlugin-X.X.X.exe __) from the [release page](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin/releases)
 
 ### Manual Installation
-- Download the Zip file (__CC4-Blender-Tools-Plugin-main.zip__) from the **Code** button.
-- Unzip the zip file. There should be a folder: **CC4-Blender-Tools-Plugin-main**
+- Download the Zip file (__CCiC-Blender-Pipeline-Plugin-main.zip__) from the [**Code** button](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin/archive/refs/heads/main.zip).
+- Unzip the zip file. There should be a folder: **CCiC-Blender-Pipeline-Plugin-main**
 - Create the folder **OpenPlugin** in the <Character Creator 4 install directory>**\Bin64\OpenPlugin**
     - e.g: **C:\Program Files\Reallusion\Character Creator 4\Bin64\OpenPlugin**
 - Copy or move the folder CC4-Blender-Tools-Plugin-main into the **OpenPlugin** folder.
     - e.g: **C:\Program Files\Reallusion\Character Creator 4\Bin64\OpenPlugin\CC4-Blender-Tools-Plugin-main**
-- Load the script into the project from the **Plugins > Blender Auto-setup > Import From Blender** menu.
+- The plugin functionality can be found from the menu: **Plugins > Blender Pipeline**
 
 Alternatively the main.py script can run as a standalone script from the **Script > Load Python** menu.
 
@@ -34,10 +35,11 @@ If after installing this plugin the plugin menu does not appear in Character Cre
 
 - Make sure you are using the correct version of the plugin for your version of Character Creator:
     - Character Creator 3: [CC3 Blender Tools Plugin](https://github.com/soupday/CC3-Blender-Tools-Plugin)
-    - Character Creator 4: [CC4 Blender Tools Plugin](https://github.com/soupday/CC4-Blender-Tools-Plugin)
+    - Character Creator 4 / iClone 8: [CC/iC Blender Pipeline Plugin](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin)
 - Make sure your version of Character Creator is up to date (at the time of writing):
     - Character Creator 3: Version **3.44.4709.1**
-    - Charatcer Creator 4: Version **4.12.1125.1**
+    - Character Creator 4: Version **4.33.2315.1**
+    - iClone 8: Version **8.33.2315.1**
 - If the plugin still does not appear it may be that the Python API did not installed correctly and you may need to re-install Character Creator from the Reallusion Hub.
 
 Links
