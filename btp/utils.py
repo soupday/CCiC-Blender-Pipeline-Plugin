@@ -107,7 +107,7 @@ def log_timer(msg, unit = "s"):
 
 
 def get_current_path():
-    return os.path.dirname(os.path.realpath(__file__))
+    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 def get_resource_path(sub_folder, file_name):

@@ -39,7 +39,12 @@ def initialize_plugin():
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Data Link", menu_link)
     qt.menu_separator(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
+    #qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
+    # GoB button
+    icon = qt.get_icon("BlenderLogo.png")
+    tool_bar = qt.find_add_toolbar("Blender Pipeline Toolbar")
+    qt.clear_tool_bar(tool_bar)
+    qt.add_tool_bar_action(tool_bar, icon, "GoB", menu_go_b)
 
 
 def menu_import():

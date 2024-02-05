@@ -20,7 +20,7 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os, socket, select, struct, time, json, random
+import os, socket, select, struct, time, json, random, atexit
 from . import blender, exporter, cc, qt, utils, vars
 from enum import IntEnum
 
@@ -31,12 +31,15 @@ RL_PORT = 9333
 TIMER_INTERVAL = 1000/60
 MAX_CHUNK_SIZE = 32768
 HANDSHAKE_TIMEOUT_S = 60
-KEEPALIVE_TIMEOUT_S = 30
-PING_INTERVAL_S = 10
+KEEPALIVE_TIMEOUT_S = 300
+PING_INTERVAL_S = 120
 SERVER_ONLY = True
 CLIENT_ONLY = False
 EMPTY_SOCKETS = []
 MAX_RECEIVE = 24
+USE_PING = False
+USE_KEEPALIVE = False
+USE_BLOCKING = True
 
 class OpCodes(IntEnum):
     NONE = 0
@@ -486,6 +489,16 @@ class LinkService(QObject):
     remote_version: str = None
     remote_path: str = None
 
+    def __init__(self):
+        QObject.__init__(self)
+        atexit.register(self.service_stop)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.service_stop()
+
     def start_server(self):
         if not self.server_sock:
             try:
@@ -493,6 +506,7 @@ class LinkService(QObject):
                 self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.server_sock.bind(('', RL_PORT))
                 self.server_sock.listen(5)
+                self.server_sock.setblocking(USE_BLOCKING)
                 self.server_sockets = [self.server_sock]
                 self.is_listening = True
                 utils.log_info(f"Listening on TCP *:{RL_PORT}")
@@ -542,8 +556,9 @@ class LinkService(QObject):
                 self.client_port = self.host_port
                 self.keepalive_timer = KEEPALIVE_TIMEOUT_S
                 self.ping_timer = PING_INTERVAL_S
-                self.send_hello()
+                sock.setblocking(USE_BLOCKING)
                 utils.log_info(f"Connecting to data link server on {self.host_ip}:{self.host_port}")
+                self.send_hello()
                 self.connecting.emit()
                 self.changed.emit()
                 return True
@@ -690,17 +705,17 @@ class LinkService(QObject):
             self.ping_timer -= delta_time
             self.keepalive_timer -= delta_time
 
-            if self.ping_timer <= 0:
+            if USE_PING and self.ping_timer <= 0:
                 self.send(OpCodes.PING)
 
-            if self.keepalive_timer <= 0:
+            if USE_KEEPALIVE and self.keepalive_timer <= 0:
                 utils.log_info("lost connection!")
                 self.service_stop()
 
         elif self.is_listening:
             self.keepalive_timer -= delta_time
 
-            if self.keepalive_timer <= 0:
+            if USE_KEEPALIVE and self.keepalive_timer <= 0:
                 utils.log_info("no connection within time limit!")
                 self.service_stop()
 
@@ -882,7 +897,7 @@ class DataLink(QObject):
 
     def link_start(self):
         if not self.service:
-            self.service = LinkService(self)
+            self.service = LinkService()
             self.service.changed.connect(self.show_link_state)
             self.service.received.connect(self.parse)
             self.service.connected.connect(self.on_connected)
@@ -1218,36 +1233,38 @@ class DataLink(QObject):
         self.service.send(OpCodes.CAMERA, camera_data)
 
     def send_pose(self):
-        self.update_link_status(f"Sending Current Pose Set")
-        self.send_notify(f"Pose Set")
         # get actors
         actors = self.get_selected_actors()
-        # send template data first
-        template_data = self.encode_character_templates(actors)
-        self.service.send(OpCodes.TEMPLATE, template_data)
-        # send pose data
-        pose_data = self.encode_pose_data(actors)
-        self.service.send(OpCodes.POSE, pose_data)
+        if actors:
+            self.update_link_status(f"Sending Current Pose Set")
+            self.send_notify(f"Pose Set")
+            # send template data first
+            template_data = self.encode_character_templates(actors)
+            self.service.send(OpCodes.TEMPLATE, template_data)
+            # send pose data
+            pose_data = self.encode_pose_data(actors)
+            self.service.send(OpCodes.POSE, pose_data)
 
     def send_animation(self):
         return
 
     def send_sequence(self):
-        self.update_link_status(f"Sending Animation Sequence")
-        self.send_notify(f"Animation Sequence")
         # get actors
         actors = self.get_selected_actors()
-        # reset animation to start
-        self.data.sequence_current_frame_time = reset_animation()
-        # send animation meta data
-        sequence_data = self.encode_sequence_data(actors)
-        self.service.send(OpCodes.SEQUENCE, sequence_data)
-        # send template data first
-        template_data = self.encode_character_templates(actors)
-        self.service.send(OpCodes.TEMPLATE, template_data)
-        # start the sending sequence
-        self.data.sequence_actors = actors
-        self.service.start_sequence(self.send_sequence_frame)
+        if actors:
+            self.update_link_status(f"Sending Animation Sequence")
+            self.send_notify(f"Animation Sequence")
+            # reset animation to start
+            self.data.sequence_current_frame_time = reset_animation()
+            # send animation meta data
+            sequence_data = self.encode_sequence_data(actors)
+            self.service.send(OpCodes.SEQUENCE, sequence_data)
+            # send template data first
+            template_data = self.encode_character_templates(actors)
+            self.service.send(OpCodes.TEMPLATE, template_data)
+            # start the sending sequence
+            self.data.sequence_actors = actors
+            self.service.start_sequence(self.send_sequence_frame)
 
     def send_sequence_frame(self):
         # set/fetch the current frame in the sequence

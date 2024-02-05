@@ -18,7 +18,7 @@ import RLPy
 import time
 from . import utils
 from PySide2.QtWidgets import *
-from PySide2.QtCore import Qt, Signal
+from PySide2.QtCore import Qt, Signal, QSize
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 
@@ -86,6 +86,40 @@ def add_menu_action(menu: QMenu, name, action=None):
     menu_action: QAction = menu.addAction(name)
     menu_action.triggered.connect(action)
     return menu_action
+
+
+def get_main_window() -> QMainWindow:
+    main_window: QMainWindow = wrapInstance(int(RLPy.RUi.GetMainWindow()), QMainWindow)
+    return main_window
+
+
+def find_add_toolbar(name) -> QToolBar:
+    rl_tool_bar = RLPy.RUi.FindToolBar(name)
+    if rl_tool_bar:
+        tool_bar = wrapInstance(int(rl_tool_bar), QToolBar)
+    else:
+        main_window = get_main_window()
+        tool_bar = QToolBar(name)
+        tool_bar.setIconSize(QSize(24, 24))
+        main_window.addToolBar(tool_bar)
+    return tool_bar
+
+
+def clear_tool_bar(tool_bar):
+    tool_bar.clear()
+
+
+def get_icon(file_name):
+    icon_path = utils.get_resource_path("icons", file_name)
+    return QIcon(icon_path)
+
+
+def add_tool_bar_action(tool_bar: QToolBar, icon, text, action=None):
+    icon_path = utils.get_resource_path("icons", "BlenderLogo.png")
+    tool_bar_action: QAction = tool_bar.addAction(icon, text)
+    tool_bar_action.setText(text)
+    tool_bar_action.triggered.connect(action)
+    return tool_bar_action
 
 
 class QLabelClickable(QLabel):

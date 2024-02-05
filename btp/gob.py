@@ -10,13 +10,6 @@ GOB_FBX_PATH = None
 GOB_CONNECTED = False
 GOB_DONE = False
 
-def go_b_1():
-    LINK = link.get_data_link()
-    LINK.link_start()
-    LINK.service.connected.connect(go_b_connected)
-    write_script()
-    launch_blender()
-
 
 def go_b():
     global GOB_AVATAR, GOB_FBX_PATH, GOB_CONNECTED, GOB_DONE
@@ -68,6 +61,7 @@ def go_b_finish():
         LINK.send_actor_exported(GOB_AVATAR, GOB_FBX_PATH)
         LINK.send_pose()
         LINK.sync_lights()
+        LINK.sync_camera()
         GOB_AVATAR = None
         GOB_FBX_PATH = None
         GOB_CONNECTED = False
