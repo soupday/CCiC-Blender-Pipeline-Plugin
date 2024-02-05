@@ -16,7 +16,7 @@
 
 import os
 from RLPy import *
-import importer, exporter, link, qt, cc, utils
+from btp import importer, exporter, link, qt, cc, utils
 
 def test():
     avatar = cc.get_first_avatar()

@@ -14,10 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
 import RLPy
-import utils
-import json
+import os, json
+from . import utils
 from enum import IntEnum
 
 

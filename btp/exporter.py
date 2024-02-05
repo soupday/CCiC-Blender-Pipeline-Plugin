@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os
-import blender, cc, qt, utils, vars
+from . import blender, cc, qt, utils, vars
 
 
 FBX_EXPORTER = None
@@ -267,6 +267,17 @@ class Exporter:
         self.option_current_pose = False
         self.option_current_animation = False
         self.option_remove_hidden = True
+        self.set_paths(file_path)
+
+    def set_go_b_export(self, file_path):
+        self.option_bakehair = False
+        self.option_bakeskin = False
+        self.option_hik_data = False
+        self.option_profile_data = False
+        self.option_t_pose = False
+        self.option_current_pose = False
+        self.option_current_animation = False
+        self.option_remove_hidden = False
         self.set_paths(file_path)
 
     def do_export(self):

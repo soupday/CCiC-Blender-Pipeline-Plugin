@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, time, shutil
-import blender, cc, qt, utils, vars
+from . import blender, cc, qt, utils, vars
 
 
 FBX_IMPORTER = None
@@ -548,6 +548,18 @@ class Importer:
                         json_value = M.mat_json.get_custom_shader_var(param)
                     if json_value is not None:
                         M.set_shader_parameter(param, json_value)
+
+                # Extra parameters (from Blender)
+                hue = M.mat_json.get_base_var("Diffuse Hue", 0.5)
+                saturation = M.mat_json.get_base_var("Diffuse Saturation", 1.0)
+                brightness = M.mat_json.get_base_var("Diffuse Brightness", 1.0)
+                if hue != 0.5 or saturation != 1.0 or brightness != 1.0:
+                    hue = 200*hue - 100
+                    saturation = 100*saturation - 100
+                    brightness = 10*brightness - 10
+                    if brightness < 0:
+                        brightness *= 10
+                    M.set_channel_image_color(cc.TextureChannel.DIFFUSE, 0.0, hue, saturation, brightness, 0, 0,0,0)
 
             self.update_progress(1, pid, True)
 

@@ -15,20 +15,22 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
-import importer
-import exporter
-import link
-import qt
-import tests
+import btp.importer as importer
+import btp.exporter as exporter
+import btp.link as link
+import btp.qt as qt
+import btp.tests as tests
+import btp.gob as gob
+import btp.vars as vars
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
 FBX_IMPORTER: importer.Importer = None
 FBX_EXPORTER: exporter.Exporter = None
-LINK: link.DataLink = None
 
 
 def initialize_plugin():
+    vars.detect_paths()
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
     qt.clear_menu(plugin_menu)
     qt.add_menu_action(plugin_menu, "Export Character to Blender", menu_export)
@@ -36,6 +38,8 @@ def initialize_plugin():
     qt.add_menu_action(plugin_menu, "Import Character from Blender", menu_import)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Data Link", menu_link)
+    qt.menu_separator(plugin_menu)
+    qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
 
 
 def menu_import():
@@ -55,11 +59,11 @@ def menu_export():
 
 
 def menu_link():
-    global LINK
-    if not LINK:
-        LINK = link.DataLink()
-    else:
-        LINK.show()
+    link.get_data_link()
+
+
+def menu_go_b():
+    gob.go_b()
 
 
 def run_script():

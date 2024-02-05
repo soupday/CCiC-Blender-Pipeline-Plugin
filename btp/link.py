@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random
-import blender, exporter, cc, qt, utils, vars, tests
+from . import blender, exporter, cc, qt, utils, vars
 from enum import IntEnum
 
 LOCALHOST = "127.0.0.1"
@@ -52,6 +52,8 @@ class OpCodes(IntEnum):
     SEQUENCE = 202
     SEQUENCE_FRAME = 203
     SEQUENCE_END = 204
+    LIGHTS = 205
+    CAMERA = 206
 
 
 class LinkActor():
@@ -559,7 +561,7 @@ class LinkService(QObject):
     def send_hello(self):
         self.local_app = RApplication.GetProductName()
         self.local_version = RApplication.GetProductVersion()
-        self.local_path = cc.temp_files_path("Data Link", True)
+        self.local_path = vars.EXPORT_PATH
         json_data = {
             "Application": self.local_app,
             "Version": self.local_version,
@@ -791,6 +793,7 @@ class DataLink(QObject):
         qt.label(layout, "W.I.P. Experimental Code: Use at own risk!", style=qt.STYLE_RL_DESC)
 
         self.label_header = qt.label(layout, "Data Link: Not Connected", style=qt.STYLE_TITLE)
+        self.label_folder = qt.label(layout, f"Working Folder: {self.get_remote_folder()}", style=qt.STYLE_TITLE)
 
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
@@ -812,6 +815,7 @@ class DataLink(QObject):
         qt.button(layout, "Send Pose", self.send_pose)
         #qt.button(layout, "Send Animation", self.send_animation)
         qt.button(layout, "Live Sequence", self.send_sequence)
+        qt.button(layout, "Send All Lights", self.send_all_lights)
 
         qt.stretch(layout, 20)
 
@@ -856,12 +860,14 @@ class DataLink(QObject):
             self.button_link.setStyleSheet("background-color: #82be0f; color: black; font: bold")
             self.button_link.setText("Linked")
             self.label_header.setText(f"Connected: {self.service.remote_app} ({self.service.remote_version})")
+            self.label_folder.setText(f"Working Folder: {self.get_remote_folder()}")
         elif self.service and self.service.is_listening:
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet("background-color: #505050; color: white; font: bold")
             self.button_link.setText("Listening...")
             self.label_header.setText("Waiting for Connection")
+            self.label_folder.setText(f"Working Folder: None")
         else:
             self.textbox_host.setEnabled(True)
             self.combo_target.setEnabled(True)
@@ -871,6 +877,7 @@ class DataLink(QObject):
             else:
                 self.button_link.setText("Connect")
             self.label_header.setText("Not Connected")
+            self.label_folder.setText(f"Working Folder: None")
 
     def link_start(self):
         if not self.service:
@@ -919,13 +926,20 @@ class DataLink(QObject):
         notify_json = decode_to_json(data)
         self.update_link_status(notify_json["message"])
 
-    def get_remote_export_path(self, name):
-        remote_path = self.service.remote_path
-        local_path = self.service.local_path
-        if remote_path:
-            export_folder = remote_path
+    def get_remote_folder(self):
+        if self.service:
+            remote_path = self.service.remote_path
+            local_path = self.service.local_path
+            if remote_path:
+                export_folder = remote_path
+            else:
+                export_folder = local_path
+            return export_folder
         else:
-            export_folder = local_path
+            return "None"
+
+    def get_remote_export_path(self, name):
+        export_folder = self.get_remote_folder()
         return os.path.join(export_folder, name)
 
     def get_selected_actors(self):
@@ -959,6 +973,20 @@ class DataLink(QObject):
             })
             self.service.send(OpCodes.CHARACTER, export_data)
 
+    def send_actor_exported(self, avatar=None, fbx_path=None):
+        """Send a pre-exported avatar/actor through the DataLink"""
+
+        actor = LinkActor(avatar)
+        self.update_link_status(f"Sending Character for Import: {actor.name}")
+        self.send_notify(f"Exporting: {actor.name}")
+        self.send_notify(f"Character Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": fbx_path,
+            "name": actor.name,
+            "link_id": actor.link_id,
+        })
+        self.service.send(OpCodes.CHARACTER, export_data)
+
     def send_rigify(self):
         actors = self.get_selected_actors()
         actor: LinkActor
@@ -971,6 +999,9 @@ class DataLink(QObject):
                     "link_id": actor.link_id,
                 })
                 self.service.send(OpCodes.RIGIFY, rigify_data)
+
+    def encode_light_data(self, actors: list):
+        return
 
     def encode_character_templates(self, actors: list):
         actor_data = []
@@ -1032,6 +1063,108 @@ class DataLink(QObject):
                 "link_id": actor.link_id,
             })
         return encode_from_json(data)
+
+    def get_lights_data(self, lights):
+
+        all_lights = RScene.FindObjects(EObjectType_Light)
+        all_light_id = []
+        for light in all_lights:
+            all_light_id.append(str(light.GetID()))
+
+        data = {
+            "lights": [],
+            "count": len(lights),
+            "scene_lights": all_light_id,
+        }
+
+        light: RILight
+        for light in lights:
+
+            is_spot = type(light) is RISpotLight
+            is_point = type(light) is RIPointLight
+            is_dir = type(light) is RIDirectionalLight
+
+            T = light.WorldTransform()
+            t: RVector3 = T.T()
+            r: RQuaternion = T.R()
+            s: RVector3 = T.S()
+
+            link_id: str = str(light.GetID())
+            active: bool = light.GetActive()
+            color: RRgb = light.GetColor()
+            multiplier: float = light.GetMultiplier()
+
+            light_type = "SPOT" if is_spot else "POINT" if is_point else "DIR"
+            angle: float = 0
+            falloff: float = 0
+            attenuation: float = 0
+            light_range: float = 0
+            transmission: bool = False
+            is_tube: bool = False
+            tube_length: float = 0
+            tube_radius: float = 0
+            tube_soft_radius: float = 0
+            is_rectangle: bool = False
+            rect: RVector2 = RVector2(0,0)
+            cast_shadow: bool = False
+
+            if is_spot or is_point:
+                light_range = light.GetRange()
+            if is_spot:
+                status, angle, falloff, attenuation = light.GetSpotLightBeam(angle, falloff, attenuation)
+            if is_spot or is_dir:
+                transmission = light.GetTransmission()
+            if is_spot or is_point:
+                is_tube = light.IsTubeShape()
+                tube_length = light.GetTubeLength()
+                tube_radius = light.GetTubeRadius()
+                tube_soft_radius = light.GetTubeSoftRadius()
+                is_rectangle = light.IsRectangleShape()
+                rect = light.GetRectWidthHeight()
+            cast_shadow = light.IsCastShadow()
+
+            light_data = {
+                "link_id": link_id,
+                "name": light.GetName(),
+                "loc": [t.x, t.y, t.z],
+                "rot": [r.x, r.y, r.z, r.w],
+                "sca": [s.x, s.y, s.z],
+                "active": active,
+                "color": [color.R(), color.G(), color.B()],
+                "multiplier": multiplier,
+                "type": light_type,
+                "range": light_range,
+                "angle": angle,
+                "falloff": falloff,
+                "attenuation": attenuation,
+                "transmission": transmission,
+                "is_tube": is_tube,
+                "tube_length": tube_length,
+                "tube_radius": tube_radius,
+                "tube_soft_radius": tube_soft_radius,
+                "is_rectangle": is_rectangle,
+                "rect": [rect.x, rect.y],
+                "cast_shadow": cast_shadow,
+            }
+
+            data["lights"].append(light_data)
+
+        return data
+
+    def encode_lights_data(self, lights):
+        data = self.get_lights_data(lights)
+        return encode_from_json(data)
+
+    def get_all_lights(self):
+        lights = RScene.FindObjects(EObjectType_Light)
+        return lights
+
+    def send_all_lights(self):
+        self.update_link_status(f"Sending All Lights")
+        self.send_notify(f"All Lights")
+        lights = self.get_all_lights()
+        lights_data = self.encode_lights_data(lights)
+        self.service.send(OpCodes.LIGHTS, lights_data)
 
     def send_pose(self):
         self.update_link_status(f"Sending Current Pose Set")
@@ -1208,8 +1341,12 @@ class DataLink(QObject):
         RGlobal.Play(scene_start_time, scene_end_time)
 
 
+LINK: DataLink = None
 
-
-
-
-
+def get_data_link():
+    global LINK
+    if not LINK:
+        LINK = DataLink()
+    else:
+        LINK.show()
+    return LINK
