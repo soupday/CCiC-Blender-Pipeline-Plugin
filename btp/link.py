@@ -815,7 +815,8 @@ class DataLink(QObject):
         qt.button(layout, "Send Pose", self.send_pose)
         #qt.button(layout, "Send Animation", self.send_animation)
         qt.button(layout, "Live Sequence", self.send_sequence)
-        qt.button(layout, "Send All Lights", self.send_all_lights)
+        qt.button(layout, "Sync Lights", self.sync_lights)
+        qt.button(layout, "Sync Camera", self.sync_camera)
 
         qt.stretch(layout, 20)
 
@@ -1159,12 +1160,62 @@ class DataLink(QObject):
         lights = RScene.FindObjects(EObjectType_Light)
         return lights
 
-    def send_all_lights(self):
-        self.update_link_status(f"Sending All Lights")
-        self.send_notify(f"All Lights")
+    def sync_lights(self):
+        self.update_link_status(f"Synchronizing Lights")
+        self.send_notify(f"Sync Lights")
         lights = self.get_all_lights()
         lights_data = self.encode_lights_data(lights)
         self.service.send(OpCodes.LIGHTS, lights_data)
+
+    def get_camera_data(self, camera: RICamera):
+        link_id = str(camera.GetID())
+        name = camera.GetName()
+        time = RGlobal.GetTime()
+        width = 0
+        height = 0
+        camera.GetAperture(width, height)
+        # Get camera bounds
+        max = RVector3()
+        center = RVector3()
+        min = RVector3()
+        camera.GetBounds(max, center, min)
+        # Get the camera pivot transform values
+        pos = RVector3()
+        rot = RVector3()
+        camera.GetPivot(pos, rot)
+        focal_length = camera.GetFocalLength(time)
+        fov = camera.GetAngleOfView(time)
+        T = camera.WorldTransform()
+        t: RVector3 = T.T()
+        r: RQuaternion = T.R()
+        s: RVector3 = T.S()
+        data = {
+            "link_id": link_id,
+            "name": name,
+            "loc": [t.x, t.y, t.z],
+            "rot": [r.x, r.y, r.z, r.w],
+            "sca": [s.x, s.y, s.z],
+            "fov": fov,
+            "width": width,
+            "height": height,
+            "focal_length": focal_length,
+            "min": [min.x, min.y, min.z],
+            "max": [max.x, max.y, max.z],
+            "center": [center.x, center.y, center.z],
+            "pos": [pos.x, pos.y, pos.z],
+        }
+        return data
+
+    def encode_camera_data(self, camera):
+        data = self.get_camera_data(camera)
+        return encode_from_json(data)
+
+    def sync_camera(self):
+        self.update_link_status(f"Synchronizing Camera")
+        self.send_notify(f"Sync Camera")
+        camera: RICamera = RScene.GetCurrentCamera()
+        camera_data = self.encode_camera_data(camera)
+        self.service.send(OpCodes.CAMERA, camera_data)
 
     def send_pose(self):
         self.update_link_status(f"Sending Current Pose Set")

@@ -938,6 +938,11 @@ def key_zero():
     return key_zero
 
 
+def time_zero():
+    time_zero = RLPy.RTime.FromValue(0)
+    return time_zero
+
+
 def shader_value(var_value):
     if type(var_value) == tuple or type(var_value) == list:
         return var_value

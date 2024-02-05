@@ -67,7 +67,7 @@ def go_b_finish():
         LINK.service.connected.disconnect(go_b_connected)
         LINK.send_actor_exported(GOB_AVATAR, GOB_FBX_PATH)
         LINK.send_pose()
-        LINK.send_all_lights()
+        LINK.sync_lights()
         GOB_AVATAR = None
         GOB_FBX_PATH = None
         GOB_CONNECTED = False
