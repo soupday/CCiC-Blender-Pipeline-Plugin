@@ -585,7 +585,8 @@ class LinkService(QObject):
         json_data = {
             "Application": self.local_app,
             "Version": self.local_version,
-            "Path": self.local_path
+            "Path": self.local_path,
+            "Exe": RApplication.GetProgramPath()
         }
         self.send(OpCodes.HELLO, encode_from_json(json_data))
 
