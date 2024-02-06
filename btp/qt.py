@@ -100,8 +100,10 @@ def find_add_toolbar(name) -> QToolBar:
     else:
         main_window = get_main_window()
         tool_bar = QToolBar(name)
-        tool_bar.setIconSize(QSize(24, 24))
         main_window.addToolBar(tool_bar)
+    #tool_bar.setIconSize(QSize(16, 16))
+    #tool_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    tool_bar.setToolButtonStyle(Qt.ToolButtonIconOnly)
     return tool_bar
 
 
@@ -116,9 +118,14 @@ def get_icon(file_name):
 
 def add_tool_bar_action(tool_bar: QToolBar, icon, text, action=None):
     icon_path = utils.get_resource_path("icons", "BlenderLogo.png")
-    tool_bar_action: QAction = tool_bar.addAction(icon, text)
-    tool_bar_action.setText(text)
-    tool_bar_action.triggered.connect(action)
+    if text:
+        tool_bar_action: QAction = tool_bar.addAction(icon, text)
+        tool_bar_action.setText(text)
+        tool_bar_action.setIconText(text)
+    else:
+        tool_bar_action: QAction = tool_bar.addAction(icon, None)
+    if action:
+        tool_bar_action.triggered.connect(action)
     return tool_bar_action
 
 

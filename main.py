@@ -31,20 +31,32 @@ FBX_EXPORTER: exporter.Exporter = None
 
 def initialize_plugin():
     vars.detect_paths()
+    # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
     qt.clear_menu(plugin_menu)
+    qt.add_menu_action(plugin_menu, "Settings", menu_link)
+    qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Export Character to Blender", menu_export)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Import Character from Blender", menu_import)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Data Link", menu_link)
     qt.menu_separator(plugin_menu)
-    #qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
-    # GoB button
-    icon = qt.get_icon("BlenderLogo.png")
-    tool_bar = qt.find_add_toolbar("Blender Pipeline Toolbar")
-    qt.clear_tool_bar(tool_bar)
-    qt.add_tool_bar_action(tool_bar, icon, "GoB", menu_go_b)
+    qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
+    # Toolbar (CC4 Only)
+    if RLPy.RApplication.GetProductName() == "Character Creator":
+        icon_blender = qt.get_icon("BlenderLogo.png")
+        icon_import = qt.get_icon("BlenderImport.png")
+        icon_export = qt.get_icon("BlenderExport.png")
+        icon_settings = qt.get_icon("BlenderSettings.png")
+        icon_link = qt.get_icon("BlenderDataLink.png")
+        tool_bar = qt.find_add_toolbar("Blender Pipeline Toolbar")
+        qt.clear_tool_bar(tool_bar)
+        qt.add_tool_bar_action(tool_bar, icon_blender, "GoB", menu_go_b)
+        qt.add_tool_bar_action(tool_bar, icon_export, None, menu_export)
+        qt.add_tool_bar_action(tool_bar, icon_import, None, menu_import)
+        qt.add_tool_bar_action(tool_bar, icon_link, None, menu_link)
+        qt.add_tool_bar_action(tool_bar, icon_settings, None, menu_link)
 
 
 def menu_import():

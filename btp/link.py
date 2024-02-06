@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random, atexit
-from . import blender, exporter, cc, qt, utils, vars
+from . import blender, importer, exporter, cc, qt, utils, vars
 from enum import IntEnum
 
 LOCALHOST = "127.0.0.1"
@@ -49,6 +49,7 @@ class OpCodes(IntEnum):
     DISCONNECT = 11
     NOTIFY = 50
     CHARACTER = 100
+    CHARATCER_UPDATE = 101
     RIGIFY = 110
     TEMPLATE = 200
     POSE = 201
@@ -67,9 +68,7 @@ class LinkActor():
     t_pose: dict = None
 
     def __init__(self, object):
-        self.name = object.GetName()
-        self.link_id = str(object.GetID())
-        self.object = object
+        self.update(object)
         return
 
     def get_avatar(self) -> RIAvatar:
@@ -80,6 +79,11 @@ class LinkActor():
 
     def get_object(self) -> RIObject:
         return self.object
+
+    def update(self, object):
+        self.name = object.GetName()
+        self.link_id = str(object.GetID())
+        self.object = object
 
     def get_skeleton_component(self) -> RISkeletonComponent:
         return self.object.GetSkeletonComponent()
@@ -115,7 +119,7 @@ class LinkData():
     def get_actor(self, link_id) -> LinkActor:
         actor: LinkActor
         for actor in self.actors:
-            if actor.link_id == link_id:
+            if actor.link_id == str(link_id):
                 return actor
         object = cc.find_object_by_id(int(link_id))
         if object:
@@ -129,6 +133,7 @@ class LinkData():
         actor = LinkActor(object)
         self.actors.append(actor)
         return actor
+
 
 LINK_DATA = LinkData()
 
@@ -601,11 +606,21 @@ class LinkService(QObject):
         self.is_data = False
         try:
             if self.client_sock and (self.is_connected or self.is_connecting):
-                r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
+                try:
+                    r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
+                except:
+                    utils.log_error("Error in select client_sockets")
+                    self.service_lost()
+                    return
                 count = 0
                 while r:
                     op_code = None
-                    header = self.client_sock.recv(8)
+                    try:
+                        header = self.client_sock.recv(8)
+                    except:
+                        utils.log_error("Error in client_sock.recv")
+                        self.service_lost()
+                        return
                     if header and len(header) == 8:
                         op_code, size = struct.unpack("!II", header)
                         data = None
@@ -620,7 +635,12 @@ class LinkService(QObject):
                         self.received.emit(op_code, data)
                         count += 1
                     self.is_data = False
-                    r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
+                    try:
+                        r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
+                    except:
+                        utils.log_error("Error in select client_sockets")
+                        self.service_lost()
+                        return
                     if r:
                         self.is_data = True
                         if count >= MAX_RECEIVE or op_code == OpCodes.NOTIFY:
@@ -696,6 +716,12 @@ class LinkService(QObject):
         self.stop_client()
         self.stop_server()
 
+    def service_lost(self):
+        self.lost_connection.emit()
+        self.stop_timer()
+        self.stop_client()
+        self.stop_server()
+
     def loop(self):
         current_time = time.time()
         delta_time = current_time - self.time
@@ -742,8 +768,7 @@ class LinkService(QObject):
                 self.sent.emit()
             except:
                 utils.log_error("Error sending message, disconnecting...")
-                self.lost_connection.emit()
-                self.stop_client()
+                self.service_lost()
 
     def start_sequence(self, func=None):
         self.is_sequence = True
@@ -931,6 +956,9 @@ class DataLink(QObject):
         if op_code == OpCodes.SEQUENCE_END:
             self.receive_sequence_end(data)
 
+        if op_code == OpCodes.CHARACTER:
+            self.receive_character_import(data)
+
     def on_connected(self):
         self.send_notify("Connected")
 
@@ -960,15 +988,30 @@ class DataLink(QObject):
 
     def get_selected_actors(self):
         selected = RScene.GetSelectedObjects()
+        avatars = RScene.GetAvatars()
         actors = []
-        for obj in selected:
-            actor_object = cc.find_actor_parent(obj)
-            if actor_object:
-                link_id = actor_object.GetID()
-                actor = self.data.get_actor(link_id)
-                if actor:
-                    actors.append(actor)
+        # if nothing selected and only 1 avatar, use this actor
+        # otherwise return a list of all selected actors
+        if not selected and len(avatars) == 1:
+            actor = self.data.get_actor(avatars[0].GetID())
+            if actor:
+                actors.append(actor)
+        else:
+            for obj in selected:
+                actor_object = cc.find_actor_parent(obj)
+                if actor_object:
+                    link_id = actor_object.GetID()
+                    actor = self.data.get_actor(link_id)
+                    if actor and actor not in actors:
+                        actors.append(actor)
         return actors
+
+    def get_active_actor(self):
+        avatar = cc.get_first_avatar()
+        if avatar:
+            actor = self.data.get_actor(avatar.GetID())
+            return actor
+        return None
 
     def send_actor(self):
         actors = self.get_selected_actors()
@@ -994,7 +1037,6 @@ class DataLink(QObject):
 
         actor = LinkActor(avatar)
         self.update_link_status(f"Sending Character for Import: {actor.name}")
-        self.send_notify(f"Exporting: {actor.name}")
         self.send_notify(f"Character Import: {actor.name}")
         export_data = encode_from_json({
             "path": fbx_path,
@@ -1002,6 +1044,20 @@ class DataLink(QObject):
             "link_id": actor.link_id,
         })
         self.service.send(OpCodes.CHARACTER, export_data)
+
+    def send_actor_update(self, actor, old_name, old_link_id):
+        if not actor:
+            actor = self.get_active_actor()
+        if actor:
+            self.update_link_status(f"Updating Blender Character: {actor.name}")
+            self.send_notify(f"Updating: {actor.name}")
+            update_data = encode_from_json({
+                "old_name": old_name,
+                "old_link_id": old_link_id,
+                "new_name": actor.name,
+                "new_link_id": actor.link_id,
+            })
+            self.service.send(OpCodes.CHARATCER_UPDATE, update_data)
 
     def send_rigify(self):
         actors = self.get_selected_actors()
@@ -1407,6 +1463,36 @@ class DataLink(QObject):
         scene_end_time = get_frame_time(self.data.sequence_end_frame)
         self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
         RGlobal.Play(scene_start_time, scene_end_time)
+
+    def receive_character_import(self,data):
+        json_data = decode_to_json(data)
+        fbx_path = json_data["path"]
+        old_name = json_data["name"]
+        old_link_id = json_data["link_id"]
+        self.update_link_status(f"Receving Character Import: {old_name}")
+        if os.path.exists(fbx_path):
+            imp = importer.Importer(fbx_path, no_window=True)
+            imp.set_data_link_import()
+            imp.import_fbx()
+            self.update_link_status(f"Character Imported: {old_name}")
+            actor = self.data.get_actor(old_link_id)
+            # the new avatar will have it's ID changed
+            avatar = cc.get_first_avatar()
+            if actor and avatar:
+                actor.update(avatar)
+                # now tell Blender of the new avatar
+                self.update_link_status(f"Updating Blender: {actor.name}")
+                self.send_actor_update(actor, old_name, old_link_id)
+                #RScene.SelectObject(avatar)
+                #self.send_pose()
+                #self.sync_lights()
+                #self.sync_camera()
+
+
+
+
+
+
 
 
 LINK: DataLink = None

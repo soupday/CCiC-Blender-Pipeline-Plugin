@@ -61,8 +61,7 @@ class Importer:
 
     json_data: cc.CCJsonData = None
 
-
-    def __init__(self, file_path):
+    def __init__(self, file_path, no_window=False):
         utils.log("================================================================")
         utils.log("New character import, Fbx: " + file_path)
         self.path = file_path
@@ -104,9 +103,8 @@ class Importer:
             if "Facial_Profile" in root_json and "Categories" in root_json["Facial_Profile"]:
                 self.option_import_expressions = False
 
-        if not error:
+        if not error and not no_window:
             self.create_options_window()
-
 
     def fetch_options(self):
         if self.check_mesh: self.option_mesh = self.check_mesh.isChecked()
@@ -115,7 +113,6 @@ class Importer:
         if self.check_import_expressions: self.option_import_expressions = self.check_import_expressions.isChecked()
         if self.check_import_hik: self.option_import_hik = self.check_import_hik.isChecked()
         if self.check_import_profile: self.option_import_profile = self.check_import_profile.isChecked()
-
 
     def close_options_window(self):
         if self.window_options:
@@ -127,7 +124,6 @@ class Importer:
         self.check_import_expressions = None
         self.check_import_hik = None
         self.check_import_profile = None
-
 
     def close_progress_window(self):
         self.close_options_window()
@@ -148,11 +144,9 @@ class Importer:
         self.substance_import_success = False
         self.clean_up_globals()
 
-
     def clean_up_globals(self):
         global FBX_IMPORTER
         FBX_IMPORTER = None
-
 
     def create_options_window(self):
         title = f"Blender Auto-setup Character Import ({vars.VERSION}) - Options"
@@ -180,7 +174,6 @@ class Importer:
 
         self.window_options.Show()
 
-
     def create_progress_window(self):
         title = "Blender Auto-setup Character Import - Progress"
         self.window_progress, layout = qt.window(title, 500)
@@ -196,13 +189,19 @@ class Importer:
 
         self.window_progress.Show()
 
-
     def update_progress(self, inc, text = "", events = False):
         self.progress_count += inc
         qt.progress_update(self.progress_bar, self.progress_count, text)
         if events:
             qt.do_events()
 
+    def set_data_link_import(self):
+        self.option_mesh = True
+        self.option_textures = True
+        self.option_parameters = True
+        self.option_import_expressions = False
+        self.option_import_hik = False
+        self.option_import_profile = False
 
     def import_fbx(self):
         """Import the character into CC3 and read in the json data.

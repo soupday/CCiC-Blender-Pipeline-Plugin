@@ -880,6 +880,14 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
     return mesh_materials
 
 
+def is_cc():
+    return RLPy.RApplication.GetProductName() == "Character Creator"
+
+
+def is_iclone():
+    return RLPy.RApplication.GetProductName() == "iClone"
+
+
 def find_child_obj(obj, search):
     if obj == search:
         return True
