@@ -22,15 +22,17 @@ import btp.qt as qt
 import btp.tests as tests
 import btp.gob as gob
 import btp.vars as vars
+import btp.prefs as prefs
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
 FBX_IMPORTER: importer.Importer = None
 FBX_EXPORTER: exporter.Exporter = None
+SETTINGS: prefs.Preferences = None
 
 
 def initialize_plugin():
-    vars.detect_paths()
+    prefs.detect_paths()
     # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
     qt.clear_menu(plugin_menu)
@@ -56,7 +58,7 @@ def initialize_plugin():
         qt.add_tool_bar_action(tool_bar, icon_export, None, menu_export)
         qt.add_tool_bar_action(tool_bar, icon_import, None, menu_import)
         qt.add_tool_bar_action(tool_bar, icon_link, None, menu_link)
-        qt.add_tool_bar_action(tool_bar, icon_settings, None, menu_link)
+        qt.add_tool_bar_action(tool_bar, icon_settings, None, menu_settings)
 
 
 def menu_import():
@@ -81,6 +83,12 @@ def menu_link():
 
 def menu_go_b():
     gob.go_b()
+
+
+def menu_settings():
+    global FBX_EXPORTER
+    FBX_EXPORTER = None
+    FBX_EXPORTER = prefs.Preferences()
 
 
 def run_script():

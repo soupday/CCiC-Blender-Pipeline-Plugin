@@ -34,6 +34,8 @@ TINY_TEXT = "font: bold 4px"
 BUTTON_HEIGHT = 32
 ALIGN_CENTRE = Qt.AlignCenter
 HORIZONTAL = Qt.Horizontal
+ICON_BUTTON_HEIGHT = 64
+STYLE_ICON_BUTTON = ""
 
 
 def window(title, width = 400, changed=None):
@@ -291,11 +293,23 @@ def spinbox(layout, min, max, step, value, style = STYLE_NONE, read_only = False
     return w
 
 
-def button(layout, text, func=None, style="",
+def button(layout, text, func=None, icon = None, style="",
            width=0, height=BUTTON_HEIGHT, row=-1, col=-1, align=None,
-           toggle=False, value=False):
+           toggle=False, value=False, fixed=False):
 
     w = QPushButton(text, minimumHeight=height, minimumWidth=width)
+    if fixed:
+        if width:
+            w.setFixedWidth(width)
+        if height:
+            w.setFixedHeight(height)
+    if icon:
+        if type(icon) is str:
+            w.setIcon(get_icon(icon))
+            w.setIconSize(QSize(48, 48))
+        elif type(icon) is QIcon:
+            w.setIcon(icon)
+            w.setIconSize(QSize(48, 48))
     w.setStyleSheet(style)
     if func:
         w.clicked.connect(func)

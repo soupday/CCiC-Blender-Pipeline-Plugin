@@ -2,13 +2,14 @@
 import subprocess
 import os
 import RLPy
-import re
-from . import link, cc, exporter, vars
+from . import link, cc, exporter, prefs, utils, vars
 
 GOB_AVATAR = None
 GOB_FBX_PATH = None
 GOB_CONNECTED = False
 GOB_DONE = False
+
+BLENDER_PROCESS = None
 
 
 def go_b():
@@ -18,21 +19,23 @@ def go_b():
     GOB_CONNECTED = False
     GOB_DONE = False
 
-    export_path = vars.EXPORT_PATH
+    export_path = prefs.DATALINK_FOLDER
     avatar = cc.get_first_avatar()
     if avatar:
 
         RLPy.RScene.SelectObject(avatar)
+        name = avatar.GetName()
 
         LINK = link.get_data_link()
         LINK.link_start()
         LINK.service.connected.connect(go_b_connected)
 
-        write_script()
-        launch_blender()
+        sub_folder, script_path, blend_path = get_go_b_paths(name)
+        write_script(script_path, blend_path)
+        launch_blender(script_path)
 
         # export the avatar while blender launches
-        fbx_path = os.path.join(export_path, avatar.GetName() + ".fbx")
+        fbx_path = os.path.join(sub_folder, name + ".fbx")
         export = exporter.Exporter(avatar, no_window=True)
         export.set_go_b_export(fbx_path)
         export.export_fbx()
@@ -47,13 +50,13 @@ def go_b():
 def go_b_connected():
     global GOB_AVATAR, GOB_FBX_PATH, GOB_CONNECTED, GOB_DONE
     GOB_CONNECTED = True
-
     # try to finish after connecting
     go_b_finish()
 
 
 def go_b_finish():
     global GOB_AVATAR, GOB_FBX_PATH, GOB_CONNECTED, GOB_DONE
+    # if blender has connected back and the fbx has finished exporting:
     if GOB_FBX_PATH and GOB_CONNECTED and not GOB_DONE:
         GOB_DONE = True
         LINK = link.get_data_link()
@@ -73,23 +76,51 @@ def start_datalink():
     LINK.link_start()
 
 
-def get_script_path():
-    temp_path = vars.EXPORT_PATH
-    script_path = os.path.join(temp_path, "start_data_link.py")
-    return script_path
+def get_go_b_paths(name):
+    folder = prefs.DATALINK_FOLDER
+
+    if not os.path.exists(folder):
+        folder = cc.temp_files_path("Data Link")
+        if not os.path.exists(folder):
+            os.makedirs(folder, exist_ok=True)
+
+    base_name = name
+    sub_folder = os.path.normpath(os.path.join(folder, name))
+    if os.path.exists(sub_folder):
+        suffix = 1
+        name = base_name + "_" + str(suffix)
+        sub_folder = os.path.normpath(os.path.join(folder, name))
+        while os.path.exists(sub_folder):
+            suffix += 1
+            name = base_name + "_" + str(suffix)
+            sub_folder = os.path.normpath(os.path.join(folder, name))
+
+    if not os.path.exists(sub_folder):
+        os.makedirs(sub_folder, exist_ok=True)
+
+    blend_path = os.path.normpath(os.path.join(sub_folder, base_name + ".blend"))
+
+    script_path = os.path.normpath(os.path.join(sub_folder, "go_b.py"))
+
+    utils.log_info(f"Using DataLink Sub-Folder Path: {sub_folder}")
+
+    return sub_folder, script_path, blend_path
 
 
-def write_script():
-    script_path = get_script_path()
-    script_text = """
+def write_script(script_path, blend_path):
+    script_text = f"""
 import bpy
-print("HELLO!")
+
+bpy.ops.wm.save_as_mainfile(filepath=r"{blend_path}")
+bpy.ops.file.make_paths_relative()
 bpy.ops.ccic.datalink(param="START")
     """
+    utils.log_info(f"Writing Blender Launch Script: {script_path}")
     with open(script_path, 'w') as f:
         f.write(script_text)
 
 
-def launch_blender():
-    script_path = get_script_path()
-    vars.BLENDER_PROCESS = subprocess.Popen([f"{vars.BLENDER_PATH}", "-P", f"{script_path}"])
+def launch_blender(script_path):
+    global BLENDER_PROCESS
+    utils.log_info(f"Launching Blender...")
+    BLENDER_PROCESS = subprocess.Popen([f"{prefs.BLENDER_PATH}", "-P", f"{script_path}"])
