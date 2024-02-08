@@ -28,6 +28,7 @@ from . import qt
 
 BLENDER_PATH = None
 DATALINK_FOLDER = None
+DATALINK_OVERWRITE = False
 
 class Preferences(QObject):
     window: QWindow = None
