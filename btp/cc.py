@@ -790,7 +790,7 @@ def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=
 
     obj: RLPy.RIObject
     for obj in selected_objects:
-        actor = find_actor_parent(obj)
+        actor = find_parent_avatar_or_prop(obj)
         obj_name = obj.GetName()
         if actor:
             material_component = actor.GetMaterialComponent()
@@ -915,6 +915,26 @@ def get_first_avatar():
     return avatar
 
 
+def get_selected_avatars():
+    objects = get_selected_actor_objects()
+    all_avatars = RLPy.RScene.GetAvatars()
+    avatars = []
+    for obj in objects:
+        if obj in all_avatars:
+            avatars.append(obj)
+    return avatars
+
+
+def get_selected_actor_objects():
+    selected = RLPy.RScene.GetSelectedObjects()
+    actor_objects = []
+    for obj in selected:
+        actor_object = find_parent_avatar_or_prop(obj)
+        if actor_object:
+            actor_objects.append(actor_object)
+    return actor_objects
+
+
 def find_content_in_folder(folder, search):
     content_files = RLPy.RApplication.GetContentFilesInFolder(folder)
     for content in content_files:
@@ -988,7 +1008,7 @@ def find_node(node : RLPy.RINode, id):
     return None
 
 
-def find_actor_parent(obj : RLPy.RIObject):
+def find_parent_avatar_or_prop(obj : RLPy.RIObject):
     avatars = RLPy.RScene.GetAvatars()
     props = RLPy.RScene.GetProps()
     root : RLPy.RINode = RLPy.RScene.GetRootNode()
@@ -1003,6 +1023,102 @@ def find_actor_parent(obj : RLPy.RIObject):
                 return prop
         node = node.GetParent()
     return None
+
+
+def add_data_block(obj: RLPy.RIObject, block_name):
+    data_block: RLPy.RDataBlock = None
+    if obj:
+        data_block = obj.GetDataBlock(block_name)
+        if data_block:
+            return data_block
+        data_block = RLPy.RDataBlock.Create([])
+        obj.SetDataBlock(block_name, data_block)
+        return data_block
+    return None
+
+
+def has_attr(data_block: RLPy.RDataBlock, attr_name: str):
+    attr: RLPy.RAttribute = None
+    if data_block:
+        attribs = data_block.GetAttributes()
+        for attr in attribs:
+            if attr.GetName() == attr_name:
+                return True
+    return False
+
+
+def add_attr(data_block: RLPy.RDataBlock, attr_name: str, attr_type, attr_flags):
+    attr: RLPy.RAttribute = None
+    if data_block:
+        attribs = data_block.GetAttributes()
+        for attr in attribs:
+            if attr.GetName() == attr_name:
+                return attr
+        attr = RLPy.RAttribute(attr_name, attr_type, attr_flags)
+        data_block.AddAttribute(attr)
+        return attr
+    return None
+
+
+def get_data_block_str(obj: RLPy.RIObject, block_name, attr_name):
+    data_block: RLPy.RDataBlock = obj.GetDataBlock(block_name)
+    if data_block and has_attr(data_block, attr_name):
+        return data_block.GetData(attr_name).ToString()
+    return None
+
+
+def get_link_id(obj: RLPy.RIObject, add_if_missing=False):
+    if obj:
+        link_id = get_data_block_str(obj, "DataLink", "LinkID")
+        if not link_id:
+            link_id = str(obj.GetID())
+            if add_if_missing:
+                set_link_id(obj, link_id)
+        return link_id
+    return None
+
+
+def set_link_id(obj: RLPy.RIObject, link_id):
+    if obj:
+        data_block: RLPy.RDataBlock = add_data_block(obj, "DataLink")
+        add_attr(data_block, "LinkID", RLPy.EAttributeType_String, RLPy.EAttributeFlag_Default)
+        value = RLPy.RVariant(str(link_id))
+        data_block.SetData("LinkID", value)
+
+
+def find_object_by_link_id(link_id):
+    objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
+                                      RLPy.EObjectType_Prop |
+                                      RLPy.EObjectType_Light |
+                                      RLPy.EObjectType_Camera)
+    for obj in objects:
+        if get_link_id(obj) == link_id:
+            return obj
+    return None
+
+
+def find_linked_objects(object: RLPy.RIObject):
+    objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
+                                      RLPy.EObjectType_Prop |
+                                      RLPy.EObjectType_Light |
+                                      RLPy.EObjectType_Camera)
+    linked_objects = []
+    for obj in objects:
+        linked_object = obj.GetLinkedObject()
+        if linked_object and linked_object == object:
+            linked_objects.append(obj)
+    return linked_objects
+
+
+def find_attached_objects(object: RLPy.RIObject):
+    attached = RLPy.RScene.FindChildObjects(object,
+                                            RLPy.EObjectType_Light |
+                                            RLPy.EObjectType_Camera |
+                                            RLPy.EObjectType_Prop |
+                                            RLPy.EObjectType_Cloth |
+                                            RLPy.EObjectType_Accessory |
+                                            RLPy.EObjectType_Hair)
+    return attached
 
 
 def find_object_by_id(object_id):

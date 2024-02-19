@@ -4,71 +4,100 @@ import os
 import RLPy
 from . import link, cc, exporter, prefs, utils, vars
 
-GOB_AVATAR = None
-GOB_FBX_PATH = None
+GOB_OBJECTS = None
 GOB_CONNECTED = False
+GOB_EXPORTED = False
 GOB_DONE = False
 
 BLENDER_PROCESS = None
 
 
 def go_b():
-    global GOB_AVATAR, GOB_FBX_PATH, GOB_CONNECTED, GOB_DONE
-    GOB_FBX_PATH = None
-    GOB_AVATAR = None
+    global GOB_OBJECTS, GOB_CONNECTED, GOB_DONE, GOB_EXPORTED
+    GOB_OBJECTS = []
     GOB_CONNECTED = False
     GOB_DONE = False
+    GOB_EXPORTED = False
 
-    export_path = prefs.DATALINK_FOLDER
-    avatar = cc.get_first_avatar()
-    if avatar:
+    objects = cc.get_selected_actor_objects()
 
-        RLPy.RScene.SelectObject(avatar)
-        name = avatar.GetName()
+    if cc.is_cc():
+        name = "Untitled"
+        # in CC4, if nothing selected, use the available character, if there is one
+        if not objects:
+            avatar = cc.get_first_avatar()
+            if avatar:
+                objects = [avatar]
+    else:
+        name = "iClone Project"
 
-        LINK = link.get_data_link()
+    for obj in objects:
+        GOB_OBJECTS.append({
+            "name": obj.GetName(),
+            "object": obj,
+        })
+
+    # prefer using avatar names over prop names
+    avatars = cc.get_selected_avatars()
+    if avatars:
+        name = f"iClone Project - {avatars[0].GetName()}"
+    elif objects:
+        name = f"iClone Project - {objects[0].GetName()}"
+
+    utils.log_info(f"Using project name: {name}")
+
+    LINK = link.get_data_link()
+    if not LINK.is_connected():
         LINK.link_start()
         LINK.service.connected.connect(go_b_connected)
 
-        sub_folder, script_path, blend_path = get_go_b_paths(name)
-        write_script(script_path, blend_path)
-        launch_blender(script_path)
+    sub_folder, script_path, blend_path = get_go_b_paths(name)
+    write_script(script_path, blend_path)
+    launch_blender(script_path)
 
-        # export the avatar while blender launches
+    # TODO only export character if doesn't exist in Blender...
+
+    # export the avatar(s) while Blender launches
+    for gob_data in GOB_OBJECTS:
+        name = gob_data["name"]
+        obj = gob_data["object"]
         fbx_path = os.path.join(sub_folder, name + ".fbx")
-        export = exporter.Exporter(avatar, no_window=True)
+        gob_data["path"] = fbx_path
+        export = exporter.Exporter(obj, no_window=True)
         export.set_go_b_export(fbx_path)
         export.export_fbx()
-        export.export_extra_data()
-        GOB_FBX_PATH = fbx_path
-        GOB_AVATAR = avatar
+        if type(obj) is RLPy.RIAvatar:
+            export.export_extra_data()
 
-        # try to finish after exporting avatar
-        go_b_finish()
+    GOB_EXPORTED = True
+
+    # try to finish after exporting the avatar(s)
+    go_b_finish()
 
 
 def go_b_connected():
-    global GOB_AVATAR, GOB_FBX_PATH, GOB_CONNECTED, GOB_DONE
+    global GOB_CONNECTED
     GOB_CONNECTED = True
     # try to finish after connecting
     go_b_finish()
 
 
 def go_b_finish():
-    global GOB_AVATAR, GOB_FBX_PATH, GOB_CONNECTED, GOB_DONE
-    # if blender has connected back and the fbx has finished exporting:
-    if GOB_FBX_PATH and GOB_CONNECTED and not GOB_DONE:
+    global GOB_CONNECTED, GOB_DONE, GOB_EXPORTED, GOB_OBJECTS
+    # if Blender has connected back and the avatar(s) have finished exporting:
+    if GOB_CONNECTED and GOB_EXPORTED and not GOB_DONE:
         GOB_DONE = True
         LINK = link.get_data_link()
         LINK.service.connected.disconnect(go_b_connected)
-        LINK.send_actor_exported(GOB_AVATAR, GOB_FBX_PATH)
-        LINK.send_pose()
         LINK.sync_lights()
         LINK.sync_camera()
-        GOB_AVATAR = None
-        GOB_FBX_PATH = None
+        for gob_data in GOB_OBJECTS:
+            LINK.send_actor_exported(gob_data["object"], gob_data["path"])
+        if GOB_OBJECTS:
+            LINK.send_pose()
+        GOB_EXPORTED = False
         GOB_CONNECTED = False
-        GOB_DONE = False
+        GOB_OBJECTS = None
 
 
 def start_datalink():

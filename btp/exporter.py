@@ -276,7 +276,7 @@ class Exporter:
         self.option_profile_data = False
         self.option_t_pose = False
         self.option_current_pose = False
-        self.option_current_animation = False
+        self.option_current_animation = True
         self.option_remove_hidden = False
         self.set_paths(file_path)
 
@@ -304,6 +304,7 @@ class Exporter:
         options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
         options1 = options1 | EExportFbxOptions_RemoveAllUnused
         options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
+        options1 = options1 | EExportFbxOptions_ExportRootMotion
         if self.option_remove_hidden:
             options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
 
@@ -328,19 +329,21 @@ class Exporter:
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
-        if self.option_current_pose:
-            export_fbx_setting.EnableExportMotion(True)
-            export_fbx_setting.SetExportMotionRange(RRangePair(0, 1))
-            export_fbx_setting.SetExportMotionFps(RFps.Fps60)
-        elif self.option_current_animation:
+        if self.option_current_animation:
             fps = RGlobal.GetFps()
-            startFrame = fps.GetFrameIndex(RGlobal.GetStartTime())
-            endFrame = fps.GetFrameIndex(RGlobal.GetEndTime())
+            start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
+            end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
             export_fbx_setting.EnableExportMotion(True)
-            export_fbx_setting.SetExportMotionRange(RRangePair(startFrame, endFrame))
-            export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+            #export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+            #export_fbx_setting.SetExportMotionRange(RRangePair(0, 800))
+        elif self.option_current_pose:
+            export_fbx_setting.EnableExportMotion(True)
+            #export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+            export_fbx_setting.SetExportMotionRange(RRangePair(0, 1))
         else:
             export_fbx_setting.EnableExportMotion(False)
+
+        print (export_fbx_setting.IsExportMotionEnabled())
 
         result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
 
@@ -352,7 +355,7 @@ class Exporter:
         mesh_materials = cc.get_avatar_mesh_materials(self.avatar, json_data=json_data)
 
         root_json["Avatar_Type"] = self.avatar_type_string
-        root_json["Link_ID"] = str(self.avatar.GetID())
+        root_json["Link_ID"] = cc.get_link_id(self.avatar)
 
         utils.log(f"Avatar Type: {self.avatar_type_string}")
 

@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random, atexit
-from . import blender, importer, exporter, cc, qt, prefs, utils, vars
+from . import blender, importer, exporter, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 
 LOCALHOST = "127.0.0.1"
@@ -32,15 +32,15 @@ TIMER_INTERVAL = 1000/60
 MAX_CHUNK_SIZE = 32768
 HANDSHAKE_TIMEOUT_S = 60
 KEEPALIVE_TIMEOUT_S = 300
-PING_INTERVAL_S = 120
+PING_INTERVAL_S = 1
 SERVER_ONLY = True
 CLIENT_ONLY = False
 EMPTY_SOCKETS = []
 MAX_RECEIVE = 24
 USE_PING = False
 USE_KEEPALIVE = False
-USE_BLOCKING = True
-SOCKET_TIMEOUT = 10.0
+USE_BLOCKING = False
+SOCKET_TIMEOUT = 5.0
 
 class OpCodes(IntEnum):
     NONE = 0
@@ -50,7 +50,9 @@ class OpCodes(IntEnum):
     DISCONNECT = 11
     NOTIFY = 50
     CHARACTER = 100
-    CHARATCER_UPDATE = 101
+    CHARACTER_UPDATE = 101
+    PROP = 102
+    PROP_UPDATE = 103
     RIGIFY = 110
     TEMPLATE = 200
     POSE = 201
@@ -64,13 +66,14 @@ class OpCodes(IntEnum):
 class LinkActor():
     name: str = "Name"
     object: RIObject = None
-    link_id: str = "1234567890"
     template: list = []
+    expressions: list = []
     t_pose: dict = None
 
     def __init__(self, object):
-        self.update(object)
-        return
+        self.name = object.GetName()
+        self.object = object
+        self.get_link_id()
 
     def get_avatar(self) -> RIAvatar:
         return self.object
@@ -81,16 +84,22 @@ class LinkActor():
     def get_object(self) -> RIObject:
         return self.object
 
-    def update(self, object):
+    def update(self, object, link_id):
         self.name = object.GetName()
-        self.link_id = str(object.GetID())
         self.object = object
+        self.set_link_id(link_id)
 
     def get_skeleton_component(self) -> RISkeletonComponent:
-        return self.object.GetSkeletonComponent()
+        if self.object:
+            if type(self.object) is RIAvatar or type(self.object) is RIProp:
+                return self.object.GetSkeletonComponent()
+        return None
 
     def set_template(self, template):
         self.template = template
+
+    def set_expressions(self, expressions):
+        self.expressions = expressions
 
     def set_t_pose(self, t_pose):
         self.t_pose = t_pose
@@ -100,6 +109,22 @@ class LinkActor():
 
     def is_prop(self):
         return type(self.object) is RIProp
+
+    def is_light(self):
+        return type(self.object) is RILight
+
+    def is_camera(self):
+        return type(self.object) is RICamera
+
+    def get_link_id(self):
+        return cc.get_link_id(self.object, add_if_missing=True)
+
+    def set_link_id(self, link_id):
+        cc.set_link_id(self.object, link_id)
+
+
+
+
 
 
 class LinkData():
@@ -120,18 +145,25 @@ class LinkData():
     def get_actor(self, link_id) -> LinkActor:
         actor: LinkActor
         for actor in self.actors:
-            if actor.link_id == str(link_id):
+            if actor.get_link_id() == link_id:
                 return actor
-        object = cc.find_object_by_id(int(link_id))
-        if object:
-            return self.add_actor(object)
+        obj = cc.find_object_by_link_id(link_id)
+        if obj:
+            return self.add_actor(obj)
         return None
 
-    def add_actor(self, object) -> LinkActor:
+    def get_actor_from_object(self, obj) -> LinkActor:
+        actor: LinkActor
         for actor in self.actors:
-            if actor.object == object:
+            if actor.object == obj:
                 return actor
-        actor = LinkActor(object)
+        return self.add_actor(obj)
+
+    def add_actor(self, obj) -> LinkActor:
+        for actor in self.actors:
+            if actor.object == obj:
+                return actor
+        actor = LinkActor(obj)
         self.actors.append(actor)
         return actor
 
@@ -164,16 +196,6 @@ def decode_to_json(data):
     text = data.decode("utf-8")
     json_data = json.loads(text)
     return json_data
-
-
-def get_selected_actor_objects():
-    selected = RScene.GetSelectedObjects()
-    actor_objects = []
-    for obj in selected:
-        actor_object = cc.find_actor_parent(obj)
-        if actor_object:
-            actor_objects.append(actor_object)
-    return actor_objects
 
 
 def reset_animation():
@@ -531,10 +553,10 @@ class LinkService(QObject):
             try:
                 self.keepalive_timer = HANDSHAKE_TIMEOUT_S
                 self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.server_sock.settimeout(SOCKET_TIMEOUT)
                 self.server_sock.bind(('', RL_PORT))
                 self.server_sock.listen(5)
-                self.server_sock.setblocking(USE_BLOCKING)
-                self.server_sock.settimeout(SOCKET_TIMEOUT)
+                #self.server_sock.setblocking(True)
                 self.server_sockets = [self.server_sock]
                 self.is_listening = True
                 utils.log_info(f"Listening on TCP *:{RL_PORT}")
@@ -550,6 +572,7 @@ class LinkService(QObject):
         if self.server_sock:
             utils.log_info(f"Closing Server Socket")
             try:
+                self.server_sock.shutdown()
                 self.server_sock.close()
             except:
                 pass
@@ -580,6 +603,7 @@ class LinkService(QObject):
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(SOCKET_TIMEOUT)
                 sock.connect((host, port))
+                #sock.setblocking(False)
                 self.is_connected = False
                 self.is_connecting = True
                 self.client_sock = sock
@@ -588,7 +612,6 @@ class LinkService(QObject):
                 self.client_port = self.host_port
                 self.keepalive_timer = KEEPALIVE_TIMEOUT_S
                 self.ping_timer = PING_INTERVAL_S
-                sock.setblocking(USE_BLOCKING)
                 utils.log_info(f"Connecting to data link server on {self.host_ip}:{self.host_port}")
                 self.send_hello()
                 self.connecting.emit()
@@ -621,6 +644,7 @@ class LinkService(QObject):
         if self.client_sock:
             utils.log_info(f"Closing Client Socket")
             try:
+                self.client_sock.shutdown()
                 self.client_sock.close()
             except:
                 pass
@@ -633,15 +657,25 @@ class LinkService(QObject):
         self.client_stopped.emit()
         self.changed.emit()
 
+    def has_client_sock(self):
+        if self.client_sock and (self.is_connected or self.is_connecting):
+            return True
+        else:
+            return False
+
     def recv(self):
         self.is_data = False
         try:
-            if self.client_sock and (self.is_connected or self.is_connecting):
+            if self.has_client_sock():
                 r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
                 count = 0
                 while r:
                     op_code = None
                     header = self.client_sock.recv(8)
+                    if header == 0:
+                        print("Socket closed by client")
+                        self.service_lost()
+                        return
                     if header and len(header) == 8:
                         op_code, size = struct.unpack("!II", header)
                         data = None
@@ -656,6 +690,9 @@ class LinkService(QObject):
                         self.received.emit(op_code, data)
                         count += 1
                     self.is_data = False
+                    # parse may have received a disconnect notice
+                    if not self.has_client_sock():
+                        return
                     r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
                     if r:
                         self.is_data = True
@@ -664,6 +701,7 @@ class LinkService(QObject):
         except:
             utils.log_error("Client socket receive failed!")
             self.service_lost()
+        return
 
     def accept(self):
         if self.server_sock and self.is_listening:
@@ -702,7 +740,7 @@ class LinkService(QObject):
                 utils.log_info(f"Connected to: {self.remote_app} {self.remote_version}")
                 utils.log_info(f"Using file path: {self.remote_path}")
                 self.changed.emit()
-        if op_code == OpCodes.PING:
+        elif op_code == OpCodes.PING:
             utils.log_info(f"Ping Received")
             pass
         elif op_code == OpCodes.STOP:
@@ -710,7 +748,7 @@ class LinkService(QObject):
             self.service_stop()
         elif op_code == OpCodes.DISCONNECT:
             utils.log_info(f"Disconnection Received")
-            self.service_disconnect()
+            self.service_recv_disconnect()
 
     def service_start(self, host, port):
         if not self.is_listening:
@@ -729,8 +767,7 @@ class LinkService(QObject):
             self.connected.emit()
             self.changed.emit()
 
-    def service_disconnect(self):
-        self.send(OpCodes.DISCONNECT)
+    def service_recv_disconnect(self):
         self.stop_client()
 
     def service_stop(self):
@@ -755,6 +792,7 @@ class LinkService(QObject):
             self.keepalive_timer -= delta_time
 
             if USE_PING and self.ping_timer <= 0:
+                print("ping")
                 self.send(OpCodes.PING)
 
             if USE_KEEPALIVE and self.keepalive_timer <= 0:
@@ -776,6 +814,7 @@ class LinkService(QObject):
 
         # run anything in sequence
         self.sequence.emit()
+
 
     def send(self, op_code, binary_data = None):
         if self.client_sock and (self.is_connected or self.is_connecting):
@@ -809,27 +848,30 @@ class LinkService(QObject):
         except: pass
 
 
-
-
-
-
 class LinkEventCallback(REventCallback):
 
     def __init__(self):
        REventCallback.__init__(self)
 
-    def OnCurrentTimeChanged(self, fTime):
-        print('Current time:' + str(fTime))
+    #def OnCurrentTimeChanged(self, fTime):
+    #    print('Current time:' + str(fTime))
+
+    def OnObjectSelectionChanged(self):
+        global LINK
+        REventCallback.OnObjectSelectionChanged(self)
+        if LINK and LINK.is_shown():
+            LINK.update_ui()
 
 
 class DataLink(QObject):
-    window: QWindow = None
+    window: RIDockWidget = None
     host_name: str = "localhost"
     host_ip: str = "127.0.0.1"
     host_port: int = BLENDER_PORT
     target: str = "Blender"
     # Callback
     callback = LinkEventCallback()
+    callback_id = None
     # UI
     label_header: QLabel = None
     button_link: QPushButton = None
@@ -841,17 +883,20 @@ class DataLink(QObject):
     data = LinkData()
 
 
-
     def __init__(self):
         QObject.__init__(self)
         self.create_window()
+        atexit.register(self.on_close)
 
     def show(self):
         self.window.Show()
         self.show_link_state()
 
+    def is_shown(self):
+        return self.window.IsVisible()
+
     def create_window(self):
-        self.window, layout = qt.window("Data Link (WIP)", 400)
+        self.window, layout = qt.window("Data Link (WIP)", 400, show_hide=self.on_show_hide)
 
         self.label_header = qt.label(layout, "Data Link: Not Connected", style=qt.STYLE_TITLE)
         self.label_folder = qt.label(layout, f"Working Folder: {self.get_remote_folder()}", style=qt.STYLE_TITLE)
@@ -883,12 +928,31 @@ class DataLink(QObject):
 
         qt.stretch(layout, 20)
 
-        #qt.button(layout, "Test 1", tests.show_foot_effector_transforms)
-        #qt.button(layout, "Test 2", tests.test2)
-        #qt.button(layout, "Test 3", tests.compare_clip_with_bones)
+        qt.button(layout, "List", tests.list_objects)
+        qt.button(layout, "Show ID", tests.show_id)
+        qt.button(layout, "Add Datablock", tests.test_data_block_set)
+        qt.button(layout, "Test Datablock", tests.test_data_block_bad_get)
 
         self.show_link_state()
         self.window.Show()
+
+    def on_show_hide(self, visible):
+        if visible:
+            if not self.callback_id:
+                print("Registering callback")
+                self.callback_id = REventHandler.RegisterCallback(self.callback)
+        else:
+            if self.callback_id:
+                print("Un-registering callback")
+                REventHandler.UnregisterCallback(self.callback_id)
+                self.callback_id = None
+
+    def on_close(self):
+        self.on_show_hide(False)
+
+    def update_ui(self):
+        print("Update UI")
+        return
 
     def update_link_status(self, text):
         self.label_status.setText(text)
@@ -942,6 +1006,12 @@ class DataLink(QObject):
                 self.button_link.setText("Connect")
             self.label_header.setText("Not Connected")
             self.label_folder.setText(f"Working Folder: None")
+
+    def is_connected(self):
+        if self.service:
+            return self.service.is_connected
+        else:
+            return False
 
     def link_start(self):
         if not self.service:
@@ -1016,16 +1086,15 @@ class DataLink(QObject):
         # if nothing selected and only 1 avatar, use this actor
         # otherwise return a list of all selected actors
         if not selected and len(avatars) == 1:
-            actor = self.data.get_actor(avatars[0].GetID())
+            actor = self.data.get_actor_from_object(avatars[0])
             if actor:
                 actors.append(actor)
         else:
             for obj in selected:
-                actor_object = cc.find_actor_parent(obj)
+                actor_object = cc.find_parent_avatar_or_prop(obj)
                 if actor_object:
                     SC: RISkeletonComponent = actor_object.GetSkeletonComponent()
-                    link_id = actor_object.GetID()
-                    actor = self.data.get_actor(link_id)
+                    actor = self.data.get_actor_from_object(actor_object)
                     if actor and actor not in actors:
                         actors.append(actor)
         return actors
@@ -1033,28 +1102,93 @@ class DataLink(QObject):
     def get_active_actor(self):
         avatar = cc.get_first_avatar()
         if avatar:
-            actor = self.data.get_actor(avatar.GetID())
+            actor = self.data.get_actor_from_object(avatar)
             return actor
         return None
+
+    def get_sub_object_data(self, object: RIObject):
+        """Get attached sub objects: Lights, Cameras, Props, Accessories, Clothing & Hair"""
+
+        sub_objects = RScene.FindChildObjects(object, EObjectType_Light | EObjectType_Camera | EObjectType_Prop |
+                                                      EObjectType_Cloth | EObjectType_Accessory | EObjectType_Hair)
+
+        # TODO export.export_extra_data should add the link_id's for these sub-objects.
+        # TODO only add link_id data when using data link export...
+
+    def send_avatar(self, actor: LinkActor):
+        """
+        TODO: Send sub object link id's?
+        """
+        self.update_link_status(f"Sending Avatar for Import: {actor.name}")
+        self.send_notify(f"Exporting: {actor.name}")
+        export_path = self.get_remote_export_path(actor.name + ".fbx")
+        linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
+        export = exporter.Exporter(actor.object, no_window=True)
+        export.set_data_link_export(export_path)
+        export.export_fbx()
+        export.export_extra_data()
+        self.send_notify(f"Avatar Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "name": actor.name,
+            "link_id": actor.get_link_id(),
+        })
+        self.service.send(OpCodes.CHARACTER, export_data)
+
+    def send_prop(self, actor: LinkActor):
+        self.update_link_status(f"Sending Prop for Import: {actor.name}")
+        self.send_notify(f"Exporting: {actor.name}")
+        export_path = self.get_remote_export_path(actor.name + ".fbx")
+        export = exporter.Exporter(actor.object, no_window=True)
+        export.set_data_link_export(export_path)
+        export.export_fbx()
+        export.export_extra_data() # TODO: do extra data for props.
+        self.send_notify(f"Prop Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "name": actor.name,
+            "link_id": actor.get_link_id(),
+        })
+        self.service.send(OpCodes.PROP, export_data)
+
+
+    def send_light(self, actor: LinkActor):
+        return
+
+
+    def send_camera(self, actor: LinkActor):
+        return
+
+
+    def send_attached_actors(self, actor: LinkActor):
+        """Send attached lights and cameras.
+           Attached props are sent as part of the parent prop.
+           (Avatars can only be linked, not attached)
+        """
+        linked_objects = cc.find_linked_objects(actor.object)
+        for obj in linked_objects:
+            actor = self.data.get_actor_from_object(obj)
+        return
+
 
     def send_actor(self):
         actors = self.get_selected_actors()
         actor: LinkActor
+        SEND_LINKED = True
         for actor in actors:
-            self.update_link_status(f"Sending Character for Import: {actor.name}")
-            self.send_notify(f"Exporting: {actor.name}")
-            export_path = self.get_remote_export_path(actor.name + ".fbx")
-            export = exporter.Exporter(actor.object, no_window=True)
-            export.set_data_link_export(export_path)
-            export.export_fbx()
-            export.export_extra_data()
-            self.send_notify(f"Character Import: {actor.name}")
-            export_data = encode_from_json({
-                "path": export_path,
-                "name": actor.name,
-                "link_id": actor.link_id,
-            })
-            self.service.send(OpCodes.CHARACTER, export_data)
+            if actor.is_avatar():
+                self.send_avatar(actor)
+                if SEND_LINKED:
+                    self.send_attached_actors(actor)
+            elif actor.is_prop():
+                self.send_prop(actor)
+                if SEND_LINKED:
+                    self.send_attached_actors(actor)
+            elif actor.is_light():
+                self.send_light()
+            elif actor.is_camera():
+                self.send_camera()
+
 
     def send_actor_exported(self, avatar=None, fbx_path=None):
         """Send a pre-exported avatar/actor through the DataLink"""
@@ -1065,7 +1199,7 @@ class DataLink(QObject):
         export_data = encode_from_json({
             "path": fbx_path,
             "name": actor.name,
-            "link_id": actor.link_id,
+            "link_id": actor.get_link_id(),
         })
         self.service.send(OpCodes.CHARACTER, export_data)
 
@@ -1079,9 +1213,9 @@ class DataLink(QObject):
                 "old_name": old_name,
                 "old_link_id": old_link_id,
                 "new_name": actor.name,
-                "new_link_id": actor.link_id,
+                "new_link_id": actor.get_link_id(),
             })
-            self.service.send(OpCodes.CHARATCER_UPDATE, update_data)
+            self.service.send(OpCodes.CHARACTER_UPDATE, update_data)
 
     def send_rigify(self):
         actors = self.get_selected_actors()
@@ -1092,7 +1226,7 @@ class DataLink(QObject):
                 self.send_notify(f"Rigify: {actor.name}")
                 rigify_data = encode_from_json({
                     "name": actor.name,
-                    "link_id": actor.link_id,
+                    "link_id": actor.get_link_id(),
                 })
                 self.service.send(OpCodes.RIGIFY, rigify_data)
 
@@ -1114,7 +1248,7 @@ class DataLink(QObject):
                 bones.append(bone_node.GetName())
             actor_data.append({
                 "name": actor.name,
-                "link_id": actor.link_id,
+                "link_id": actor.get_link_id(),
                 "bones": bones
             })
         return encode_from_json(character_template)
@@ -1127,7 +1261,7 @@ class DataLink(QObject):
             SC: RISkeletonComponent = actor.get_skeleton_component()
             skin_bones = SC.GetSkinBones()
             data += pack_string(actor.name)
-            data += pack_string(actor.link_id)
+            data += pack_string(actor.get_link_id())
             data += struct.pack("!I", len(skin_bones))
             bone: RIObject
             for bone in skin_bones:
@@ -1157,7 +1291,7 @@ class DataLink(QObject):
         for actor in actors:
             actors_data.append({
                 "name": actor.name,
-                "link_id": actor.link_id,
+                "link_id": actor.get_link_id(),
             })
         return encode_from_json(data)
 
@@ -1166,7 +1300,7 @@ class DataLink(QObject):
         all_lights = RScene.FindObjects(EObjectType_Light)
         all_light_id = []
         for light in all_lights:
-            all_light_id.append(str(light.GetID()))
+            all_light_id.append(cc.get_link_id(light))
 
         data = {
             "lights": [],
@@ -1186,7 +1320,7 @@ class DataLink(QObject):
             r: RQuaternion = T.R()
             s: RVector3 = T.S()
 
-            link_id: str = str(light.GetID())
+            link_id: str = cc.get_link_id(light, add_if_missing=True)
             active: bool = light.GetActive()
             color: RRgb = light.GetColor()
             multiplier: float = light.GetMultiplier()
@@ -1264,7 +1398,7 @@ class DataLink(QObject):
         self.service.send(OpCodes.LIGHTS, lights_data)
 
     def get_camera_data(self, camera: RICamera):
-        link_id = str(camera.GetID())
+        link_id = cc.get_link_id(camera, add_if_missing=True)
         name = camera.GetName()
         time = RGlobal.GetTime()
         width = 0
@@ -1512,7 +1646,7 @@ class DataLink(QObject):
             # the new avatar will have it's ID changed
             avatar = cc.get_first_avatar()
             if actor and avatar:
-                actor.update(avatar)
+                actor.update(avatar, old_link_id)
                 # now tell Blender of the new avatar
                 self.update_link_status(f"Updating Blender: {actor.name}")
                 self.send_actor_update(actor, old_name, old_link_id)

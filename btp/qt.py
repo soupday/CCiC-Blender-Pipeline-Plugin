@@ -38,7 +38,7 @@ ICON_BUTTON_HEIGHT = 64
 STYLE_ICON_BUTTON = ""
 
 
-def window(title, width = 400, changed=None):
+def window(title, width = 400, show_hide=None):
     window: RLPy.RIDockWidget
     dock: QDockWidget
 
@@ -54,8 +54,8 @@ def window(title, width = 400, changed=None):
     layout = QVBoxLayout()
     widget.setLayout(layout)
 
-    if changed:
-        dock.visibilityChanged.connect(changed)
+    if show_hide:
+        dock.visibilityChanged.connect(show_hide)
 
     return window, layout
 

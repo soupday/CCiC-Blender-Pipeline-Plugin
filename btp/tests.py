@@ -16,7 +16,61 @@
 
 import os
 from RLPy import *
-from btp import importer, exporter, link, qt, cc, utils
+from . import cc, utils
+
+
+def list_objects():
+    selected = RScene.GetSelectedObjects()
+    for sel in selected:
+        print("######")
+        print(sel.GetName())
+        print("------")
+    #    p = cc.find_parent_avatar_or_prop(sel)
+    #    print(p.GetName())
+        children = RScene.FindChildObjects(sel, EObjectType_Avatar | EObjectType_Prop | EObjectType_Camera | EObjectType_Light)
+        for child in children:
+            print(f"{child.GetName()} ({type(child)})")
+
+
+def show_id():
+    actor_objects = cc.get_selected_actor_objects()
+    for obj in actor_objects:
+        print(f"{obj.GetName()}: {obj.GetID()}")
+
+
+def test_data_block_set():
+    data_block = RDataBlock.Create([])
+    attr = RAttribute("TestAttr", EAttributeType_String, EAttributeFlag_Default)
+    data_block = RDataBlock.Create([attr])
+    time_zero = RTime.FromValue(0)
+    value = RVariant("TestString")
+    data_block.SetData("TestAttr", value)
+    #data_block.SetData("Something", time_zero, value)
+    actor_objects = cc.get_selected_actor_objects()
+    for obj in actor_objects:
+        obj.SetDataBlock("TestBlock", data_block)
+
+
+def test_data_block_get():
+    actor_objects = cc.get_selected_actor_objects()
+    for obj in actor_objects:
+        data_block: RDataBlock = obj.GetDataBlock("TestBlock")
+        value: RVariant = data_block.GetData("TestAttr")
+        print(value.ToString())
+
+
+def test_data_block_bad_get():
+    print("Bad Get")
+    actor_objects = cc.get_selected_actor_objects()
+    for obj in actor_objects:
+        data_block: RDataBlock = obj.GetDataBlock("TestBlock")
+        print(data_block)
+        if data_block:
+            value: RVariant = data_block.GetData("TestAttrNotExists")
+            print(value)
+            print(value.ToString())
+
+
 
 def test():
     avatar = cc.get_first_avatar()
