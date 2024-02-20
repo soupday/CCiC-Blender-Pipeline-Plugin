@@ -90,11 +90,79 @@ def go_b_finish():
         LINK = link.get_data_link()
         LINK.service.connected.disconnect(go_b_connected)
         LINK.sync_lights()
-        LINK.sync_camera()
+        LINK.send_camera_sync()
         for gob_data in GOB_OBJECTS:
             LINK.send_actor_exported(gob_data["object"], gob_data["path"])
         if GOB_OBJECTS:
             LINK.send_pose()
+        GOB_EXPORTED = False
+        GOB_CONNECTED = False
+        GOB_OBJECTS = None
+
+
+def go_morph():
+    global GOB_OBJECTS, GOB_CONNECTED, GOB_DONE, GOB_EXPORTED
+    GOB_OBJECTS = []
+    GOB_CONNECTED = False
+    GOB_DONE = False
+    GOB_EXPORTED = False
+
+    avatar = cc.get_first_avatar()
+    if not avatar:
+        return
+
+    GOB_OBJECTS.append({
+        "name": avatar.GetName(),
+        "object": avatar,
+    })
+
+    name = f"Morph Edit - {avatar.GetName()}"
+    utils.log_info(f"Using project name: {name}")
+
+    LINK = link.get_data_link()
+    if not LINK.is_connected():
+        LINK.link_start()
+        LINK.service.connected.connect(go_morph_connected)
+
+    sub_folder, script_path, blend_path = get_go_b_paths(name)
+    write_script(script_path, blend_path)
+    launch_blender(script_path)
+
+    # export the avatar nude obj in bind pose while Blender launches
+    for gob_data in GOB_OBJECTS:
+        name = gob_data["name"]
+        obj = gob_data["object"]
+        obj_path = os.path.join(sub_folder, name + ".obj")
+        gob_data["path"] = obj_path
+        obj_options = (RLPy.EExport3DFileOption__None |
+                       RLPy.EExport3DFileOption_ResetToBindPose |
+                       RLPy.EExport3DFileOption_FullBodyPart |
+                       RLPy.EExport3DFileOption_AxisYUp |
+                       RLPy.EExport3DFileOption_GenerateDrmProtectedFile)
+        RLPy.RFileIO.ExportObjFile(avatar, obj_path, obj_options)
+
+    GOB_EXPORTED = True
+
+    # try to finish after exporting the avatar(s)
+    go_morph_finish()
+
+
+def go_morph_connected():
+    global GOB_CONNECTED
+    GOB_CONNECTED = True
+    # try to finish after connecting
+    go_morph_finish()
+
+
+def go_morph_finish():
+    global GOB_CONNECTED, GOB_DONE, GOB_EXPORTED, GOB_OBJECTS
+    # if Blender has connected back and the avatar(s) have finished exporting:
+    if GOB_CONNECTED and GOB_EXPORTED and not GOB_DONE:
+        GOB_DONE = True
+        LINK = link.get_data_link()
+        LINK.service.connected.disconnect(go_morph_connected)
+        for gob_data in GOB_OBJECTS:
+            LINK.send_morph_exported(gob_data["object"], gob_data["path"])
         GOB_EXPORTED = False
         GOB_CONNECTED = False
         GOB_OBJECTS = None

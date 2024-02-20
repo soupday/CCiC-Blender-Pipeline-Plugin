@@ -19,6 +19,14 @@ from RLPy import *
 from . import cc, utils
 
 
+def t_test():
+    objects = RScene.GetSelectedObjects()
+    for obj in objects:
+        print(obj.GetName())
+        control = obj.GetControl("Transform")
+        print(control)
+
+
 def list_objects():
     selected = RScene.GetSelectedObjects()
     for sel in selected:

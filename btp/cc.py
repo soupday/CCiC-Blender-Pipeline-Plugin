@@ -1261,6 +1261,19 @@ def rgb_color(rgb):
     return c
 
 
+def array_to_vector3(arr):
+    return RLPy.RVector3(arr[0], arr[1], arr[2])
+
+
+def array_to_vector4(arr):
+    return RLPy.RVector4(arr[0], arr[1], arr[2], arr[3])
+
+
+def array_to_quaternion(arr):
+    v = array_to_vector4(arr)
+    return RLPy.RQuaternion(v)
+
+
 def convert_from_json_param(var_name, var_value):
     if type(var_value) == tuple or type(var_value) == list:
         if len(var_value) == 3:

@@ -47,18 +47,28 @@ def initialize_plugin():
     qt.add_menu_action(plugin_menu, "Data Link", menu_link)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
-    icon_blender = qt.get_icon("BlenderLogo.png")
-    icon_import = qt.get_icon("BlenderImport.png")
-    icon_export = qt.get_icon("BlenderExport.png")
-    icon_settings = qt.get_icon("BlenderSettings.png")
-    icon_link = qt.get_icon("BlenderDataLink.png")
+
     tool_bar = qt.find_add_toolbar("Blender Pipeline Toolbar")
     qt.clear_tool_bar(tool_bar)
+
+    icon_blender = qt.get_icon("BlenderLogo.png")
     qt.add_tool_bar_action(tool_bar, icon_blender, "GoB", menu_go_b)
-    qt.add_tool_bar_action(tool_bar, icon_export, "Export", menu_export)
+
     if cc.is_cc():
+        icon_morph = qt.get_icon("MeshIcoSphere.png")
+        qt.add_tool_bar_action(tool_bar, icon_morph, "Morph", menu_go_morph)
+
+    icon_export = qt.get_icon("BlenderExport.png")
+    qt.add_tool_bar_action(tool_bar, icon_export, "Export", menu_export)
+
+    if cc.is_cc():
+        icon_import = qt.get_icon("BlenderImport.png")
         qt.add_tool_bar_action(tool_bar, icon_import, "Import", menu_import)
+
+    icon_link = qt.get_icon("BlenderDataLink.png")
     qt.add_tool_bar_action(tool_bar, icon_link, "Data-link", menu_link)
+
+    icon_settings = qt.get_icon("BlenderSettings.png")
     qt.add_tool_bar_action(tool_bar, icon_settings, "Settings", menu_settings)
 
 
@@ -83,13 +93,16 @@ def menu_export_iclone():
     FBX_EXPORTER = None
 
 
-
 def menu_link():
     link.get_data_link()
 
 
 def menu_go_b():
     gob.go_b()
+
+
+def menu_go_morph():
+    gob.go_morph()
 
 
 def menu_settings():

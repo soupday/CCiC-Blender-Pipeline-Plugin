@@ -49,6 +49,7 @@ class OpCodes(IntEnum):
     STOP = 10
     DISCONNECT = 11
     NOTIFY = 50
+    MORPH = 90
     CHARACTER = 100
     CHARACTER_UPDATE = 101
     PROP = 102
@@ -60,7 +61,7 @@ class OpCodes(IntEnum):
     SEQUENCE_FRAME = 203
     SEQUENCE_END = 204
     LIGHTS = 205
-    CAMERA = 206
+    CAMERA_SYNC = 206
 
 
 class LinkActor():
@@ -496,6 +497,21 @@ def set_control_data(SC: RISkeletonComponent, data_block: RDataBlock, time: RTim
         data_block.GetControl("Position/ScaleZ").SetValue(time, sca.z)
 
 
+def set_transform_control(obj: RIObject, loc: RVector3, rot: RQuaternion, sca: RVector3):
+    control = obj.GetControl("Transform")
+    print(control)
+    if control:
+        transform = RTransform(sca, rot, loc)
+        time = RGlobal.GetTime()
+        control.SetValue(time, transform)
+
+
+
+def set_loc_rot_sca(obj: RIObject, loc: RVector3, rot: RQuaternion, sca: RVector3):
+    loc_control = obj.GetControl()
+
+
+
 
 
 
@@ -665,42 +681,54 @@ class LinkService(QObject):
 
     def recv(self):
         self.is_data = False
-        try:
-            if self.has_client_sock():
+        if self.has_client_sock():
+            try:
                 r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
-                count = 0
-                while r:
-                    op_code = None
+            except Exception as e:
+                utils.log_error("Client socket receive:select failed!", e)
+                self.service_lost()
+            count = 0
+            while r:
+                op_code = None
+                try:
                     header = self.client_sock.recv(8)
-                    if header == 0:
-                        print("Socket closed by client")
-                        self.service_lost()
-                        return
-                    if header and len(header) == 8:
-                        op_code, size = struct.unpack("!II", header)
-                        data = None
-                        if size > 0:
-                            data = bytearray()
-                            while size > 0:
-                                chunk_size = min(size, MAX_CHUNK_SIZE)
+                except Exception as e:
+                    utils.log_error("Client socket receive:recv failed!", e)
+                    self.service_lost()
+                if header == 0:
+                    print("Socket closed by client")
+                    self.service_lost()
+                    return
+                if header and len(header) == 8:
+                    op_code, size = struct.unpack("!II", header)
+                    data = None
+                    if size > 0:
+                        data = bytearray()
+                        while size > 0:
+                            chunk_size = min(size, MAX_CHUNK_SIZE)
+                            try:
                                 chunk = self.client_sock.recv(chunk_size)
-                                data.extend(chunk)
-                                size -= len(chunk)
-                        self.parse(op_code, data)
-                        self.received.emit(op_code, data)
-                        count += 1
-                    self.is_data = False
-                    # parse may have received a disconnect notice
-                    if not self.has_client_sock():
-                        return
+                            except Exception as e:
+                                utils.log_error("Client socket receive:chunk_recv failed!", e)
+                                self.service_lost()
+                            data.extend(chunk)
+                            size -= len(chunk)
+                    self.parse(op_code, data)
+                    self.received.emit(op_code, data)
+                    count += 1
+                self.is_data = False
+                # parse may have received a disconnect notice
+                if not self.has_client_sock():
+                    return
+                try:
                     r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
-                    if r:
-                        self.is_data = True
-                        if count >= MAX_RECEIVE or op_code == OpCodes.NOTIFY:
-                            return
-        except:
-            utils.log_error("Client socket receive failed!")
-            self.service_lost()
+                except Exception as e:
+                    utils.log_error("Client socket receive:re-select failed!", e)
+                    self.service_lost()
+                if r:
+                    self.is_data = True
+                    if count >= MAX_RECEIVE or op_code == OpCodes.NOTIFY:
+                        return
         return
 
     def accept(self):
@@ -924,11 +952,11 @@ class DataLink(QObject):
         #qt.button(layout, "Send Animation", self.send_animation)
         qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
         qt.button(grid, "Sync Lights", self.sync_lights, row=2, col=0, icon="Light.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Sync Camera", self.sync_camera, row=2, col=1, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Sync Camera", self.send_camera_sync, row=2, col=1, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
 
         qt.stretch(layout, 20)
 
-        qt.button(layout, "List", tests.list_objects)
+        qt.button(layout, "T Test", tests.t_test)
         qt.button(layout, "Show ID", tests.show_id)
         qt.button(layout, "Add Datablock", tests.test_data_block_set)
         qt.button(layout, "Test Datablock", tests.test_data_block_bad_get)
@@ -1052,6 +1080,9 @@ class DataLink(QObject):
         if op_code == OpCodes.CHARACTER:
             self.receive_character_import(data)
 
+        if op_code == OpCodes.CAMERA_SYNC:
+            self.receive_camera_sync(data)
+
     def on_connected(self):
         self.send_notify("Connected")
 
@@ -1165,9 +1196,21 @@ class DataLink(QObject):
            Attached props are sent as part of the parent prop.
            (Avatars can only be linked, not attached)
         """
-        linked_objects = cc.find_linked_objects(actor.object)
-        for obj in linked_objects:
+        objects = RScene.FindChildObjects(EObjectType_Prop |
+                                          EObjectType_Light |
+                                          EObjectType_Camera)
+        for obj in objects:
+            name = obj.GetName()
+            if "Preview" in name: continue
             actor = self.data.get_actor_from_object(obj)
+            if actor.is_avatar():
+                self.send_avatar(actor)
+            elif actor.is_prop():
+                self.send_prop(actor)
+            elif actor.is_light():
+                self.send_light()
+            elif actor.is_camera():
+                self.send_camera()
         return
 
 
@@ -1178,12 +1221,8 @@ class DataLink(QObject):
         for actor in actors:
             if actor.is_avatar():
                 self.send_avatar(actor)
-                if SEND_LINKED:
-                    self.send_attached_actors(actor)
             elif actor.is_prop():
                 self.send_prop(actor)
-                if SEND_LINKED:
-                    self.send_attached_actors(actor)
             elif actor.is_light():
                 self.send_light()
             elif actor.is_camera():
@@ -1216,6 +1255,19 @@ class DataLink(QObject):
                 "new_link_id": actor.get_link_id(),
             })
             self.service.send(OpCodes.CHARACTER_UPDATE, update_data)
+
+    def send_morph_exported(self, avatar=None, obj_path=None):
+        """Send a pre-exported avatar obj through the DataLink"""
+
+        actor = LinkActor(avatar)
+        self.update_link_status(f"Sending Character for Morph: {actor.name}")
+        self.send_notify(f"Character Morph: {actor.name}")
+        export_data = encode_from_json({
+            "path": obj_path,
+            "name": actor.name,
+            "link_id": actor.get_link_id(),
+        })
+        self.service.send(OpCodes.MORPH, export_data)
 
     def send_rigify(self):
         actors = self.get_selected_actors()
@@ -1415,7 +1467,7 @@ class DataLink(QObject):
         camera.GetPivot(pos, rot)
         focal_length = camera.GetFocalLength(time)
         fov = camera.GetAngleOfView(time)
-        T = camera.WorldTransform()
+        T: RTransform = camera.WorldTransform()
         t: RVector3 = T.T()
         r: RQuaternion = T.R()
         s: RVector3 = T.S()
@@ -1440,12 +1492,55 @@ class DataLink(QObject):
         data = self.get_camera_data(camera)
         return encode_from_json(data)
 
-    def sync_camera(self):
-        self.update_link_status(f"Synchronizing Camera")
-        self.send_notify(f"Sync Camera")
-        camera: RICamera = RScene.GetCurrentCamera()
-        camera_data = self.encode_camera_data(camera)
-        self.service.send(OpCodes.CAMERA, camera_data)
+    def get_selection_pivot(self) -> RVector3:
+        selected_objects = RScene.GetSelectedObjects()
+        obj: RIObject
+        pivot = RVector3(0,0,0)
+        for obj in selected_objects:
+            max = RVector3()
+            min = RVector3()
+            mid = RVector3()
+            obj.GetBounds(max, mid, min)
+            #print(f"t: {t.x}, {t.y}, {t.z}")
+            #print(f"off: {off.x}, {off.y}, {off.z}")
+            pivot += mid
+        l = len(selected_objects)
+        if l > 0:
+            pivot /= len(selected_objects)
+        return pivot
+
+    def send_camera_sync(self):
+        self.update_link_status(f"Synchronizing View Camera")
+        self.send_notify(f"Sync View Camera")
+        view_camera: RICamera = RScene.GetCurrentCamera()
+        camera_data = self.get_camera_data(view_camera)
+        pivot = self.get_selection_pivot()
+        data = {
+            "view_camera": camera_data,
+            "pivot": [pivot.x, pivot.y, pivot.z],
+        }
+        self.service.send(OpCodes.CAMERA_SYNC, encode_from_json(data))
+
+    def decode_camera_sync_data(self, data):
+        data = decode_to_json(data)
+        view_camera: RICamera = RScene.GetCurrentCamera()
+        camera_data = data["view_camera"]
+        pivot = cc.array_to_vector3(data["pivot"]) * 100
+        loc = cc.array_to_vector3(camera_data["loc"]) * 100
+        rot = cc.array_to_quaternion(camera_data["rot"])
+        sca = cc.array_to_vector3(camera_data["sca"])
+        time = RGlobal.GetTime()
+        view_camera.SetFocalLength(time, camera_data["focal_length"])
+        # doesn't work on the preview camera...
+        #set_transform_control(view_camera, loc, rot, sca)
+
+    def receive_camera_sync(self, data):
+        self.update_link_status(f"Camera Data Receveived")
+        self.decode_camera_sync_data(data)
+
+
+    # Character Pose
+    #
 
     def send_pose(self):
         # get actors
