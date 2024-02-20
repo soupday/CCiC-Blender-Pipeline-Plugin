@@ -117,6 +117,13 @@ class LinkActor():
     def is_camera(self):
         return type(self.object) is RICamera
 
+    def is_standard(self):
+        if self.is_avatar():
+            avatar_type = self.object.GetAvatarType()
+            if avatar_type == EAvatarType_Standard or avatar_type == EAvatarType_StandardSeries:
+                return True
+        return False
+
     def get_link_id(self):
         return cc.get_link_id(self.object, add_if_missing=True)
 
@@ -947,12 +954,13 @@ class DataLink(QObject):
         grid = qt.grid(layout)
 
         qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon="Character.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Rigify Character", self.send_rigify, row=0, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Send Morph", self.send_morph, row=0, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Rigify Character", self.send_rigify, row=1, col=0, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Send Pose", self.send_pose, row=1, col=1, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
         #qt.button(layout, "Send Animation", self.send_animation)
-        qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Sync Lights", self.sync_lights, row=2, col=0, icon="Light.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Sync Camera", self.send_camera_sync, row=2, col=1, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Live Sequence", self.send_sequence, row=2, col=0, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Sync Lights", self.sync_lights, row=2, col=1, icon="Light.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Sync Camera", self.send_camera_sync, row=3, col=0, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
 
         qt.stretch(layout, 20)
 
@@ -1080,6 +1088,9 @@ class DataLink(QObject):
         if op_code == OpCodes.CHARACTER:
             self.receive_character_import(data)
 
+        if op_code == OpCodes.MORPH:
+            self.receive_morph(data)
+
         if op_code == OpCodes.CAMERA_SYNC:
             self.receive_camera_sync(data)
 
@@ -1153,7 +1164,7 @@ class DataLink(QObject):
         self.update_link_status(f"Sending Avatar for Import: {actor.name}")
         self.send_notify(f"Exporting: {actor.name}")
         export_path = self.get_remote_export_path(actor.name + ".fbx")
-        linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
+        #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_data_link_export(export_path)
         export.export_fbx()
@@ -1217,7 +1228,6 @@ class DataLink(QObject):
     def send_actor(self):
         actors = self.get_selected_actors()
         actor: LinkActor
-        SEND_LINKED = True
         for actor in actors:
             if actor.is_avatar():
                 self.send_avatar(actor)
@@ -1228,6 +1238,45 @@ class DataLink(QObject):
             elif actor.is_camera():
                 self.send_camera()
 
+    def send_avatar_morph(self, actor: LinkActor):
+        self.update_link_status(f"Sending Character for Morph: {actor.name}")
+        self.send_notify(f"Exporting Morph: {actor.name}")
+        export_path = self.get_remote_export_path(actor.name + ".obj")
+        obj_options = (EExport3DFileOption_ResetToBindPose |
+                       EExport3DFileOption_FullBodyPart |
+                       EExport3DFileOption_AxisYUp |
+                       EExport3DFileOption_GenerateDrmProtectedFile |
+                       EExport3DFileOption_TextureMapsAreShaderGenerated |
+                       EExport3DFileOption_GenerateMeshGroupIni |
+                       EExport3DFileOption_ExportExtraMaterial)
+        RFileIO.ExportObjFile(actor.object, export_path, obj_options)
+        self.send_notify(f"Morph Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "name": actor.name,
+            "link_id": actor.get_link_id(),
+        })
+        self.service.send(OpCodes.MORPH, export_data)
+
+    def send_morph(self):
+        actors = self.get_selected_actors()
+        actor: LinkActor
+        for actor in actors:
+            if actor.is_standard():
+                self.send_avatar_morph(actor)
+
+    def send_morph_exported(self, avatar=None, obj_path=None):
+        """Send a pre-exported avatar obj through the DataLink"""
+
+        actor = LinkActor(avatar)
+        self.update_link_status(f"Sending Character for Morph: {actor.name}")
+        self.send_notify(f"Character Morph: {actor.name}")
+        export_data = encode_from_json({
+            "path": obj_path,
+            "name": actor.name,
+            "link_id": actor.get_link_id(),
+        })
+        self.service.send(OpCodes.MORPH, export_data)
 
     def send_actor_exported(self, avatar=None, fbx_path=None):
         """Send a pre-exported avatar/actor through the DataLink"""
@@ -1255,19 +1304,6 @@ class DataLink(QObject):
                 "new_link_id": actor.get_link_id(),
             })
             self.service.send(OpCodes.CHARACTER_UPDATE, update_data)
-
-    def send_morph_exported(self, avatar=None, obj_path=None):
-        """Send a pre-exported avatar obj through the DataLink"""
-
-        actor = LinkActor(avatar)
-        self.update_link_status(f"Sending Character for Morph: {actor.name}")
-        self.send_notify(f"Character Morph: {actor.name}")
-        export_data = encode_from_json({
-            "path": obj_path,
-            "name": actor.name,
-            "link_id": actor.get_link_id(),
-        })
-        self.service.send(OpCodes.MORPH, export_data)
 
     def send_rigify(self):
         actors = self.get_selected_actors()
@@ -1750,7 +1786,32 @@ class DataLink(QObject):
                 #self.sync_lights()
                 #self.sync_camera()
 
+    def receive_morph(self, data):
+        json_data = decode_to_json(data)
+        obj_path = json_data["path"]
+        key_path = json_data["key_path"]
+        name = json_data["name"]
+        link_id = json_data["link_id"]
+        morph_name = json_data["morph_name"]
+        morph_path = json_data["morph_path"]
 
+        actor = self.data.get_actor(link_id)
+        avatar: RIAvatar = actor.object
+
+        slider_setting = RMorphSliderSetting()
+        slider_setting.SetMorphName(morph_name)
+        slider_setting.SetSliderPath(morph_path)
+        slider_setting.SetCategory(ESetCategory_Body)
+        slider_setting.SetSourceBaseType(EChooseBase_Current)
+        slider_setting.SetTargetFilePath(obj_path)
+        slider_setting.SetTargetMorphChecksumFilePath(key_path)
+        slider_setting.SetAutoApplyToCurrentCharacter(True)
+        slider_setting.SetMorphValueRange(0, 100)
+        slider_setting.SetAxisSettingForObj(EAxisSetting_YUp)
+
+        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
+        print(obj_path)
+        ASC.CreateSlider(slider_setting, "")
 
 
 

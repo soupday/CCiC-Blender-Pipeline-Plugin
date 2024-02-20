@@ -950,6 +950,11 @@ def custom_content_path():
     return res[1]
 
 
+def custom_morph_path():
+    res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
+    return res[1]
+
+
 def temp_files_path(sub_path=None, create=False):
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
     path = res[1]

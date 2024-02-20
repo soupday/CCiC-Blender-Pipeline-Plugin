@@ -134,11 +134,13 @@ def go_morph():
         obj = gob_data["object"]
         obj_path = os.path.join(sub_folder, name + ".obj")
         gob_data["path"] = obj_path
-        obj_options = (RLPy.EExport3DFileOption__None |
-                       RLPy.EExport3DFileOption_ResetToBindPose |
+        obj_options = (RLPy.EExport3DFileOption_ResetToBindPose |
                        RLPy.EExport3DFileOption_FullBodyPart |
                        RLPy.EExport3DFileOption_AxisYUp |
-                       RLPy.EExport3DFileOption_GenerateDrmProtectedFile)
+                       RLPy.EExport3DFileOption_GenerateDrmProtectedFile |
+                       RLPy.EExport3DFileOption_TextureMapsAreShaderGenerated |
+                       RLPy.EExport3DFileOption_GenerateMeshGroupIni |
+                       RLPy.EExport3DFileOption_ExportExtraMaterial)
         RLPy.RFileIO.ExportObjFile(avatar, obj_path, obj_options)
 
     GOB_EXPORTED = True
