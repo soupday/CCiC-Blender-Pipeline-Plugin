@@ -4,20 +4,17 @@ import os
 import RLPy
 from . import link, cc, exporter, prefs, utils, vars
 
-GOB_OBJECTS = None
+GOB_QUEUE = None
 GOB_CONNECTED = False
-GOB_EXPORTED = False
 GOB_DONE = False
 
 BLENDER_PROCESS = None
 
-
 def go_b():
-    global GOB_OBJECTS, GOB_CONNECTED, GOB_DONE, GOB_EXPORTED
-    GOB_OBJECTS = []
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE
+    GOB_QUEUE = []
     GOB_CONNECTED = False
     GOB_DONE = False
-    GOB_EXPORTED = False
 
     objects = cc.get_selected_actor_objects()
 
@@ -31,6 +28,7 @@ def go_b():
     else:
         name = "iClone Project"
 
+    GOB_OBJECTS = []
     for obj in objects:
         GOB_OBJECTS.append({
             "name": obj.GetName(),
@@ -66,38 +64,42 @@ def go_b():
         export = exporter.Exporter(obj, no_window=True)
         export.set_go_b_export(fbx_path)
         export.export_fbx()
-        if type(obj) is RLPy.RIAvatar:
-            export.export_extra_data()
+        GOB_QUEUE.append(gob_data)
+        go_b_send()
 
-    GOB_EXPORTED = True
-
-    # try to finish after exporting the avatar(s)
-    go_b_finish()
+    GOB_DONE = True
+    go_b_send()
 
 
 def go_b_connected():
     global GOB_CONNECTED
     GOB_CONNECTED = True
-    # try to finish after connecting
-    go_b_finish()
+    LINK = link.get_data_link()
+    LINK.service.connected.disconnect(go_b_connected)
+    go_b_send()
+
+
+def go_b_send():
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE
+    if GOB_CONNECTED:
+        if GOB_QUEUE:
+            LINK = link.get_data_link()
+            while GOB_QUEUE:
+                gob_data = GOB_QUEUE.pop(0)
+                LINK.send_actor_exported(gob_data["object"], gob_data["path"])
+        if GOB_DONE:
+            go_b_finish()
 
 
 def go_b_finish():
-    global GOB_CONNECTED, GOB_DONE, GOB_EXPORTED, GOB_OBJECTS
-    # if Blender has connected back and the avatar(s) have finished exporting:
-    if GOB_CONNECTED and GOB_EXPORTED and not GOB_DONE:
-        GOB_DONE = True
-        LINK = link.get_data_link()
-        LINK.service.connected.disconnect(go_b_connected)
-        LINK.sync_lights()
-        LINK.send_camera_sync()
-        for gob_data in GOB_OBJECTS:
-            LINK.send_actor_exported(gob_data["object"], gob_data["path"])
-        if GOB_OBJECTS:
-            LINK.send_pose()
-        GOB_EXPORTED = False
-        GOB_CONNECTED = False
-        GOB_OBJECTS = None
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE
+    GOB_CONNECTED = False
+    GOB_DONE = False
+    GOB_QUEUE = None
+    LINK = link.get_data_link()
+    LINK.send_camera_sync()
+    LINK.send_pose()
+    LINK.sync_lights()
 
 
 def go_morph():
@@ -141,6 +143,8 @@ def go_morph():
                        RLPy.EExport3DFileOption_TextureMapsAreShaderGenerated |
                        RLPy.EExport3DFileOption_GenerateMeshGroupIni |
                        RLPy.EExport3DFileOption_ExportExtraMaterial)
+        if prefs.EXPORT_MORPH_MATERIALS:
+            obj_options |= RLPy.EExport3DFileOption_ExportMaterial
         RLPy.RFileIO.ExportObjFile(avatar, obj_path, obj_options)
 
     GOB_EXPORTED = True
@@ -163,6 +167,9 @@ def go_morph_finish():
         GOB_DONE = True
         LINK = link.get_data_link()
         LINK.service.connected.disconnect(go_morph_connected)
+        if prefs.EXPORT_MORPH_MATERIALS:
+            LINK.sync_lights()
+        LINK.send_camera_sync()
         for gob_data in GOB_OBJECTS:
             LINK.send_morph_exported(gob_data["object"], gob_data["path"])
         GOB_EXPORTED = False

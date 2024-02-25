@@ -19,6 +19,26 @@ from RLPy import *
 from . import cc, utils
 
 
+def expression_test():
+    avatar = cc.get_first_avatar()
+    FC: RIFaceComponent = avatar.GetFaceComponent()
+    names = FC.GetExpressionNames("")
+    weights = FC.GetExpressionWeights(RGlobal.GetTime(), names)
+    for i, name in enumerate(names):
+        print(f"index: {i} name: {name} weight: {weights[i]}")
+
+    VC: RIVisemeComponent = avatar.GetVisemeComponent()
+    names = VC.GetVisemeNames()
+    weights = VC.GetVi(RGlobal.GetTime())
+    print(names)
+    print(weights)
+
+    MC: RIMorphComponent = avatar.GetMorphComponent()
+    names = MC.GetMorphNames()
+    print(names)
+
+
+
 def t_test():
     objects = RScene.GetSelectedObjects()
     for obj in objects:

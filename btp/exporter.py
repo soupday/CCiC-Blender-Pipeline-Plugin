@@ -55,6 +55,7 @@ class Exporter:
     profile_path = "C:/folder/dummy.ccFacialProfile"
     json_data = None
     avatar: RIAvatar = None
+    prop: RIProp = None
     avatar_type = None
     avatar_type_string = "None"
     profile_type = None
@@ -82,13 +83,17 @@ class Exporter:
     label_desc = None
 
 
-    def __init__(self, avatar, no_window=False):
-        utils.log("================================================================")
-        utils.log("New character export, Fbx")
+    def __init__(self, object, no_window=False):
 
-        self.avatar = avatar
+        if type(object) is RIAvatar:
+            self.avatar = object
+        elif type(object) is RIProp:
+            self.prop = object
 
         if self.avatar:
+
+            utils.log("======================")
+            utils.log("New Avatar Export, Fbx")
 
             self.avatar_type = self.avatar.GetAvatarType()
             self.avatar_type_string = "None"
@@ -104,6 +109,14 @@ class Exporter:
                 self.profile_type = facial_profile.GetProfileType()
                 if self.profile_type in FACIAL_PROFILES.keys():
                     self.profile_type_string = FACIAL_PROFILES[self.profile_type]
+
+            if not no_window:
+                self.create_options_window()
+
+        if self.prop:
+
+            utils.log("====================")
+            utils.log("New Prop Export, Fbx")
 
             if not no_window:
                 self.create_options_window()
@@ -287,17 +300,26 @@ class Exporter:
             self.fetch_options()
             self.close_options_window()
             self.export_fbx()
-            self.export_extra_data()
             utils.log("Done!")
             self.clean_up_globals()
         else:
             utils.log("Export Cancelled.")
 
     def export_fbx(self):
+
+        if self.avatar:
+            self.export_avatar_fbx()
+            self.export_extra_data()
+        elif self.prop:
+            self.export_prop_fbx()
+            self.export_extra_data()
+
+    def export_avatar_fbx(self):
+
         avatar = self.avatar
         file_path = self.fbx_path
 
-        utils.log(f"Exporting FBX: {file_path}")
+        utils.log(f"Exporting Avatar FBX: {file_path}")
 
         options1 = EExportFbxOptions__None
         options1 = options1 | EExportFbxOptions_FbxKey
@@ -343,60 +365,108 @@ class Exporter:
         else:
             export_fbx_setting.EnableExportMotion(False)
 
-        print (export_fbx_setting.IsExportMotionEnabled())
-
         result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
 
+    def export_prop_fbx(self):
+
+        prop = self.prop
+        file_path = self.fbx_path
+
+        utils.log(f"Exporting Prop FBX: {file_path}")
+
+        options1 = EExportFbxOptions__None
+        options1 = options1 | EExportFbxOptions_FbxKey
+        options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
+        options1 = options1 | EExportFbxOptions_RemoveAllUnused
+        options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
+        options1 = options1 | EExportFbxOptions_ExportRootMotion
+        if self.option_remove_hidden:
+            options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
+
+        options2 = EExportFbxOptions2__None
+        options2 = options2 | EExportFbxOptions2_ResetBoneScale
+        options2 = options2 | EExportFbxOptions2_ResetSelfillumination
+
+        options3 = EExportFbxOptions3__None
+        options3 = options3 | EExportFbxOptions3_ExportJson
+        options3 = options3 | EExportFbxOptions3_ExportVertexColor
+
+        export_fbx_setting = RExportFbxSetting()
+
+        export_fbx_setting.SetOption(options1)
+        export_fbx_setting.SetOption2(options2)
+        export_fbx_setting.SetOption3(options3)
+        export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
+        export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
+
+        result = RFileIO.ExportFbxFile(prop, file_path, export_fbx_setting)
+
     def export_extra_data(self):
+        """TODO write sub-object link_id's"""
 
-        json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
-        root_json = json_data.get_root_json()
+        if self.avatar:
 
-        mesh_materials = cc.get_avatar_mesh_materials(self.avatar, json_data=json_data)
+            json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
+            root_json = json_data.get_root_json()
 
-        root_json["Avatar_Type"] = self.avatar_type_string
-        root_json["Link_ID"] = cc.get_link_id(self.avatar)
+            mesh_materials = cc.get_avatar_mesh_materials(self.avatar, json_data=json_data)
 
-        utils.log(f"Avatar Type: {self.avatar_type_string}")
+            root_json["Avatar_Type"] = self.avatar_type_string
+            root_json["Link_ID"] = cc.get_link_id(self.avatar)
 
-        if self.option_hik_data:
+            utils.log(f"Avatar Type: {self.avatar_type_string}")
 
-            # Non-standard HIK profile
-            if self.avatar_type == EAvatarType_NonStandard:
+            if self.option_hik_data:
 
-                utils.log(f"Exporting HIK profile: {self.hik_path}")
+                # Non-standard HIK profile
+                if self.avatar_type == EAvatarType_NonStandard:
 
-                self.avatar.SaveHikProfile(self.hik_path)
-                root_json["HIK"] = {}
-                root_json["HIK"]["Profile_Path"] = os.path.relpath(self.hik_path, self.folder)
+                    utils.log(f"Exporting HIK profile: {self.hik_path}")
 
-        if self.option_profile_data:
+                    self.avatar.SaveHikProfile(self.hik_path)
+                    root_json["HIK"] = {}
+                    root_json["HIK"]["Profile_Path"] = os.path.relpath(self.hik_path, self.folder)
 
-            # Standard and Non-standard facial profiles
-            if (self.avatar_type == EAvatarType_NonStandard or
-                self.avatar_type == EAvatarType_Standard or
-                self.avatar_type == EAvatarType_StandardSeries):
+            if self.option_profile_data:
 
-                utils.log(f"Exporting Facial Expression profile ({self.profile_type_string}): {self.profile_path}")
+                # Standard and Non-standard facial profiles
+                if (self.avatar_type == EAvatarType_NonStandard or
+                    self.avatar_type == EAvatarType_Standard or
+                    self.avatar_type == EAvatarType_StandardSeries):
 
-                facial_profile = self.avatar.GetFacialProfileComponent()
-                facial_profile.SaveProfile(self.profile_path)
-                root_json["Facial_Profile"] = {}
-                root_json["Facial_Profile"]["Profile_Path"] = os.path.relpath(self.profile_path, self.folder)
-                root_json["Facial_Profile"]["Type"] = self.profile_type_string
-                categories = facial_profile.GetExpressionCategoryNames()
-                root_json["Facial_Profile"]["Categories"] = {}
-                for category in categories:
-                    slider_names = facial_profile.GetExpressionSliderNames(category)
-                    root_json["Facial_Profile"]["Categories"][category] = slider_names
+                    utils.log(f"Exporting Facial Expression profile ({self.profile_type_string}): {self.profile_path}")
+
+                    facial_profile = self.avatar.GetFacialProfileComponent()
+                    facial_profile.SaveProfile(self.profile_path)
+                    root_json["Facial_Profile"] = {}
+                    root_json["Facial_Profile"]["Profile_Path"] = os.path.relpath(self.profile_path, self.folder)
+                    root_json["Facial_Profile"]["Type"] = self.profile_type_string
+                    categories = facial_profile.GetExpressionCategoryNames()
+                    root_json["Facial_Profile"]["Categories"] = {}
+                    for category in categories:
+                        slider_names = facial_profile.GetExpressionSliderNames(category)
+                        root_json["Facial_Profile"]["Categories"][category] = slider_names
 
 
-        self.export_physics(mesh_materials)
+            self.export_physics(mesh_materials)
 
-        # Update JSON data
-        utils.log(f"Re-writing JSON data: {self.json_path}")
+            # Update JSON data
+            utils.log(f"Re-writing JSON data: {self.json_path}")
 
-        json_data.write()
+            json_data.write()
+
+        elif self.prop:
+
+            json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
+            root_json = json_data.get_root_json()
+
+            root_json["Avatar_Type"] = "Prop"
+            root_json["Link_ID"] = cc.get_link_id(self.prop)
+
+            # Update JSON data
+            utils.log(f"Re-writing JSON data: {self.json_path}")
+
+            json_data.write()
 
     def export_physics(self, mesh_materials):
         utils.log(f"Exporting Extra Physics Data")

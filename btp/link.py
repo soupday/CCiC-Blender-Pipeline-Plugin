@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random, atexit
-from . import blender, importer, exporter, cc, qt, prefs, tests, utils, vars
+from . import blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 
 LOCALHOST = "127.0.0.1"
@@ -50,18 +50,20 @@ class OpCodes(IntEnum):
     DISCONNECT = 11
     NOTIFY = 50
     MORPH = 90
+    MORPH_UPDATE = 91
     CHARACTER = 100
     CHARACTER_UPDATE = 101
     PROP = 102
     PROP_UPDATE = 103
     RIGIFY = 110
     TEMPLATE = 200
-    POSE = 201
-    SEQUENCE = 202
-    SEQUENCE_FRAME = 203
-    SEQUENCE_END = 204
-    LIGHTS = 205
-    CAMERA_SYNC = 206
+    POSE = 210
+    POSE_FRAME = 211
+    SEQUENCE = 220
+    SEQUENCE_FRAME = 221
+    SEQUENCE_END = 222
+    LIGHTS = 230
+    CAMERA_SYNC = 231
 
 
 class LinkActor():
@@ -94,6 +96,24 @@ class LinkActor():
         if self.object:
             if type(self.object) is RIAvatar or type(self.object) is RIProp:
                 return self.object.GetSkeletonComponent()
+        return None
+
+    def get_face_component(self) -> RIFaceComponent:
+        if self.object:
+            if type(self.object) is RIAvatar:
+                return self.object.GetFaceComponent()
+        return None
+
+    def get_viseme_component(self) -> RIVisemeComponent:
+        if self.object:
+            if type(self.object) is RIAvatar:
+                return self.object.GetVisemeComponent()
+        return None
+
+    def get_morph_component(self) -> RIMorphComponent:
+        if self.object:
+            if type(self.object) is RIAvatar or type(self.object) is RIProp:
+                return self.object.GetMorphComponent()
         return None
 
     def set_template(self, template):
@@ -308,7 +328,14 @@ def get_clip_at_or_before(avatar: RIAvatar, time: RTime):
 def make_avatar_clip(avatar, start_time, num_frames):
     fps: RFps = RGlobal.GetFps()
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
+    print(avatar)
+    print(SC)
+    clip = SC.GetClipByTime(start_time)
+    print(clip)
     clip: RIClip = SC.AddClip(start_time)
+    print(clip)
+    clip = SC.GetClipByTime(start_time)
+    print(clip)
     length = fps.IndexedFrameTime(num_frames)
     clip.SetLength(length)
     return clip
@@ -946,28 +973,35 @@ class DataLink(QObject):
 
         qt.spacing(layout, 10)
 
-        self.button_link = qt.button(layout, "Listen", self.link_start, toggle=True, value=False)
-        qt.button(layout, "Stop", self.link_stop)
+        grid = qt.grid(layout)
+        grid.setColumnStretch(0, 2)
+        self.button_link = qt.button(grid, "Listen", self.link_start, row=0, col=0, toggle=True, value=False, height=48)
+        qt.button(grid, "Stop", self.link_stop, row=0, col=1, width=64, height=48)
 
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-
-        qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon="Character.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Send Morph", self.send_morph, row=0, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Rigify Character", self.send_rigify, row=1, col=0, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Send Pose", self.send_pose, row=1, col=1, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon="Character.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Rigify Character", self.send_rigify, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         #qt.button(layout, "Send Animation", self.send_animation)
-        qt.button(grid, "Live Sequence", self.send_sequence, row=2, col=0, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Sync Lights", self.sync_lights, row=2, col=1, icon="Light.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
-        qt.button(grid, "Sync Camera", self.send_camera_sync, row=3, col=0, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT)
+        qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+
+        qt.spacing(layout, 20)
+
+        grid = qt.grid(layout)
+        qt.button(grid, "Send Morph", self.send_morph, row=0, col=0, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Update Morph", self.send_morph_update, row=0, col=1, icon="Morph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+
+        qt.spacing(layout, 20)
+
+        grid = qt.grid(layout)
+        qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon="Light.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         qt.stretch(layout, 20)
 
-        qt.button(layout, "T Test", tests.t_test)
-        qt.button(layout, "Show ID", tests.show_id)
-        qt.button(layout, "Add Datablock", tests.test_data_block_set)
-        qt.button(layout, "Test Datablock", tests.test_data_block_bad_get)
+        qt.button(layout, "Expresion Test", tests.expression_test)
 
         self.show_link_state()
         self.window.Show()
@@ -1076,6 +1110,9 @@ class DataLink(QObject):
         if op_code == OpCodes.POSE:
             self.receive_pose(data)
 
+        if op_code == OpCodes.POSE_FRAME:
+            self.receive_pose_frame(data)
+
         if op_code == OpCodes.SEQUENCE:
             self.receive_sequence(data)
 
@@ -1168,7 +1205,6 @@ class DataLink(QObject):
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_data_link_export(export_path)
         export.export_fbx()
-        export.export_extra_data()
         self.send_notify(f"Avatar Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
@@ -1184,7 +1220,6 @@ class DataLink(QObject):
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_data_link_export(export_path)
         export.export_fbx()
-        export.export_extra_data() # TODO: do extra data for props.
         self.send_notify(f"Prop Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
@@ -1238,7 +1273,7 @@ class DataLink(QObject):
             elif actor.is_camera():
                 self.send_camera()
 
-    def send_avatar_morph(self, actor: LinkActor):
+    def send_avatar_morph(self, actor: LinkActor, update=False):
         self.update_link_status(f"Sending Character for Morph: {actor.name}")
         self.send_notify(f"Exporting Morph: {actor.name}")
         export_path = self.get_remote_export_path(actor.name + ".obj")
@@ -1249,6 +1284,8 @@ class DataLink(QObject):
                        EExport3DFileOption_TextureMapsAreShaderGenerated |
                        EExport3DFileOption_GenerateMeshGroupIni |
                        EExport3DFileOption_ExportExtraMaterial)
+        if not update and prefs.EXPORT_MORPH_MATERIALS:
+            obj_options |= EExport3DFileOption_ExportMaterial
         RFileIO.ExportObjFile(actor.object, export_path, obj_options)
         self.send_notify(f"Morph Import: {actor.name}")
         export_data = encode_from_json({
@@ -1256,7 +1293,10 @@ class DataLink(QObject):
             "name": actor.name,
             "link_id": actor.get_link_id(),
         })
-        self.service.send(OpCodes.MORPH, export_data)
+        if update:
+            self.service.send(OpCodes.MORPH_UPDATE, export_data)
+        else:
+            self.service.send(OpCodes.MORPH, export_data)
 
     def send_morph(self):
         actors = self.get_selected_actors()
@@ -1264,6 +1304,13 @@ class DataLink(QObject):
         for actor in actors:
             if actor.is_standard():
                 self.send_avatar_morph(actor)
+
+    def send_morph_update(self):
+        actors = self.get_selected_actors()
+        actor: LinkActor
+        for actor in actors:
+            if actor.is_standard():
+                self.send_avatar_morph(actor, update=True)
 
     def send_morph_exported(self, avatar=None, obj_path=None):
         """Send a pre-exported avatar obj through the DataLink"""
@@ -1330,26 +1377,70 @@ class DataLink(QObject):
         actor: LinkActor
         for actor in actors:
             SC: RISkeletonComponent = actor.get_skeleton_component()
+            FC: RIFaceComponent = actor.get_face_component()
+            VC: RIVisemeComponent = actor.get_viseme_component()
+            MC: RIMorphComponent = actor.get_morph_component()
             skin_bones = SC.GetSkinBones()
             bones = []
-            for bone_node in skin_bones:
-                bones.append(bone_node.GetName())
+            expressions = []
+            visemes = []
+            morphs = []
+            if SC:
+                for bone_node in skin_bones:
+                    bones.append(bone_node.GetName())
+            if FC:
+                expressions = FC.GetExpressionNames("")
+            if VC:
+                visemes = VC.GetVisemeNames()
             actor_data.append({
                 "name": actor.name,
                 "link_id": actor.get_link_id(),
-                "bones": bones
+                "bones": bones,
+                "expressions": expressions,
+                "visemes": visemes,
+                "morphs": morphs,
             })
         return encode_from_json(character_template)
 
-    def encode_pose_data(self, actors: list):
+    def encode_pose_data(self, actors):
+        fps: RFps = RGlobal.GetFps()
+        time: RTime = RGlobal.GetTime()
+        frame = fps.GetFrameIndex(time)
+        actors_data = []
+        data = {
+            "fps": fps.ToFloat(),
+            "time": time.ToFloat(),
+            "frame": frame,
+            "actors": actors_data,
+        }
+        actor: LinkActor
+        for actor in actors:
+            actors_data.append({
+                "name": actor.name,
+                "link_id": actor.get_link_id(),
+            })
+        return encode_from_json(data)
+
+    def encode_pose_frame_data(self, actors: list):
         data = bytearray()
         data += struct.pack("!II", len(actors), get_current_frame())
         actor: LinkActor
         for actor in actors:
             SC: RISkeletonComponent = actor.get_skeleton_component()
+            FC: RIFaceComponent = actor.get_face_component()
+            VC: RIVisemeComponent = actor.get_viseme_component()
+            MC: RIMorphComponent = actor.get_morph_component()
+
             skin_bones = SC.GetSkinBones()
             data += pack_string(actor.name)
             data += pack_string(actor.get_link_id())
+            # pack object transform
+            T: RTransform = actor.get_object().WorldTransform()
+            t: RVector3 = T.T()
+            r: RQuaternion = T.R()
+            s: RVector3 = T.S()
+            data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+            # pack bone transforms
             data += struct.pack("!I", len(skin_bones))
             bone: RIObject
             for bone in skin_bones:
@@ -1358,6 +1449,21 @@ class DataLink(QObject):
                 r: RQuaternion = T.R()
                 s: RVector3 = T.S()
                 data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+
+            if FC:
+                names = FC.GetExpressionNames("")
+                weights = FC.GetExpressionWeights(RGlobal.GetTime(), names)
+                for weight in weights:
+                    data += struct.pack("!f", weight)
+
+            if VC:
+                weights = VC.GetVisemeMorphWeights()
+                for weight in weights:
+                    data += struct.pack("!f", weight)
+
+            if MC:
+                pass
+
         return data
 
     def encode_sequence_data(self, actors):
@@ -1584,12 +1690,15 @@ class DataLink(QObject):
         if actors:
             self.update_link_status(f"Sending Current Pose Set")
             self.send_notify(f"Pose Set")
-            # send template data first
-            template_data = self.encode_character_templates(actors)
-            self.service.send(OpCodes.TEMPLATE, template_data)
-            # send pose data
+            # send pose info
             pose_data = self.encode_pose_data(actors)
             self.service.send(OpCodes.POSE, pose_data)
+            # send template data
+            template_data = self.encode_character_templates(actors)
+            self.service.send(OpCodes.TEMPLATE, template_data)
+            # send pose frame data
+            pose_frame_data = self.encode_pose_frame_data(actors)
+            self.service.send(OpCodes.POSE_FRAME, pose_frame_data)
 
     def send_animation(self):
         return
@@ -1619,11 +1728,10 @@ class DataLink(QObject):
         current_frame = get_current_frame()
         self.update_link_status(f"Sending Sequence Frame: {current_frame}")
         # send current sequence frame actor poses
-        pose_data = self.encode_pose_data(self.data.sequence_actors)
+        pose_data = self.encode_pose_frame_data(self.data.sequence_actors)
         self.service.send(OpCodes.SEQUENCE_FRAME, pose_data)
         # check for end
         if current_frame >= get_end_frame():
-            self.data.sequence_actors = None
             self.service.stop_sequence()
             self.send_sequence_end()
             return
@@ -1631,7 +1739,11 @@ class DataLink(QObject):
         self.data.sequence_current_frame_time = next_frame(self.data.sequence_current_frame_time)
 
     def send_sequence_end(self):
-        self.service.send(OpCodes.SEQUENCE_END)
+        actors = self.data.sequence_actors
+        if actors:
+            sequence_data = self.encode_sequence_data(actors)
+            self.service.send(OpCodes.SEQUENCE_END, sequence_data)
+            self.data.sequence_actors = None
 
     def prep_actor_clip(self, actor: LinkActor, start_time, num_frames):
         """Creates an empty clip and grabs the t-pose data for the character"""
@@ -1689,6 +1801,9 @@ class DataLink(QObject):
         self.decode_character_templates(data)
 
     def receive_pose(self, data):
+        return
+
+    def receive_pose_frame(self, data):
         pose_data = self.decode_pose_data(data)
         frame = pose_data["frame"]
         scene_time = get_frame_time(frame)
@@ -1794,24 +1909,11 @@ class DataLink(QObject):
         link_id = json_data["link_id"]
         morph_name = json_data["morph_name"]
         morph_path = json_data["morph_path"]
-
         actor = self.data.get_actor(link_id)
-        avatar: RIAvatar = actor.object
+        if actor:
+            avatar: RIAvatar = actor.object
+        morph_slider = morph.MorphSlider(obj_path, key_path)
 
-        slider_setting = RMorphSliderSetting()
-        slider_setting.SetMorphName(morph_name)
-        slider_setting.SetSliderPath(morph_path)
-        slider_setting.SetCategory(ESetCategory_Body)
-        slider_setting.SetSourceBaseType(EChooseBase_Current)
-        slider_setting.SetTargetFilePath(obj_path)
-        slider_setting.SetTargetMorphChecksumFilePath(key_path)
-        slider_setting.SetAutoApplyToCurrentCharacter(True)
-        slider_setting.SetMorphValueRange(0, 100)
-        slider_setting.SetAxisSettingForObj(EAxisSetting_YUp)
-
-        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
-        print(obj_path)
-        ASC.CreateSlider(slider_setting, "")
 
 
 

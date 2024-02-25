@@ -920,7 +920,7 @@ def get_selected_avatars():
     all_avatars = RLPy.RScene.GetAvatars()
     avatars = []
     for obj in objects:
-        if obj in all_avatars:
+        if obj in all_avatars and obj not in avatars:
             avatars.append(obj)
     return avatars
 
@@ -930,7 +930,7 @@ def get_selected_actor_objects():
     actor_objects = []
     for obj in selected:
         actor_object = find_parent_avatar_or_prop(obj)
-        if actor_object:
+        if actor_object and actor_object not in actor_objects:
             actor_objects.append(actor_object)
     return actor_objects
 
@@ -963,6 +963,27 @@ def temp_files_path(sub_path=None, create=False):
         if create:
             os.makedirs(path, exist_ok=True)
     return path
+
+
+def model_type_and_key_path(file_path):
+    dir, file = os.path.split(file_path)
+    name, ext = os.path.splitext(file)
+    key_path = None
+    model_type = "NONE"
+    if ext.lower() == ".fbx":
+        model_type = "FBX"
+        key_path = os.path.join(dir, name + ".fbxkey")
+    elif ext.lower() == ".obj":
+        model_type = "OBJ"
+        key_path = os.path.join(dir, name + ".ObjKey")
+    return model_type, key_path
+
+
+def model_file_has_key(file_path):
+    model_type, key_path = model_type_and_key_path(file_path)
+    if model_type != "NONE" and key_path and os.path.exists(key_path):
+        return True
+    return False
 
 
 def key_zero():

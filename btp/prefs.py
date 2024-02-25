@@ -26,9 +26,11 @@ from shiboken2 import wrapInstance
 import os, json
 from . import qt
 
-BLENDER_PATH = None
-DATALINK_FOLDER = None
-DATALINK_OVERWRITE = False
+BLENDER_PATH: str = None
+DATALINK_FOLDER: str = None
+DATALINK_OVERWRITE: bool = False
+EXPORT_MORPH_MATERIALS: bool = True
+DEFAULT_MORPH_SLIDER_PATH: str = "Custom/Blender"
 
 class Preferences(QObject):
     window: QWindow = None
@@ -36,6 +38,7 @@ class Preferences(QObject):
     # UI
     textbox_go_b_path: QLineEdit = None
     textbox_blender_path: QLineEdit = None
+    checkbox_export_morph_materials: QCheckBox = None
     no_update: bool = False
 
     def __init__(self):
@@ -62,6 +65,16 @@ class Preferences(QObject):
         self.textbox_blender_path = qt.textbox(grid, BLENDER_PATH, update=self.update_textbox_blender_path,
                                                row=1, col=1)
         qt.button(grid, "Find", func=self.browse_blender_exe, height=26, width=64, row=1, col=2)
+
+        qt.spacing(layout, 10)
+
+        # Export Morph Materials
+        self.checkbox_export_morph_materials = qt.checkbox(layout, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
+                                                           update=self.update_checkbox_export_morph_materials)
+        grid = qt.grid(layout)
+        qt.label(grid, "Default Morph Slider Path", row=0, col=0)
+        self.textbox_morph_slider_path = qt.textbox(grid, DEFAULT_MORPH_SLIDER_PATH, update=self.update_textbox_morph_slider_path,
+                                                    row=0, col=1)
 
         qt.spacing(layout, 10)
 
@@ -101,6 +114,24 @@ class Preferences(QObject):
             self.textbox_blender_path.setText(file_path)
             BLENDER_PATH = file_path
             write_temp_state()
+
+    def update_checkbox_export_morph_materials(self):
+        global EXPORT_MORPH_MATERIALS
+        if self.no_update:
+            return
+        self.no_update = True
+        EXPORT_MORPH_MATERIALS = self.checkbox_export_morph_materials.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_textbox_morph_slider_path(self):
+        global DEFAULT_MORPH_SLIDER_PATH
+        if self.no_update:
+            return
+        self.no_update = True
+        DEFAULT_MORPH_SLIDER_PATH = self.textbox_morph_slider_path.text()
+        write_temp_state()
+        self.no_update = False
 
 
 def read_json(json_path):
@@ -153,6 +184,8 @@ def write_json(json_data, path):
 def read_temp_state():
     global BLENDER_PATH
     global DATALINK_FOLDER
+    global EXPORT_MORPH_MATERIALS
+    global DEFAULT_MORPH_SLIDER_PATH
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -161,17 +194,23 @@ def read_temp_state():
         if temp_state_json:
             BLENDER_PATH = get_attr(temp_state_json, "blender_path")
             DATALINK_FOLDER = get_attr(temp_state_json, "datalink_folder")
+            EXPORT_MORPH_MATERIALS = get_attr(temp_state_json, "export_morph_materials", True)
+            DEFAULT_MORPH_SLIDER_PATH = get_attr(temp_state_json, "default_morph_slider_path", "Custom/Blender")
 
 
 def write_temp_state():
     global BLENDER_PATH
     global DATALINK_FOLDER
+    global EXPORT_MORPH_MATERIALS
+    global DEFAULT_MORPH_SLIDER_PATH
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
     temp_state_json = {
         "blender_path": BLENDER_PATH,
         "datalink_folder": DATALINK_FOLDER,
+        "export_morph_materials": EXPORT_MORPH_MATERIALS,
+        "default_morph_slider_path": DEFAULT_MORPH_SLIDER_PATH,
     }
     write_json(temp_state_json, temp_state_path)
 

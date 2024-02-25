@@ -17,6 +17,7 @@
 import RLPy
 import btp.importer as importer
 import btp.exporter as exporter
+import btp.morph as morph
 import btp.link as link
 import btp.cc as cc
 import btp.qt as qt
@@ -75,9 +76,13 @@ def initialize_plugin():
 def menu_import():
     global FBX_IMPORTER
     FBX_IMPORTER = None
-    file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
-    if file_path and file_path != "":
+    file_path = RLPy.RUi.OpenFileDialog("Model Files(*.fbx *.obj)")
+    model_type, key_path = cc.model_type_and_key_path(file_path)
+    if model_type == "FBX" and file_path and file_path != "":
         FBX_IMPORTER = importer.Importer(file_path)
+    elif model_type == "OBJ" and file_path and file_path != "":
+        if cc.model_file_has_key(file_path):
+            morph.MorphSlider(file_path, key_path)
 
 
 def menu_export():
