@@ -27,23 +27,6 @@ from . import blender, cc, qt, utils, vars
 FBX_EXPORTER = None
 
 
-AVATAR_TYPES = {
-    EAvatarType__None: "None",
-    EAvatarType_Standard: "Standard",
-    EAvatarType_NonHuman: "NonHuman",
-    EAvatarType_NonStandard: "NonStandard",
-    EAvatarType_StandardSeries: "StandardSeries",
-    EAvatarType_All: "All",
-}
-
-FACIAL_PROFILES = {
-    EFacialProfile__None: "None",
-    EFacialProfile_CC4Extended: "CC4Extended",
-    EFacialProfile_CC4Standard: "CC4Standard",
-    EFacialProfile_Traditional: "Traditional",
-}
-
-
 class Exporter:
     fbx_path = "C:/folder/dummy.fbx"
     folder = "C:/folder"
@@ -97,8 +80,8 @@ class Exporter:
 
             self.avatar_type = self.avatar.GetAvatarType()
             self.avatar_type_string = "None"
-            if self.avatar_type in AVATAR_TYPES.keys():
-                self.avatar_type_string = AVATAR_TYPES[self.avatar_type]
+            if self.avatar_type in vars.AVATAR_TYPES.keys():
+                self.avatar_type_string = vars.AVATAR_TYPES[self.avatar_type]
 
             self.profile_type = EFacialProfile__None
             self.profile_type_string = "None"
@@ -107,8 +90,8 @@ class Exporter:
                 self.avatar_type == EAvatarType_StandardSeries):
                 facial_profile = self.avatar.GetFacialProfileComponent()
                 self.profile_type = facial_profile.GetProfileType()
-                if self.profile_type in FACIAL_PROFILES.keys():
-                    self.profile_type_string = FACIAL_PROFILES[self.profile_type]
+                if self.profile_type in vars.FACIAL_PROFILES.keys():
+                    self.profile_type_string = vars.FACIAL_PROFILES[self.profile_type]
 
             if not no_window:
                 self.create_options_window()
@@ -126,6 +109,7 @@ class Exporter:
         FBX_EXPORTER = None
 
     def set_paths(self, file_path):
+        file_path = os.path.normpath(file_path)
         self.fbx_path = file_path
         self.fbx_file = os.path.basename(self.fbx_path)
         self.folder = os.path.dirname(self.fbx_path)
@@ -277,9 +261,14 @@ class Exporter:
         self.option_hik_data = False
         self.option_profile_data = False
         self.option_t_pose = False
-        self.option_current_pose = False
-        self.option_current_animation = False
-        self.option_remove_hidden = True
+        if cc.is_cc():
+            self.option_remove_hidden = False
+            self.option_current_animation = False
+            self.option_current_pose = True
+        else:
+            self.option_remove_hidden = True
+            self.option_current_animation = True
+            self.option_current_pose = False
         self.set_paths(file_path)
 
     def set_go_b_export(self, file_path):
@@ -322,13 +311,14 @@ class Exporter:
         utils.log(f"Exporting Avatar FBX: {file_path}")
 
         options1 = EExportFbxOptions__None
-        options1 = options1 | EExportFbxOptions_FbxKey
         options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
         options1 = options1 | EExportFbxOptions_RemoveAllUnused
         options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
         options1 = options1 | EExportFbxOptions_ExportRootMotion
         if self.option_remove_hidden:
             options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
+        else:
+            options1 = options1 | EExportFbxOptions_FbxKey
 
         options2 = EExportFbxOptions2__None
         options2 = options2 | EExportFbxOptions2_ResetBoneScale
@@ -405,7 +395,8 @@ class Exporter:
         """TODO write sub-object link_id's"""
 
         if self.avatar:
-
+            print(self.json_path)
+            print(self.fbx_path)
             json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
             root_json = json_data.get_root_json()
 

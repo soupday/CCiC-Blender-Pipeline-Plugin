@@ -674,11 +674,11 @@ class CCMeshMaterial():
         material_component = self.material_component()
         if material_component:
             parameter_names = material_component.GetShaderParameterNames(self.mesh_name, self.mat_name)
-            if parameter in parameter_names:
-                value = shader_value(value)
-                material_component.SetShaderParameter(self.mesh_name, self.mat_name, parameter, value)
-            else:
-                utils.log_info(f"Parameter: {parameter} does not exist in shader!")
+            #if parameter in parameter_names:
+            value = shader_value(value)
+            material_component.SetShaderParameter(self.mesh_name, self.mat_name, parameter, value)
+            #else:
+            #    utils.log_info(f"Parameter: {parameter} does not exist in shader!")
 
     def get_shader_parameter(self, parameter):
         material_component = self.material_component()
@@ -1091,6 +1091,14 @@ def get_data_block_str(obj: RLPy.RIObject, block_name, attr_name):
     if data_block and has_attr(data_block, attr_name):
         return data_block.GetData(attr_name).ToString()
     return None
+
+
+def has_link_id(obj: RLPy.RIObject):
+    if obj:
+        link_id = get_data_block_str(obj, "DataLink", "LinkID")
+        if link_id:
+            return True
+    return False
 
 
 def get_link_id(obj: RLPy.RIObject, add_if_missing=False):

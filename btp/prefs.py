@@ -31,14 +31,21 @@ DATALINK_FOLDER: str = None
 DATALINK_OVERWRITE: bool = False
 EXPORT_MORPH_MATERIALS: bool = True
 DEFAULT_MORPH_SLIDER_PATH: str = "Custom/Blender"
+AUTO_START_SERVICE: bool = False
+MATCH_CLIENT_RATE: bool = True
+
+# TODO
+# export defaults for hidden faces, animation, pose for iClone and CC4 separately
 
 class Preferences(QObject):
-    window: QWindow = None
+    window: RLPy.RIDockWidget = None
     go_b_path: str = None
     # UI
     textbox_go_b_path: QLineEdit = None
     textbox_blender_path: QLineEdit = None
     checkbox_export_morph_materials: QCheckBox = None
+    checkbox_auto_start_service: QCheckBox = None
+    checkbox_match_client_rate: QCheckBox = None
     no_update: bool = False
 
     def __init__(self):
@@ -48,8 +55,15 @@ class Preferences(QObject):
     def show(self):
         self.window.Show()
 
+    def hide(self):
+        self.window.Hide()
+
+    def is_shown(self):
+        return self.window.IsVisible()
+
     def create_window(self):
-        self.window, layout = qt.window("CC/iC Blender Pipeline Preferences", 400)
+        self.window, layout = qt.window("CC/iC Blender Pipeline Preferences", 400, show_hide=self.on_show_hide)
+        self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
 
@@ -68,6 +82,11 @@ class Preferences(QObject):
 
         qt.spacing(layout, 10)
 
+        self.checkbox_auto_start_service = qt.checkbox(layout, "Auto-start Link Server", AUTO_START_SERVICE, update=self.update_checkbox_auto_start_service)
+        self.checkbox_match_client_rate = qt.checkbox(layout, "Match Client Rate", MATCH_CLIENT_RATE, update=self.update_checkbox_match_client_rate)
+
+        qt.spacing(layout, 10)
+
         # Export Morph Materials
         self.checkbox_export_morph_materials = qt.checkbox(layout, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
                                                            update=self.update_checkbox_export_morph_materials)
@@ -78,7 +97,11 @@ class Preferences(QObject):
 
         qt.spacing(layout, 10)
 
-        self.window.Show()
+    def on_show_hide(self, visible):
+        if visible:
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", True)
+        else:
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", False)
 
     def update_textbox_datalink_folder(self):
         global DATALINK_FOLDER
@@ -114,6 +137,24 @@ class Preferences(QObject):
             self.textbox_blender_path.setText(file_path)
             BLENDER_PATH = file_path
             write_temp_state()
+
+    def update_checkbox_auto_start_service(self):
+        global AUTO_START_SERVICE
+        if self.no_update:
+            return
+        self.no_update = True
+        AUTO_START_SERVICE = self.checkbox_auto_start_service.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_match_client_rate(self):
+        global MATCH_CLIENT_RATE
+        if self.no_update:
+            return
+        self.no_update = True
+        MATCH_CLIENT_RATE = self.checkbox_match_client_rate.isChecked()
+        write_temp_state()
+        self.no_update = False
 
     def update_checkbox_export_morph_materials(self):
         global EXPORT_MORPH_MATERIALS
@@ -186,16 +227,20 @@ def read_temp_state():
     global DATALINK_FOLDER
     global EXPORT_MORPH_MATERIALS
     global DEFAULT_MORPH_SLIDER_PATH
+    global AUTO_START_SERVICE
+    global MATCH_CLIENT_RATE
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
     if os.path.exists(temp_state_path):
         temp_state_json = read_json(temp_state_path)
         if temp_state_json:
-            BLENDER_PATH = get_attr(temp_state_json, "blender_path")
-            DATALINK_FOLDER = get_attr(temp_state_json, "datalink_folder")
+            BLENDER_PATH = get_attr(temp_state_json, "blender_path", "")
+            DATALINK_FOLDER = get_attr(temp_state_json, "datalink_folder", "")
             EXPORT_MORPH_MATERIALS = get_attr(temp_state_json, "export_morph_materials", True)
             DEFAULT_MORPH_SLIDER_PATH = get_attr(temp_state_json, "default_morph_slider_path", "Custom/Blender")
+            AUTO_START_SERVICE = get_attr(temp_state_json, "auto_start_service", False)
+            MATCH_CLIENT_RATE = get_attr(temp_state_json, "match_client_rate", True)
 
 
 def write_temp_state():
@@ -203,6 +248,8 @@ def write_temp_state():
     global DATALINK_FOLDER
     global EXPORT_MORPH_MATERIALS
     global DEFAULT_MORPH_SLIDER_PATH
+    global AUTO_START_SERVICE
+    global MATCH_CLIENT_RATE
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -211,6 +258,8 @@ def write_temp_state():
         "datalink_folder": DATALINK_FOLDER,
         "export_morph_materials": EXPORT_MORPH_MATERIALS,
         "default_morph_slider_path": DEFAULT_MORPH_SLIDER_PATH,
+        "auto_start_service": AUTO_START_SERVICE,
+        "match_client_rate": MATCH_CLIENT_RATE,
     }
     write_json(temp_state_json, temp_state_path)
 
@@ -249,3 +298,15 @@ def detect_paths():
 
     print(f"using Blender Executable Path: {BLENDER_PATH}")
     print(f"Using Datalink Folder: {DATALINK_FOLDER}")
+
+
+
+
+
+PREFERENCES: Preferences = None
+
+def get_preferences():
+    global PREFERENCES
+    if not PREFERENCES:
+        PREFERENCES = Preferences()
+    return PREFERENCES

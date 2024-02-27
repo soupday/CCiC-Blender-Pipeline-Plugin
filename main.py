@@ -15,16 +15,18 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
+import btp.vars as vars
+import btp.prefs as prefs
+import btp.cc as cc
+import btp.qt as qt
+import btp.tests as tests
 import btp.importer as importer
 import btp.exporter as exporter
 import btp.morph as morph
 import btp.link as link
-import btp.cc as cc
-import btp.qt as qt
-import btp.tests as tests
 import btp.gob as gob
-import btp.vars as vars
-import btp.prefs as prefs
+
+
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
@@ -32,8 +34,11 @@ FBX_IMPORTER: importer.Importer = None
 FBX_EXPORTER: exporter.Exporter = None
 SETTINGS: prefs.Preferences = None
 
+ACTION_LINK = None
+
 
 def initialize_plugin():
+    global ACTION_LINK
     prefs.detect_paths()
     # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
@@ -49,28 +54,31 @@ def initialize_plugin():
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
 
-    tool_bar = qt.find_add_toolbar("Blender Pipeline Toolbar")
-    qt.clear_tool_bar(tool_bar)
+    toolbar = qt.find_add_toolbar("Blender Pipeline Toolbar")
+    qt.clear_toolbar(toolbar)
 
     icon_blender = qt.get_icon("BlenderLogo.png")
-    qt.add_tool_bar_action(tool_bar, icon_blender, "GoB", menu_go_b)
+    qt.add_toolbar_action(toolbar, icon_blender, "GoB", menu_go_b)
 
     if cc.is_cc():
         icon_morph = qt.get_icon("MeshIcoSphere.png")
-        qt.add_tool_bar_action(tool_bar, icon_morph, "Morph", menu_go_morph)
+        qt.add_toolbar_action(toolbar, icon_morph, "Morph", menu_go_morph)
 
     icon_export = qt.get_icon("BlenderExport.png")
-    qt.add_tool_bar_action(tool_bar, icon_export, "Export", menu_export)
+    qt.add_toolbar_action(toolbar, icon_export, "Export", menu_export)
 
     if cc.is_cc():
         icon_import = qt.get_icon("BlenderImport.png")
-        qt.add_tool_bar_action(tool_bar, icon_import, "Import", menu_import)
+        qt.add_toolbar_action(toolbar, icon_import, "Import", menu_import)
 
     icon_link = qt.get_icon("BlenderDataLink.png")
-    qt.add_tool_bar_action(tool_bar, icon_link, "Data-link", menu_link)
+    qt.add_toolbar_action(toolbar, icon_link, "Data-link", menu_link, toggle=True)
 
     icon_settings = qt.get_icon("BlenderSettings.png")
-    qt.add_tool_bar_action(tool_bar, icon_settings, "Settings", menu_settings)
+    qt.add_toolbar_action(toolbar, icon_settings, "Settings", menu_settings, toggle=True)
+
+    if prefs.AUTO_START_SERVICE:
+        link.link_auto_start()
 
 
 def menu_import():
@@ -99,7 +107,19 @@ def menu_export_iclone():
 
 
 def menu_link():
-    link.get_data_link()
+    data_link = link.get_data_link()
+    if data_link.is_shown():
+        data_link.hide()
+    else:
+        data_link.show()
+
+
+def menu_settings():
+    preferences = prefs.get_preferences()
+    if preferences.is_shown():
+        preferences.hide()
+    else:
+        preferences.show()
 
 
 def menu_go_b():
@@ -108,12 +128,6 @@ def menu_go_b():
 
 def menu_go_morph():
     gob.go_morph()
-
-
-def menu_settings():
-    global FBX_EXPORTER
-    FBX_EXPORTER = None
-    FBX_EXPORTER = prefs.Preferences()
 
 
 def run_script():

@@ -23,6 +23,7 @@ def go_b():
         # in CC4, if nothing selected, use the available character, if there is one
         if not objects:
             avatar = cc.get_first_avatar()
+            RLPy.RScene.SelectObject(avatar)
             if avatar:
                 objects = [avatar]
     else:
@@ -37,10 +38,16 @@ def go_b():
 
     # prefer using avatar names over prop names
     avatars = cc.get_selected_avatars()
-    if avatars:
-        name = f"iClone Project - {avatars[0].GetName()}"
-    elif objects:
-        name = f"iClone Project - {objects[0].GetName()}"
+    if cc.is_cc():
+        if avatars:
+            name = f"CC4 - {avatars[0].GetName()}"
+        elif objects:
+            name = f"CC4 - {objects[0].GetName()}"
+    else:
+        if avatars:
+            name = f"iClone - {avatars[0].GetName()}"
+        elif objects:
+            name = f"iClone - {objects[0].GetName()}"
 
     utils.log_info(f"Using project name: {name}")
 
@@ -48,8 +55,9 @@ def go_b():
     if not LINK.is_connected():
         LINK.link_start()
         LINK.service.connected.connect(go_b_connected)
+        LINK.show()
 
-    sub_folder, script_path, blend_path = get_go_b_paths(name)
+    sub_folder, script_path, blend_path, import_path, export_path = get_go_b_paths(name)
     write_script(script_path, blend_path)
     launch_blender(script_path)
 
@@ -59,7 +67,7 @@ def go_b():
     for gob_data in GOB_OBJECTS:
         name = gob_data["name"]
         obj = gob_data["object"]
-        fbx_path = os.path.join(sub_folder, name + ".fbx")
+        fbx_path = os.path.join(import_path, name + ".fbx")
         gob_data["path"] = fbx_path
         export = exporter.Exporter(obj, no_window=True)
         export.set_go_b_export(fbx_path)
@@ -76,6 +84,10 @@ def go_b_connected():
     GOB_CONNECTED = True
     LINK = link.get_data_link()
     LINK.service.connected.disconnect(go_b_connected)
+    # send the lights and camera
+    LINK.sync_lights()
+    LINK.send_camera_sync()
+    # then send the characters
     go_b_send()
 
 
@@ -97,9 +109,9 @@ def go_b_finish():
     GOB_DONE = False
     GOB_QUEUE = None
     LINK = link.get_data_link()
-    LINK.send_camera_sync()
+    # finally pose the characters
     LINK.send_pose()
-    LINK.sync_lights()
+
 
 
 def go_morph():
@@ -126,7 +138,7 @@ def go_morph():
         LINK.link_start()
         LINK.service.connected.connect(go_morph_connected)
 
-    sub_folder, script_path, blend_path = get_go_b_paths(name)
+    sub_folder, script_path, blend_path, import_path, export_path = get_go_b_paths(name)
     write_script(script_path, blend_path)
     launch_blender(script_path)
 
@@ -134,7 +146,7 @@ def go_morph():
     for gob_data in GOB_OBJECTS:
         name = gob_data["name"]
         obj = gob_data["object"]
-        obj_path = os.path.join(sub_folder, name + ".obj")
+        obj_path = os.path.join(import_path, name + ".obj")
         gob_data["path"] = obj_path
         obj_options = (RLPy.EExport3DFileOption_ResetToBindPose |
                        RLPy.EExport3DFileOption_FullBodyPart |
@@ -204,13 +216,17 @@ def get_go_b_paths(name):
     if not os.path.exists(sub_folder):
         os.makedirs(sub_folder, exist_ok=True)
 
-    blend_path = os.path.normpath(os.path.join(sub_folder, base_name + ".blend"))
+    blend_path = os.path.normpath(os.path.join(sub_folder, name + ".blend"))
+    import_path = os.path.normpath(os.path.join(sub_folder, "imports"))
+    export_path = os.path.normpath(os.path.join(sub_folder, "exports"))
+    os.makedirs(import_path, exist_ok=True)
+    os.makedirs(export_path, exist_ok=True)
 
     script_path = os.path.normpath(os.path.join(sub_folder, "go_b.py"))
 
     utils.log_info(f"Using DataLink Sub-Folder Path: {sub_folder}")
 
-    return sub_folder, script_path, blend_path
+    return sub_folder, script_path, blend_path, import_path, export_path
 
 
 def write_script(script_path, blend_path):

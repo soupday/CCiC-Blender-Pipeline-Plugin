@@ -63,6 +63,7 @@ class Importer:
 
     def __init__(self, file_path, no_window=False):
         utils.log("================================================================")
+        file_path = os.path.normpath(file_path)
         utils.log("New character import, Fbx: " + file_path)
         self.path = file_path
         self.file = os.path.basename(self.path)

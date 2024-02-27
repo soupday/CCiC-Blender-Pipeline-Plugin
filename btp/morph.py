@@ -58,7 +58,7 @@ class MorphSlider(QObject):
     key_path = None
     source_base_type = EChooseBase_Current
     auto_apply = True
-    adjust_bones = False
+    adjust_bones = True
     morph_min_value = 0
     morph_max_value = 100
 
@@ -185,7 +185,6 @@ class MorphSlider(QObject):
             return
         self.no_update = True
         self.target_path = self.textbox_target_path.text()
-        print(f"target_path = {self.target_path}")
         dir, file = os.path.split(self.target_path)
         name, ext = os.path.splitext(file)
         unique_morph_name = self.check_morph_name(name)
@@ -195,11 +194,9 @@ class MorphSlider(QObject):
         if os.path.exists(key_path):
             self.key_path = key_path
             self.textbox_key_path.setText(key_path)
-            print(f"key_path = {self.key_path}")
         else:
             self.key_path = ""
             self.textbox_key_path.setText("")
-            print(f"No ObjKey found!")
         self.no_update = False
 
     def update_textbox_key_path(self):
@@ -253,26 +250,32 @@ class MorphSlider(QObject):
 
     def create_slider(self):
         self.window.Close()
-        slider_setting = RMorphSliderSetting()
-        unique_morph_name = self.check_morph_name(self.morph_name)
-        slider_setting.SetMorphName(unique_morph_name)
-        slider_setting.SetSliderPath(self.slider_path)
-        slider_setting.SetCategory(CATEGORIES[self.category])
-        slider_setting.SetSourceBaseType(self.source_base_type)
-        slider_setting.SetTargetFilePath(self.target_path)
-        slider_setting.SetTargetMorphChecksumFilePath(self.key_path)
-        slider_setting.SetAutoApplyToCurrentCharacter(self.auto_apply)
-        slider_setting.SetMorphValueRange(self.morph_min_value, self.morph_max_value)
-        slider_setting.SetAxisSettingForObj(EAxisSetting_YUp)
-        slider_setting.SetAdjustBonesToFitMorph(self.adjust_bones)
-        avatar = cc.get_first_avatar()
-        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
-        ASC.CreateSlider(slider_setting, "")
-        if self.auto_apply:
-            morph_id = self.find_morph_id(avatar, unique_morph_name)
-            utils.log_info(f"Created Morph ID: {morph_id}")
-            min_max = ASC.GetShapingMorphMinMax(morph_id)
-            utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
-            if morph_id:
-                ASC.SetShapingMorphWeight(morph_id, min_max[1])
-                avatar.Update()
+
+        if os.path.exists(self.target_path) and os.path.exists(self.key_path):
+
+            slider_setting = RMorphSliderSetting()
+            unique_morph_name = self.check_morph_name(self.morph_name)
+            slider_setting.SetMorphName(unique_morph_name)
+            slider_setting.SetSliderPath(self.slider_path)
+            slider_setting.SetCategory(CATEGORIES[self.category])
+            slider_setting.SetSourceBaseType(self.source_base_type)
+            slider_setting.SetTargetFilePath(self.target_path)
+            slider_setting.SetTargetMorphChecksumFilePath(self.key_path)
+            slider_setting.SetAutoApplyToCurrentCharacter(self.auto_apply)
+            slider_setting.SetMorphValueRange(self.morph_min_value, self.morph_max_value)
+            slider_setting.SetAxisSettingForObj(EAxisSetting_YUp)
+            slider_setting.SetAdjustBonesToFitMorph(self.adjust_bones)
+
+            utils.log_info(f"Creating Morph Slider: name: {unique_morph_name}, path: {self.slider_path}")
+
+            avatar = cc.get_first_avatar()
+            ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
+            ASC.CreateSlider(slider_setting, "")
+            if self.auto_apply:
+                morph_id = self.find_morph_id(avatar, unique_morph_name)
+                utils.log_info(f"Created Morph ID: {morph_id}")
+                min_max = ASC.GetShapingMorphMinMax(morph_id)
+                utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
+                if morph_id:
+                    ASC.SetShapingMorphWeight(morph_id, min_max[1])
+                    avatar.Update()

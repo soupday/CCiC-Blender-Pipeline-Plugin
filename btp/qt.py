@@ -98,21 +98,41 @@ def get_main_window() -> QMainWindow:
 
 
 def find_add_toolbar(name) -> QToolBar:
-    rl_tool_bar = RLPy.RUi.FindToolBar(name)
-    if rl_tool_bar:
-        tool_bar = wrapInstance(int(rl_tool_bar), QToolBar)
+    rl_toolbar = RLPy.RUi.FindToolBar(name)
+    if rl_toolbar:
+        toolbar = wrapInstance(int(rl_toolbar), QToolBar)
     else:
         main_window = get_main_window()
-        tool_bar = QToolBar(name)
-        main_window.addToolBar(tool_bar)
-    #tool_bar.setIconSize(QSize(16, 16))
-    #tool_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-    tool_bar.setToolButtonStyle(Qt.ToolButtonIconOnly)
-    return tool_bar
+        toolbar = QToolBar(name)
+        main_window.addToolBar(toolbar)
+    #toolbar.setIconSize(QSize(16, 16))
+    #toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
+    return toolbar
 
 
-def clear_tool_bar(tool_bar):
-    tool_bar.clear()
+def clear_toolbar(toolbar):
+    toolbar.clear()
+
+
+def find_toolbar_action(toolbar_name, action_name):
+    rl_toolbar = RLPy.RUi.FindToolBar(toolbar_name)
+    if rl_toolbar:
+        toolbar: QToolBar = wrapInstance(int(rl_toolbar), QToolBar)
+        if toolbar:
+            action: QAction
+            for action in toolbar.actions():
+                if action.text() == action_name:
+                    return action
+    return None
+
+
+def toggle_toolbar_action(toolbar_name, action_name, toggled):
+    toolbar_action = find_toolbar_action(toolbar_name, action_name)
+    if toolbar_action:
+        if not toolbar_action.isCheckable():
+            toolbar_action.setCheckable(True)
+        toolbar_action.setChecked(toggled)
 
 
 def get_icon(file_name):
@@ -120,17 +140,19 @@ def get_icon(file_name):
     return QIcon(icon_path)
 
 
-def add_tool_bar_action(tool_bar: QToolBar, icon, text, action=None):
+def add_toolbar_action(toolbar: QToolBar, icon, text, action=None, toggle=False):
     icon_path = utils.get_resource_path("icons", "BlenderLogo.png")
     if text:
-        tool_bar_action: QAction = tool_bar.addAction(icon, text)
-        tool_bar_action.setText(text)
-        tool_bar_action.setIconText(text)
+        toolbar_action: QAction = toolbar.addAction(icon, text)
+        toolbar_action.setText(text)
+        toolbar_action.setIconText(text)
     else:
-        tool_bar_action: QAction = tool_bar.addAction(icon, None)
+        toolbar_action: QAction = toolbar.addAction(icon, None)
     if action:
-        tool_bar_action.triggered.connect(action)
-    return tool_bar_action
+        toolbar_action.triggered.connect(action)
+    if toggle:
+        toolbar_action.setCheckable(True)
+    return toolbar_action
 
 
 class QLabelClickable(QLabel):
@@ -142,11 +164,15 @@ class QLabelClickable(QLabel):
 
 def label(layout: QLayout, text, style = STYLE_NONE,
           row=-1, col=-1, row_span=1, col_span=1,
-          align=None, wrap=False, dblclick = None):
+          align=None, wrap=False, dblclick = None, no_size=False):
 
     w = QLabelClickable()
     w.setText(text)
     w.setStyleSheet(style)
+    if no_size:
+        p = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        p.setHorizontalPolicy(QSizePolicy.Ignored)
+        w.setSizePolicy(p)
     if row >= 0 and col >= 0:
         layout.addWidget(w, row, col, row_span, col_span)
     else:
@@ -177,7 +203,7 @@ def frame(layout, style = "", line_width = 1):
     f.setLineWidth(line_width)
     l = QVBoxLayout(f)
     layout.addWidget(f)
-    return l
+    return f, l
 
 
 def grid(layout):
