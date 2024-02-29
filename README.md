@@ -71,6 +71,21 @@ Known Issues
 Changelog
 =========
 
+### 2.0.1
+- GoB toolbar added.
+    - Go-B, Go-B morph, Export, Import, Datalink, Settings.
+    - Plugin settings for Blender Path, Datalink working directory, Morph slider default path.
+    - Go-B automatically launches blender and imports selected characters/props into Blender, matches lighting and camera.
+    - In Blender single button click to send back character or character morph (if morph editing with Go-B Morph).
+- Datalink:
+    - Prop import/export.
+    - Lighting and Camera Sync added
+    - Receive Character import direct from Blender.
+    - Receive Morph import direct from Blender with automatic slider creation.
+    - Send facial expressions and visemes with character pose and animation sequences.
+        - Currently not receiving these back into CC4. Didn't get around to it this time.
+- Fixes Accessory name duplication by CC4 causing material detection to fail. (White material fix)
+
 ### 2.0.0
 - Code refactored
 - WIP Data Link added
