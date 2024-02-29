@@ -15,17 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
-import btp.vars as vars
-import btp.prefs as prefs
-import btp.cc as cc
-import btp.qt as qt
-import btp.tests as tests
-import btp.importer as importer
-import btp.exporter as exporter
-import btp.morph as morph
-import btp.link as link
-import btp.gob as gob
-
+from btp import vars, prefs, cc, qt, tests, importer, exporter, morph, link, gob
 
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
