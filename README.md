@@ -78,7 +78,7 @@ Changelog
     - Go-B automatically launches blender and imports selected characters/props into Blender, matches lighting and camera.
     - In Blender single button click to send back character or character morph (if morph editing with Go-B Morph).
 - Datalink:
-    - Prop import/export.
+    - Prop import/export. Currently props aren't cooperating when posing.
     - Lighting and Camera Sync added
     - Receive Character import direct from Blender.
     - Receive Morph import direct from Blender with automatic slider creation.
