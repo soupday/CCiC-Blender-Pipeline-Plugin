@@ -431,13 +431,19 @@ class CCJsonData():
 
     def get_character_type(self):
         character_type = "STANDARD"
-        generation = self.get_character_generation()
-        if generation == "Humanoid" or generation == "" or generation == "Unknown":
+        generation = self.get_character_generation().lower()
+        if generation == "humanoid" or generation == "":
             character_type = "HUMANOID"
-        elif generation == "Creature":
+        elif generation == "actorcore" or generation == "actorbuild" or generation == "actorscan":
+            character_type = "HUMANOID"
+        elif generation == "gamebase" or generation == "accurig":
+            character_type = "HUMANOID"
+        elif generation == "creature":
             character_type = "CREATURE"
-        elif generation == "Prop":
+        elif generation is None or generation == "prop":
             character_type = "PROP"
+        else:
+            character_type = "NONE"
         return character_type
 
     def get_root_json(self):
@@ -462,6 +468,9 @@ class CCJsonData():
         try_names = set()
         try_names.add(search_mesh_name)
         try_names.add(safe_export_name(search_mesh_name))
+        # accessories can cause mesh renames with _0 _1 _2 suffixes added
+        if search_mesh_name[-1].isdigit() and search_mesh_name[-2] == "_":
+            try_names.add(search_mesh_name[:-2])
         if search_obj_name:
             try_names.add(search_obj_name)
             try_names.add(safe_export_name(search_obj_name))
@@ -479,8 +488,9 @@ class CCJsonData():
 
     def find_physics_mesh_name(self, search_mesh_name, search_obj_name = None):
         try_names = set()
-        try_names.add(search_mesh_name)
-        try_names.add(safe_export_name(search_mesh_name))
+        if search_mesh_name:
+            try_names.add(search_mesh_name)
+            try_names.add(safe_export_name(search_mesh_name))
         if search_obj_name:
             try_names.add(search_obj_name)
             try_names.add(safe_export_name(search_obj_name))
@@ -604,6 +614,11 @@ class CCMeshMaterial():
         if material_component:
             material_component.SetAttributeValue(self.mesh_name, self.mat_name, attrib, value)
 
+    def load_material(self, material_path):
+        material_component = self.material_component()
+        if material_component:
+            material_component.LoadMaterial(self.mesh_name, self.mat_name, material_path)
+
     def get_shader(self):
         material_component = self.material_component()
         if material_component:
@@ -623,7 +638,6 @@ class CCMeshMaterial():
         material_component = self.material_component()
         if material_component:
             material_component.LoadImageToTexture(self.mesh_name, self.mat_name, channel, file)
-
 
     def load_shader_texture(self, shader_texture, file):
         material_component = self.material_component()
@@ -770,15 +784,15 @@ class CCMeshMaterial():
     def find_json_data(self):
         if self.json_data:
             self.mesh_json = self.json_data.find_mesh(self.mesh_name, self.obj_name)
-            self.json_mesh_name = self.mesh_json.name
             if self.mesh_json:
+                self.json_mesh_name = self.mesh_json.name
                 self.mat_json = self.mesh_json.find_material(self.mat_name)
                 if self.mat_json:
                     self.json_mat_name = self.mat_json.name
-            if self.physx_object:
-                self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name)
-                if self.physx_mesh_json:
-                    self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name)
+                if self.physx_object:
+                    self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name)
+                    if self.physx_mesh_json:
+                        self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name)
 
 
 def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=None,
@@ -876,6 +890,10 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
                     utils.log_recess()
 
                 utils.log_recess()
+
+            else:
+
+                utils.log_error(f"Could not find actor object for: {mesh_name}")
 
     return mesh_materials
 
@@ -1201,19 +1219,29 @@ IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
 
 def get_actor_objects(actor):
     objects = []
-    child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
-    for obj in child_objects:
-        name = obj.GetName()
-        if name not in IGNORE_NODES:
-            objects.append(obj)
     if actor and type(actor) is RLPy.RIAvatar:
         avatar: RLPy.RIAvatar = actor
+        objects.extend(avatar.GetClothes())
         objects.extend(avatar.GetAccessories())
         objects.extend(avatar.GetHairs())
+        child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
+        for obj in child_objects:
+            name = obj.GetName()
+            if name not in IGNORE_NODES and obj not in objects:
+                objects.append(obj)
         if avatar.GetAvatarType() != RLPy.EAvatarType_Standard:
             objects.append(avatar)
+
+    elif actor and type(actor) is RLPy.RIProp:
+        child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
+        for obj in child_objects:
+            name = obj.GetName()
+            if name not in IGNORE_NODES and obj not in objects:
+                objects.append(obj)
     else:
+        print("Other")
         objects.append(actor)
+
     return objects
 
 
@@ -1306,6 +1334,10 @@ def array_to_vector4(arr):
 def array_to_quaternion(arr):
     v = array_to_vector4(arr)
     return RLPy.RQuaternion(v)
+
+
+def get_material_resource(file_name):
+    return utils.get_resource_path("materials", file_name)
 
 
 def convert_from_json_param(var_name, var_value):

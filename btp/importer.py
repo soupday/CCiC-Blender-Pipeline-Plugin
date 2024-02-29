@@ -35,7 +35,6 @@ class Importer:
     json_path = "C:/folder/dummy.json"
     hik_path = "C:/folder/dummy.3dxProfile"
     profile_path = "C:/folder/dummy.ccFacialProfile"
-    json_data = None
     avatar = None
     window_options = None
     window_progress = None
@@ -77,6 +76,8 @@ class Importer:
 
         self.generation = self.json_data.get_character_generation()
         self.character_type = self.json_data.get_character_type()
+        utils.log_info(f"Character Generation: {self.generation}")
+        utils.log_info(f"Character Type: {self.character_type}")
 
         error = False
         if not self.json_data:
@@ -200,9 +201,9 @@ class Importer:
         self.option_mesh = True
         self.option_textures = True
         self.option_parameters = True
-        self.option_import_expressions = False
-        self.option_import_hik = False
-        self.option_import_profile = False
+        self.option_import_expressions = True
+        self.option_import_hik = True
+        self.option_import_profile = True
 
     def import_fbx(self):
         """Import the character into CC3 and read in the json data.
@@ -247,8 +248,9 @@ class Importer:
 
             # if not importing a prop, use the current avatar
             if self.character_type != "PROP":
-                avatars = RLPy.RScene.GetAvatars(RLPy.EAvatarType_All)
-                objects = [avatars[0]]
+                avatar = cc.get_first_avatar()
+                avatar.SetName(self.name)
+                objects = [avatar]
 
             if len(objects) > 0:
                 for obj in objects:
@@ -274,7 +276,7 @@ class Importer:
 
             utils.log("Rebuilding character materials and texures:")
 
-            self.count(cc_mesh_materials)
+            self.update_shaders(cc_mesh_materials)
             self.update_progress(0, "Done Initializing!", True)
 
             self.import_substance_textures(cc_mesh_materials)
@@ -298,7 +300,7 @@ class Importer:
         utils.log_timer("Import complete! Materials applied in: ")
 
 
-    def count(self, cc_mesh_materials):
+    def update_shaders(self, cc_mesh_materials):
         """Precalculate the number of materials to be processed,
            to initialise progress bars.
            Also determine which materials may have duplicate names as these need to be treated differently.
@@ -313,6 +315,7 @@ class Importer:
             if M.has_json():
 
                 # determine material duplication
+                print(f"Counting: {M.mesh_name} / {M.mat_name}")
                 if M.mat_name in self.mat_count:
                     self.mat_count[M.mat_name] += 1
                 else:
@@ -321,11 +324,18 @@ class Importer:
                 # ensure the shader is correct:
                 current_shader = M.get_shader()
                 wanted_shader = M.mat_json.get_shader()
+                # SSS skin on gamebase does not re-import correctly, use Pbr instead
+                if wanted_shader == "RLSSS" and M.mat_name.startswith("Ga_Skin_"):
+                    wanted_shader = "Pbr"
                 if current_shader != wanted_shader:
                     M.set_shader(wanted_shader)
 
                 # Calculate stats
                 num_materials += 1
+
+            else:
+
+                print(f"Material: {M.mesh_name} / {M.mat_name} has no Json!")
 
         steps = 0
         # substance init & import
@@ -395,14 +405,14 @@ class Importer:
 
         for M in mesh_materials:
 
+            if not M.has_json():
+                continue
+
             if not F or F.mesh_name != M.mesh_name or M.mesh_name != "CC_Base_Body":
                 F = M
 
             # substance texture import doesn't deal with duplicates well..
             if self.mat_count[M.mat_name] > 1:
-                continue
-
-            if not M.has_json():
                 continue
 
             # create folder with first material name in each mesh

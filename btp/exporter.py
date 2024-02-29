@@ -195,7 +195,7 @@ class Exporter:
         self.option_bakehair = False
         self.option_bakeskin = False
         self.option_hik_data = True
-        self.option_profile_data = False
+        self.option_profile_data = True
         self.option_t_pose = False
         self.option_current_pose = False
         self.option_current_animation = False
@@ -258,13 +258,13 @@ class Exporter:
     def set_data_link_export(self, file_path):
         self.option_bakehair = False
         self.option_bakeskin = False
-        self.option_hik_data = False
-        self.option_profile_data = False
+        self.option_hik_data = True
+        self.option_profile_data = True
         self.option_t_pose = False
         if cc.is_cc():
             self.option_remove_hidden = False
             self.option_current_animation = False
-            self.option_current_pose = True
+            self.option_current_pose = False
         else:
             self.option_remove_hidden = True
             self.option_current_animation = True
@@ -274,8 +274,8 @@ class Exporter:
     def set_go_b_export(self, file_path):
         self.option_bakehair = False
         self.option_bakeskin = False
-        self.option_hik_data = False
-        self.option_profile_data = False
+        self.option_hik_data = True
+        self.option_profile_data = True
         self.option_t_pose = False
         self.option_current_pose = False
         self.option_current_animation = True

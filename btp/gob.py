@@ -57,7 +57,7 @@ def go_b():
         LINK.service.connected.connect(go_b_connected)
         LINK.show()
 
-    sub_folder, script_path, blend_path, import_path, export_path = get_go_b_paths(name)
+    project_folder, script_path, blend_path, import_folder, export_folder = get_go_b_paths(name)
     write_script(script_path, blend_path)
     launch_blender(script_path)
 
@@ -67,7 +67,8 @@ def go_b():
     for gob_data in GOB_OBJECTS:
         name = gob_data["name"]
         obj = gob_data["object"]
-        fbx_path = os.path.join(import_path, name + ".fbx")
+        object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
+        fbx_path = os.path.join(object_folder, name + ".fbx")
         gob_data["path"] = fbx_path
         export = exporter.Exporter(obj, no_window=True)
         export.set_go_b_export(fbx_path)
@@ -138,7 +139,7 @@ def go_morph():
         LINK.link_start()
         LINK.service.connected.connect(go_morph_connected)
 
-    sub_folder, script_path, blend_path, import_path, export_path = get_go_b_paths(name)
+    project_folder, script_path, blend_path, import_folder, export_folder = get_go_b_paths(name)
     write_script(script_path, blend_path)
     launch_blender(script_path)
 
@@ -146,7 +147,8 @@ def go_morph():
     for gob_data in GOB_OBJECTS:
         name = gob_data["name"]
         obj = gob_data["object"]
-        obj_path = os.path.join(import_path, name + ".obj")
+        object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
+        obj_path = os.path.join(object_folder, name + ".obj")
         gob_data["path"] = obj_path
         obj_options = (RLPy.EExport3DFileOption_ResetToBindPose |
                        RLPy.EExport3DFileOption_FullBodyPart |
@@ -195,38 +197,21 @@ def start_datalink():
 
 
 def get_go_b_paths(name):
-    folder = prefs.DATALINK_FOLDER
+    datalink_folder = prefs.DATALINK_FOLDER
 
-    if not os.path.exists(folder):
-        folder = cc.temp_files_path("Data Link")
-        if not os.path.exists(folder):
-            os.makedirs(folder, exist_ok=True)
+    if not os.path.exists(datalink_folder):
+        datalink_folder = cc.temp_files_path("Data Link")
+        if not os.path.exists(datalink_folder):
+            os.makedirs(datalink_folder, exist_ok=True)
 
-    base_name = name
-    sub_folder = os.path.normpath(os.path.join(folder, name))
-    if os.path.exists(sub_folder):
-        suffix = 1
-        name = base_name + "_" + str(suffix)
-        sub_folder = os.path.normpath(os.path.join(folder, name))
-        while os.path.exists(sub_folder):
-            suffix += 1
-            name = base_name + "_" + str(suffix)
-            sub_folder = os.path.normpath(os.path.join(folder, name))
+    project_folder = utils.get_unique_folder_path(datalink_folder, name, create=True)
+    blend_path = os.path.normpath(os.path.join(project_folder, name + ".blend"))
+    import_folder = utils.make_sub_folder(project_folder, "imports")
+    export_folder = utils.make_sub_folder(project_folder, "exports")
+    script_path = os.path.normpath(os.path.join(project_folder, "go_b.py"))
+    utils.log_info(f"Using DataLink Project Path: {project_folder}")
 
-    if not os.path.exists(sub_folder):
-        os.makedirs(sub_folder, exist_ok=True)
-
-    blend_path = os.path.normpath(os.path.join(sub_folder, name + ".blend"))
-    import_path = os.path.normpath(os.path.join(sub_folder, "imports"))
-    export_path = os.path.normpath(os.path.join(sub_folder, "exports"))
-    os.makedirs(import_path, exist_ok=True)
-    os.makedirs(export_path, exist_ok=True)
-
-    script_path = os.path.normpath(os.path.join(sub_folder, "go_b.py"))
-
-    utils.log_info(f"Using DataLink Sub-Folder Path: {sub_folder}")
-
-    return sub_folder, script_path, blend_path, import_path, export_path
+    return project_folder, script_path, blend_path, import_folder, export_folder
 
 
 def write_script(script_path, blend_path):

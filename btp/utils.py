@@ -334,5 +334,24 @@ def safe_copy_file(from_path, to_path):
     shutil.copyfile(safe_from_path, safe_to_path)
 
 
+def get_unique_folder_path(parent_folder, folder_name, create=False):
+    suffix = 1
+    base_name = folder_name
+    folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+    while os.path.exists(folder_path):
+        folder_name = base_name + "_" + str(suffix)
+        suffix += 1
+        folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+    if create:
+        os.makedirs(folder_path)
+    return folder_path
+
+
+def make_sub_folder(parent_folder, folder_name):
+    folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+    os.makedirs(folder_path, exist_ok=True)
+    return folder_path
+
+
 def stop_now():
     raise Exception("STOP!")

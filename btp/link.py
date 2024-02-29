@@ -1272,22 +1272,13 @@ class DataLink(QObject):
 
     def get_export_path(self, character_name, file_name):
         if self.service.remote_path:
-            export_folder = os.path.normpath(os.path.join(self.service.remote_path, "imports"))
+            export_folder = utils.make_sub_folder(self.service.remote_path, "imports")
         else:
-            export_folder = os.path.normpath(os.path.join(self.service.local_path, "imports"))
-        try:
-            os.makedirs(export_folder, exist_ok=True)
-            base_name = character_name
-            suffix = 1
-            while os.path.exists(os.path.join(export_folder, character_name)):
-                character_name = f"{base_name}_{suffix}"
-                suffix += 1
-            character_export_folder = os.path.join(export_folder, character_name)
-            os.makedirs(character_export_folder, exist_ok=True)
-            export_path = os.path.join(character_export_folder, file_name)
-            return export_path
-        except:
-            return ""
+            export_folder = utils.make_sub_folder(self.service.local_path, "imports")
+
+        character_export_folder = utils.get_unique_folder_path(export_folder, character_name, create=True)
+        export_path = os.path.join(character_export_folder, file_name)
+        return export_path
 
     def get_selected_actors(self):
         selected = RScene.GetSelectedObjects()
