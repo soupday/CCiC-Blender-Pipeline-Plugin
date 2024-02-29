@@ -15,35 +15,82 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
-import importer
-import exporter
-import link
-import qt
-import tests
+import btp.vars as vars
+import btp.prefs as prefs
+import btp.cc as cc
+import btp.qt as qt
+import btp.tests as tests
+import btp.importer as importer
+import btp.exporter as exporter
+import btp.morph as morph
+import btp.link as link
+import btp.gob as gob
+
+
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
 FBX_IMPORTER: importer.Importer = None
 FBX_EXPORTER: exporter.Exporter = None
-LINK: link.DataLink = None
+SETTINGS: prefs.Preferences = None
+
+ACTION_LINK = None
 
 
 def initialize_plugin():
+    global ACTION_LINK
+    prefs.detect_paths()
+    # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
     qt.clear_menu(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Export Character to Blender", menu_export)
+    qt.add_menu_action(plugin_menu, "Settings", menu_link)
     qt.menu_separator(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Import Character from Blender", menu_import)
+    qt.add_menu_action(plugin_menu, "Export Character to Blender", menu_export)
+    if cc.is_cc():
+        qt.menu_separator(plugin_menu)
+        qt.add_menu_action(plugin_menu, "Import Character from Blender", menu_import)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Data Link", menu_link)
+    qt.menu_separator(plugin_menu)
+    qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
+
+    toolbar = qt.find_add_toolbar("Blender Pipeline Toolbar")
+    qt.clear_toolbar(toolbar)
+
+    icon_blender = qt.get_icon("BlenderLogo.png")
+    qt.add_toolbar_action(toolbar, icon_blender, "GoB", menu_go_b)
+
+    if cc.is_cc():
+        icon_morph = qt.get_icon("MeshIcoSphere.png")
+        qt.add_toolbar_action(toolbar, icon_morph, "Morph", menu_go_morph)
+
+    icon_export = qt.get_icon("BlenderExport.png")
+    qt.add_toolbar_action(toolbar, icon_export, "Export", menu_export)
+
+    if cc.is_cc():
+        icon_import = qt.get_icon("BlenderImport.png")
+        qt.add_toolbar_action(toolbar, icon_import, "Import", menu_import)
+
+    icon_link = qt.get_icon("BlenderDataLink.png")
+    qt.add_toolbar_action(toolbar, icon_link, "Data-link", menu_link, toggle=True)
+
+    icon_settings = qt.get_icon("BlenderSettings.png")
+    qt.add_toolbar_action(toolbar, icon_settings, "Settings", menu_settings, toggle=True)
+
+    if prefs.AUTO_START_SERVICE:
+        link.link_auto_start()
 
 
 def menu_import():
     global FBX_IMPORTER
     FBX_IMPORTER = None
-    file_path = RLPy.RUi.OpenFileDialog("Fbx Files(*.fbx)")
-    if file_path and file_path != "":
+    file_path = RLPy.RUi.OpenFileDialog("Model Files(*.fbx *.obj)")
+    model_type, key_path = cc.model_type_and_key_path(file_path)
+    if model_type == "FBX" and file_path and file_path != "":
         FBX_IMPORTER = importer.Importer(file_path)
+    elif model_type == "OBJ" and file_path and file_path != "":
+        if cc.model_file_has_key(file_path):
+            morph.MorphSlider(file_path, key_path)
 
 
 def menu_export():
@@ -54,12 +101,37 @@ def menu_export():
         FBX_EXPORTER = exporter.Exporter(avatar_list[0])
 
 
+def menu_export_iclone():
+    global FBX_EXPORTER
+    FBX_EXPORTER = None
+
+
 def menu_link():
-    global LINK
-    if not LINK:
-        LINK = link.DataLink()
+    data_link = link.get_data_link()
+    if data_link.is_shown():
+        data_link.hide()
     else:
-        LINK.show()
+        data_link.show()
+
+
+def menu_settings():
+    preferences = prefs.get_preferences()
+    if preferences.is_shown():
+        preferences.hide()
+    else:
+        preferences.show()
+
+
+def menu_go_b():
+    data_link = link.get_data_link()
+    if data_link.service.is_connected:
+        data_link.send_actor()
+    else:
+        gob.go_b()
+
+
+def menu_go_morph():
+    gob.go_morph()
 
 
 def run_script():

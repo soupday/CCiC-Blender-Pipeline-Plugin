@@ -16,15 +16,17 @@
 
 import RLPy
 import time
-import utils
+from . import utils
 from PySide2.QtWidgets import *
-from PySide2.QtCore import Qt, Signal
+from PySide2.QtCore import Qt, Signal, QSize
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 
 
 STYLE_NONE = ""
 STYLE_TITLE = "color: white; font: bold"
+STYLE_BOLD = "font: bold"
+STYLE_RL_BOLD = "color: #d2ff7b; font: bold"
 STYLE_BUTTON_BOLD = "color: white; font: bold 14px"
 STYLE_RL_DESC = "color: #d2ff7b; font: italic 13px"
 STYLE_RL_TITLEBAR = "background-color: #82be0f; color: black; font: bold"
@@ -34,9 +36,11 @@ TINY_TEXT = "font: bold 4px"
 BUTTON_HEIGHT = 32
 ALIGN_CENTRE = Qt.AlignCenter
 HORIZONTAL = Qt.Horizontal
+ICON_BUTTON_HEIGHT = 64
+STYLE_ICON_BUTTON = ""
 
 
-def window(title, width = 400, changed=None):
+def window(title, width = 400, show_hide=None):
     window: RLPy.RIDockWidget
     dock: QDockWidget
 
@@ -52,8 +56,8 @@ def window(title, width = 400, changed=None):
     layout = QVBoxLayout()
     widget.setLayout(layout)
 
-    if changed:
-        dock.visibilityChanged.connect(changed)
+    if show_hide:
+        dock.visibilityChanged.connect(show_hide)
 
     return window, layout
 
@@ -88,6 +92,69 @@ def add_menu_action(menu: QMenu, name, action=None):
     return menu_action
 
 
+def get_main_window() -> QMainWindow:
+    main_window: QMainWindow = wrapInstance(int(RLPy.RUi.GetMainWindow()), QMainWindow)
+    return main_window
+
+
+def find_add_toolbar(name) -> QToolBar:
+    rl_toolbar = RLPy.RUi.FindToolBar(name)
+    if rl_toolbar:
+        toolbar = wrapInstance(int(rl_toolbar), QToolBar)
+    else:
+        main_window = get_main_window()
+        toolbar = QToolBar(name)
+        main_window.addToolBar(toolbar)
+    #toolbar.setIconSize(QSize(16, 16))
+    #toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
+    return toolbar
+
+
+def clear_toolbar(toolbar):
+    toolbar.clear()
+
+
+def find_toolbar_action(toolbar_name, action_name):
+    rl_toolbar = RLPy.RUi.FindToolBar(toolbar_name)
+    if rl_toolbar:
+        toolbar: QToolBar = wrapInstance(int(rl_toolbar), QToolBar)
+        if toolbar:
+            action: QAction
+            for action in toolbar.actions():
+                if action.text() == action_name:
+                    return action
+    return None
+
+
+def toggle_toolbar_action(toolbar_name, action_name, toggled):
+    toolbar_action = find_toolbar_action(toolbar_name, action_name)
+    if toolbar_action:
+        if not toolbar_action.isCheckable():
+            toolbar_action.setCheckable(True)
+        toolbar_action.setChecked(toggled)
+
+
+def get_icon(file_name):
+    icon_path = utils.get_resource_path("icons", file_name)
+    return QIcon(icon_path)
+
+
+def add_toolbar_action(toolbar: QToolBar, icon, text, action=None, toggle=False):
+    icon_path = utils.get_resource_path("icons", "BlenderLogo.png")
+    if text:
+        toolbar_action: QAction = toolbar.addAction(icon, text)
+        toolbar_action.setText(text)
+        toolbar_action.setIconText(text)
+    else:
+        toolbar_action: QAction = toolbar.addAction(icon, None)
+    if action:
+        toolbar_action.triggered.connect(action)
+    if toggle:
+        toolbar_action.setCheckable(True)
+    return toolbar_action
+
+
 class QLabelClickable(QLabel):
     clicked=Signal()
 
@@ -95,14 +162,19 @@ class QLabelClickable(QLabel):
         self.clicked.emit()
 
 
-def label(layout, text, style = STYLE_NONE,
-          row=-1, col=-1, align=None, wrap=False, dblclick = None):
+def label(layout: QLayout, text, style = STYLE_NONE,
+          row=-1, col=-1, row_span=1, col_span=1,
+          align=None, wrap=False, dblclick = None, no_size=False):
 
     w = QLabelClickable()
     w.setText(text)
     w.setStyleSheet(style)
+    if no_size:
+        p = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        p.setHorizontalPolicy(QSizePolicy.Ignored)
+        w.setSizePolicy(p)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
@@ -131,7 +203,7 @@ def frame(layout, style = "", line_width = 1):
     f.setLineWidth(line_width)
     l = QVBoxLayout(f)
     layout.addWidget(f)
-    return l
+    return f, l
 
 
 def grid(layout):
@@ -153,29 +225,49 @@ def column(layout):
 
 
 def checkbox(layout, label, checked, style = STYLE_NONE,
-             row=-1, col=-1, align=None, update=None):
+             row=-1, col=-1, row_span=1, col_span=1,
+             align=None, update=None):
 
     w = QCheckBox()
     w.setText(label)
     w.setChecked(checked)
     w.setStyleSheet(style)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
-    if update:
-        w.stateChanged.connect(update)
     if align:
         w.setAlignment(align)
+    if update:
+        w.stateChanged.connect(update)
+    return w
+
+
+def radio_button(layout, label, down, style = STYLE_NONE,
+                 row=-1, col=-1, row_span=1, col_span=1,
+                 align=None, update=None):
+    w = QRadioButton()
+    w.setText(label)
+    w.setChecked(down)
+    w.setDown(down)
+    w.setStyleSheet(style)
+    if row >= 0 and col >= 0:
+        layout.addWidget(w, row, col, row_span, col_span)
+    else:
+        layout.addWidget(w)
+    if align:
+        w.setAlignment(align)
+    if update:
+        w.toggled.connect(update)
     return w
 
 
 def container(layout, style = STYLE_NONE,
-              row=-1, col=-1, align=None):
+              row=-1, col=-1, row_span=1, col_span=1, align=None):
     w = QWidget()
     w.setStyleSheet(style)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
@@ -184,51 +276,56 @@ def container(layout, style = STYLE_NONE,
 
 
 def textbox(layout, text, style = STYLE_NONE, read_only = False,
-            width=0, height=0, row = -1, col = -1, align=None, update=None):
+            width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
+            align=None, update=None):
 
     w = QLineEdit(readOnly=read_only)
     w.setText(text)
     w.setStyleSheet(style)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
         w.setAlignment(align)
-    if update:
-        w.editingFinished.connect(update)
     if width:
         w.setFixedWidth(width)
     if height:
         w.setFixedHeight(height)
+    if update:
+        w.editingFinished.connect(update)
     return w
 
 
 def combobox(layout, text, style = STYLE_NONE, options=None,
-             width=0, height=0, row = -1, col = -1, align=None, update=None):
+             width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
+             align=None, update=None):
 
     w = QComboBox()
     w.setStyleSheet(style)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
         w.setAlignment(align)
-    if update:
-        w.currentTextChanged.connect(update)
     if width:
         w.setFixedWidth(width)
     if height:
         w.setFixedHeight(height)
     if options:
-        for option in options:
+        for i, option in enumerate(options):
             w.addItem(option)
+            if text == option:
+                w.setCurrentIndex(i)
+    if update:
+        w.currentTextChanged.connect(update)
     return w
 
 
 def spinbox(layout, min, max, step, value, style = STYLE_NONE, read_only = False,
-            width=0, height=0, row = -1, col = -1, align=None, update=None):
+            width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
+            align=None, update=None):
 
     w = QSpinBox(readOnly=read_only)
     w.setRange(min, max)
@@ -236,42 +333,57 @@ def spinbox(layout, min, max, step, value, style = STYLE_NONE, read_only = False
     w.setStyleSheet(style)
     w.setSingleStep(step)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
         w.setAlignment(align)
-    if update:
-        w.valueChanged.connect(update)
     if width:
         w.setFixedWidth(width)
     if height:
         w.setFixedHeight(height)
+    if update:
+        w.valueChanged.connect(update)
     return w
 
 
-def button(layout, text, func=None, style="",
-           width=0, height=BUTTON_HEIGHT, row=-1, col=-1, align=None,
-           toggle=False, value=False):
+def button(layout, text, func=None, icon = None, style="",
+           width=0, height=BUTTON_HEIGHT, row=-1, col=-1, row_span=1, col_span=1, icon_size=0,
+           align=None, toggle=False, value=False, fixed=False):
 
     w = QPushButton(text, minimumHeight=height, minimumWidth=width)
+    if fixed:
+        if width:
+            w.setFixedWidth(width)
+        if height:
+            w.setFixedHeight(height)
+    if icon:
+        if type(icon) is str:
+            w.setIcon(get_icon(icon))
+            if icon_size > 0:
+                w.setIconSize(QSize(icon_size, icon_size))
+        elif type(icon) is QIcon:
+            w.setIcon(icon)
+            if icon_size > 0:
+                w.setIconSize(QSize(icon_size, icon_size))
     w.setStyleSheet(style)
-    if func:
-        w.clicked.connect(func)
     if toggle:
         w.setCheckable(True)
         w.setChecked(value)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
         w.setAlignment(align)
+    if func:
+        w.clicked.connect(func)
     return w
 
 
 def slider(layout, min, max, step, value, style = STYLE_NONE,
-           row = -1, col = -1, align=None, update=None):
+           row = -1, col = -1, row_span=1, col_span=1,
+           align=None, update=None):
 
     w = QSlider(HORIZONTAL)
     w.setRange(min, max)
@@ -280,7 +392,7 @@ def slider(layout, min, max, step, value, style = STYLE_NONE,
     #w.setPageStep(pageStep)
     w.setValue(value)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:
@@ -305,7 +417,8 @@ def slider_text_grid(grid, row, text, min, max, step, value, slider_func):
 
 
 def progress(layout, min, max, value, text, style = STYLE_NONE,
-             width=0, height=0, row = -1, col = -1, align=None):
+             width=0, height=0, row=-1, col=-1, row_span=1, col_span=1,
+             align=None):
 
     w = QProgressBar(minimumHeight=height, minimumWidth=width)
     w.setRange(min, max)
@@ -313,7 +426,7 @@ def progress(layout, min, max, value, text, style = STYLE_NONE,
     w.setFormat(text)
     w.setStyleSheet(style)
     if row >= 0 and col >= 0:
-        layout.addWidget(w, row, col)
+        layout.addWidget(w, row, col, row_span, col_span)
     else:
         layout.addWidget(w)
     if align:

@@ -14,4 +14,22 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-VERSION = "2.0.0"
+from RLPy import *
+
+VERSION = "2.0.1"
+
+AVATAR_TYPES = {
+    EAvatarType__None: "None",
+    EAvatarType_Standard: "Standard",
+    EAvatarType_NonHuman: "NonHuman",
+    EAvatarType_NonStandard: "NonStandard",
+    EAvatarType_StandardSeries: "StandardSeries",
+    EAvatarType_All: "All",
+}
+
+FACIAL_PROFILES = {
+    EFacialProfile__None: "None",
+    EFacialProfile_CC4Extended: "CC4Extended",
+    EFacialProfile_CC4Standard: "CC4Standard",
+    EFacialProfile_Traditional: "Traditional",
+}

@@ -16,7 +16,7 @@
 
 import RLPy
 from PySide2 import *
-import cc
+from . import cc
 
 
 def fix_blender_name(name: str, import_mesh):

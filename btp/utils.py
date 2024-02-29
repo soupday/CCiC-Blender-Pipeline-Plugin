@@ -21,7 +21,7 @@ import time
 import random
 import shutil
 
-LOG_TIMER = 0
+LOG_TIMER = {}
 LOG_LEVEL = "ALL"
 LOG_INDENT = 0
 DO_EVENTS = True
@@ -88,26 +88,41 @@ def log_error(msg, e = None):
         print("    -> " + getattr(e, 'message', repr(e)))
 
 
-def start_timer():
+def start_timer(name="NONE"):
     global LOG_TIMER
-    LOG_TIMER = time.perf_counter()
+    LOG_TIMER[name] = [time.perf_counter(), 0.0, 0]
 
 
-def log_timer(msg, unit = "s"):
+def mark_timer(name="NONE"):
+    LOG_TIMER[name][0] = time.perf_counter()
+
+
+def update_timer(name="NONE"):
     global LOG_TIMER
+    pc = time.perf_counter()
+    duration = pc - LOG_TIMER[name][0]
+    LOG_TIMER[name][1] += duration
+    LOG_TIMER[name][0] = pc
+    LOG_TIMER[name][2] += 1
+
+
+def log_timer(msg, unit = "s", name="NONE"):
+    global LOG_TIMER
+    if LOG_TIMER[name][2] == 0:
+        update_timer(name)
     if LOG_LEVEL == "ALL":
-        duration = time.perf_counter() - LOG_TIMER
+        total_duration = LOG_TIMER[name][1]
         if unit == "ms":
-            duration *= 1000
+            total_duration *= 1000
         elif unit == "us":
-            duration *= 1000000
+            total_duration *= 1000000
         elif unit == "ns":
-            duration *= 1000000000
-        print((" " * LOG_INDENT) + msg + ": " + str(duration) + " " + unit)
+            total_duration *= 1000000000
+        print((" " * LOG_INDENT) + msg + ": " + str(total_duration) + " " + unit)
 
 
 def get_current_path():
-    return os.path.dirname(os.path.realpath(__file__))
+    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 def get_resource_path(sub_folder, file_name):
@@ -317,6 +332,25 @@ def safe_copy_file(from_path, to_path):
     safe_from_path = safe_long_unc_path(from_path)
     safe_to_path = safe_long_unc_path(to_path)
     shutil.copyfile(safe_from_path, safe_to_path)
+
+
+def get_unique_folder_path(parent_folder, folder_name, create=False):
+    suffix = 1
+    base_name = folder_name
+    folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+    while os.path.exists(folder_path):
+        folder_name = base_name + "_" + str(suffix)
+        suffix += 1
+        folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+    if create:
+        os.makedirs(folder_path)
+    return folder_path
+
+
+def make_sub_folder(parent_folder, folder_name):
+    folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+    os.makedirs(folder_path, exist_ok=True)
+    return folder_path
 
 
 def stop_now():
