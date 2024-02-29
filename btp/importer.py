@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, time, shutil
-from . import blender, cc, qt, utils, vars
+from . import blender, cc, qt, prefs, utils, vars
 
 
 FBX_IMPORTER = None
@@ -197,13 +197,18 @@ class Importer:
         if events:
             qt.do_events()
 
-    def set_data_link_import(self):
+    def set_datalink_import(self):
         self.option_mesh = True
         self.option_textures = True
         self.option_parameters = True
-        self.option_import_expressions = True
-        self.option_import_hik = True
-        self.option_import_profile = True
+        self.option_import_expressions = False
+        self.option_import_hik = False
+        self.option_import_profile = False
+        if cc.is_cc():
+            self.option_import_expressions = prefs.CC_USE_FACIAL_EXPRESSIONS
+            self.option_import_hik = prefs.CC_USE_HIK_PROFILE
+            self.option_import_profile = prefs.CC_USE_FACIAL_PROFILE
+
 
     def import_fbx(self):
         """Import the character into CC3 and read in the json data.

@@ -1149,6 +1149,26 @@ def find_object_by_link_id(link_id):
     return None
 
 
+def find_object_by_name_and_type(search_name, search_type=None):
+    objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
+                                      RLPy.EObjectType_Prop |
+                                      RLPy.EObjectType_Light |
+                                      RLPy.EObjectType_Camera)
+    for obj in objects:
+        if obj.GetName() == search_name:
+            if search_type:
+                if search_type == "AVATAR" and type(obj) is RLPy.RIAvatar:
+                    return obj
+                elif search_type == "PROP" and type(obj) is RLPy.RIProp:
+                    return obj
+                elif search_type == "LIGHT" and type(obj) is RLPy.RILight:
+                    return obj
+                elif search_type == "CAMERA" and type(obj) is RLPy.RICamera:
+                    return obj
+            else:
+                return obj
+
+
 def find_linked_objects(object: RLPy.RIObject):
     objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
                                       RLPy.EObjectType_Prop |

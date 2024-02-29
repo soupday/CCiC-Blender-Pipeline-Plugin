@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os
-from . import blender, cc, qt, utils, vars
+from . import blender, cc, qt, prefs, utils, vars
 
 
 FBX_EXPORTER = None
@@ -255,31 +255,44 @@ class Exporter:
         self.check_t_pose = None
         self.check_remove_hidden = None
 
-    def set_data_link_export(self, file_path):
-        self.option_bakehair = False
-        self.option_bakeskin = False
-        self.option_hik_data = True
-        self.option_profile_data = True
+    def set_datalink_export(self, file_path):
         self.option_t_pose = False
         if cc.is_cc():
+            self.option_bakehair = False
+            self.option_bakeskin = False
             self.option_remove_hidden = False
             self.option_current_animation = False
-            self.option_current_pose = False
+            self.option_current_pose = True
+            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
         else:
+            self.option_bakehair = True
+            self.option_bakeskin = True
             self.option_remove_hidden = True
             self.option_current_animation = True
             self.option_current_pose = False
+            self.option_hik_data = False
+            self.option_profile_data = False
         self.set_paths(file_path)
 
     def set_go_b_export(self, file_path):
-        self.option_bakehair = False
-        self.option_bakeskin = False
-        self.option_hik_data = True
-        self.option_profile_data = True
         self.option_t_pose = False
-        self.option_current_pose = False
-        self.option_current_animation = True
-        self.option_remove_hidden = False
+        if cc.is_cc():
+            self.option_bakehair = False
+            self.option_bakeskin = False
+            self.option_remove_hidden = False
+            self.option_current_animation = False
+            self.option_current_pose = False
+            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+        else:
+            self.option_bakehair = True
+            self.option_bakeskin = True
+            self.option_remove_hidden = True
+            self.option_current_animation = True
+            self.option_current_pose = False
+            self.option_hik_data = False
+            self.option_profile_data = False
         self.set_paths(file_path)
 
     def do_export(self):

@@ -33,6 +33,9 @@ EXPORT_MORPH_MATERIALS: bool = True
 DEFAULT_MORPH_SLIDER_PATH: str = "Custom/Blender"
 AUTO_START_SERVICE: bool = False
 MATCH_CLIENT_RATE: bool = True
+CC_USE_FACIAL_PROFILE: bool = False
+CC_USE_HIK_PROFILE: bool = False
+CC_USE_FACIAL_EXPRESSIONS: bool = False
 
 # TODO
 # export defaults for hidden faces, animation, pose for iClone and CC4 separately
@@ -46,6 +49,9 @@ class Preferences(QObject):
     checkbox_export_morph_materials: QCheckBox = None
     checkbox_auto_start_service: QCheckBox = None
     checkbox_match_client_rate: QCheckBox = None
+    checkbox_cc_use_facial_profile: QCheckBox = None
+    checkbox_cc_use_hik_profile: QCheckBox = None
+    checkbox_cc_use_facial_expressions: QCheckBox = None
     no_update: bool = False
 
     def __init__(self):
@@ -62,10 +68,12 @@ class Preferences(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window("CC/iC Blender Pipeline Preferences", 400, show_hide=self.on_show_hide)
+        self.window, layout = qt.window("CC/iC Blender Pipeline Preferences", 600, show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
+
+        qt.label(layout, "Data-Link Settings:", style=qt.STYLE_RL_BOLD)
 
         # Data-Link folder
         grid = qt.grid(layout)
@@ -87,9 +95,23 @@ class Preferences(QObject):
 
         qt.spacing(layout, 10)
 
+        qt.label(layout, "Character Creator Settings:", style=qt.STYLE_RL_BOLD)
+
         # Export Morph Materials
-        self.checkbox_export_morph_materials = qt.checkbox(layout, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
-                                                           update=self.update_checkbox_export_morph_materials)
+        grid = qt.grid(layout)
+
+        self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
+                                                           update=self.update_checkbox_export_morph_materials,
+                                                           row=0, col=0)
+        self.checkbox_cc_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", CC_USE_FACIAL_PROFILE,
+                                                          update=self.update_checkbox_cc_use_facial_profile,
+                                                          row=0, col=1)
+        self.checkbox_cc_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", CC_USE_FACIAL_EXPRESSIONS,
+                                                              update=self.update_checkbox_cc_use_facial_expressions,
+                                                              row=1, col=0)
+        self.checkbox_cc_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", CC_USE_HIK_PROFILE,
+                                                       update=self.update_checkbox_cc_use_hik_profile,
+                                                       row=1, col=1)
         grid = qt.grid(layout)
         qt.label(grid, "Default Morph Slider Path", row=0, col=0)
         self.textbox_morph_slider_path = qt.textbox(grid, DEFAULT_MORPH_SLIDER_PATH, update=self.update_textbox_morph_slider_path,
@@ -165,6 +187,33 @@ class Preferences(QObject):
         write_temp_state()
         self.no_update = False
 
+    def update_checkbox_cc_use_facial_profile(self):
+        global CC_USE_FACIAL_PROFILE
+        if self.no_update:
+            return
+        self.no_update = True
+        CC_USE_FACIAL_PROFILE = self.checkbox_cc_use_facial_profile.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_cc_use_hik_profile(self):
+        global CC_USE_HIK_PROFILE
+        if self.no_update:
+            return
+        self.no_update = True
+        CC_USE_HIK_PROFILE = self.checkbox_cc_use_hik_profile.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_cc_use_facial_expressions(self):
+        global CC_USE_FACIAL_EXPRESSIONS
+        if self.no_update:
+            return
+        self.no_update = True
+        CC_USE_FACIAL_EXPRESSIONS = self.checkbox_cc_use_facial_expressions.isChecked()
+        write_temp_state()
+        self.no_update = False
+
     def update_textbox_morph_slider_path(self):
         global DEFAULT_MORPH_SLIDER_PATH
         if self.no_update:
@@ -229,6 +278,9 @@ def read_temp_state():
     global DEFAULT_MORPH_SLIDER_PATH
     global AUTO_START_SERVICE
     global MATCH_CLIENT_RATE
+    global CC_USE_FACIAL_PROFILE
+    global CC_USE_HIK_PROFILE
+    global CC_USE_FACIAL_EXPRESSIONS
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -241,6 +293,9 @@ def read_temp_state():
             DEFAULT_MORPH_SLIDER_PATH = get_attr(temp_state_json, "default_morph_slider_path", "Custom/Blender")
             AUTO_START_SERVICE = get_attr(temp_state_json, "auto_start_service", False)
             MATCH_CLIENT_RATE = get_attr(temp_state_json, "match_client_rate", True)
+            CC_USE_FACIAL_PROFILE = get_attr(temp_state_json, "cc_use_facial_profile", False)
+            CC_USE_HIK_PROFILE = get_attr(temp_state_json, "cc_use_hik_profile", False)
+            CC_USE_FACIAL_EXPRESSIONS = get_attr(temp_state_json, "cc_use_facial_expressions", False)
 
 
 def write_temp_state():
@@ -250,6 +305,9 @@ def write_temp_state():
     global DEFAULT_MORPH_SLIDER_PATH
     global AUTO_START_SERVICE
     global MATCH_CLIENT_RATE
+    global CC_USE_FACIAL_PROFILE
+    global CC_USE_HIK_PROFILE
+    global CC_USE_FACIAL_EXPRESSIONS
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -260,6 +318,9 @@ def write_temp_state():
         "default_morph_slider_path": DEFAULT_MORPH_SLIDER_PATH,
         "auto_start_service": AUTO_START_SERVICE,
         "match_client_rate": MATCH_CLIENT_RATE,
+        "cc_use_facial_profile": CC_USE_FACIAL_PROFILE,
+        "cc_use_hik_profile": CC_USE_HIK_PROFILE,
+        "cc_use_facial_expressions": CC_USE_FACIAL_EXPRESSIONS,
     }
     write_json(temp_state_json, temp_state_path)
 

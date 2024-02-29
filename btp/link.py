@@ -126,6 +126,18 @@ class LinkActor():
     def set_t_pose(self, t_pose):
         self.t_pose = t_pose
 
+    def get_type(self):
+        if self.is_avatar():
+            return "AVATAR"
+        elif self.is_prop():
+            return "PROP"
+        elif self.is_light():
+            return "LIGHT"
+        elif self.is_camera():
+            return "CAMERA"
+        else:
+            return "NONE"
+
     def is_avatar(self):
         return type(self.object) is RIAvatar
 
@@ -177,26 +189,25 @@ class LinkData():
     def __init__(self):
         return
 
-    def get_actor(self, link_id) -> LinkActor:
+    def get_actor(self, link_id, search_name=None, search_type=None) -> LinkActor:
         actor: LinkActor
         for actor in self.actors:
             if actor.get_link_id() == link_id:
-                return actor
+                if not search_type or actor.get_type() == search_type:
+                    return actor
         obj = cc.find_object_by_link_id(link_id)
         if obj:
-            return self.add_actor(obj)
-        if cc.is_cc():
+            if not search_type or actor.get_type() == search_type:
+                return self.add_actor(obj)
+        if search_name:
+            obj = cc.find_object_by_name_and_type(search_name, search_type)
+            if obj:
+                return self.add_actor(obj)
+        if cc.is_cc() and search_type == "AVATAR":
             avatar = cc.get_first_avatar()
             if avatar:
-                return self.get_actor_from_object(avatar)
+                return self.add_actor(avatar)
         return None
-
-    def get_actor_from_object(self, obj) -> LinkActor:
-        actor: LinkActor
-        for actor in self.actors:
-            if actor.object == obj:
-                return actor
-        return self.add_actor(obj)
 
     def add_actor(self, obj) -> LinkActor:
         for actor in self.actors:
@@ -742,13 +753,13 @@ class LinkService(QObject):
                 op_code = None
                 try:
                     header = self.client_sock.recv(8)
+                    if header == 0:
+                        utils.log_warn("Socket closed by client")
+                        self.service_lost()
+                        return
                 except Exception as e:
                     utils.log_error("Client socket receive:recv failed!", e)
                     self.service_lost()
-                if header == 0:
-                    utils.log_warn("Socket closed by client")
-                    self.service_lost()
-                    return
                 if header and len(header) == 8:
                     op_code, size = struct.unpack("!II", header)
                     data = None
@@ -1015,7 +1026,7 @@ class DataLink(QObject):
 
         grid = qt.grid(layout)
         qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon="Character.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        qt.button(grid, "Rigify Character", self.send_rigify, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         #qt.button(layout, "Send Animation", self.send_animation)
         qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
@@ -1287,7 +1298,7 @@ class DataLink(QObject):
         # if nothing selected and only 1 avatar, use this actor
         # otherwise return a list of all selected actors
         if not selected and len(avatars) == 1:
-            actor = self.data.get_actor_from_object(avatars[0])
+            actor = self.data.add_actor(avatars[0])
             if actor:
                 actors.append(actor)
         else:
@@ -1295,7 +1306,7 @@ class DataLink(QObject):
                 actor_object = cc.find_parent_avatar_or_prop(obj)
                 if actor_object:
                     SC: RISkeletonComponent = actor_object.GetSkeletonComponent()
-                    actor = self.data.get_actor_from_object(actor_object)
+                    actor = self.data.add_actor(actor_object)
                     if actor and actor not in actors:
                         actors.append(actor)
         return actors
@@ -1303,7 +1314,7 @@ class DataLink(QObject):
     def get_active_actor(self):
         avatar = cc.get_first_avatar()
         if avatar:
-            actor = self.data.get_actor_from_object(avatar)
+            actor = self.data.add_actor(avatar)
             return actor
         return None
 
@@ -1326,13 +1337,14 @@ class DataLink(QObject):
         print(f"Exporting Character: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         export = exporter.Exporter(actor.object, no_window=True)
-        export.set_data_link_export(export_path)
+        export.set_datalink_export(export_path)
         export.export_fbx()
         time.sleep(0.5)
         self.send_notify(f"Avatar Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
             "name": actor.name,
+            "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
         self.service.send(OpCodes.CHARACTER, export_data)
@@ -1342,12 +1354,13 @@ class DataLink(QObject):
         self.send_notify(f"Exporting: {actor.name}")
         export_path = self.get_export_path(actor.name, actor.name + ".fbx")
         export = exporter.Exporter(actor.object, no_window=True)
-        export.set_data_link_export(export_path)
+        export.set_datalink_export(export_path)
         export.export_fbx()
         self.send_notify(f"Prop Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
             "name": actor.name,
+            "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
         self.service.send(OpCodes.PROP, export_data)
@@ -1372,7 +1385,7 @@ class DataLink(QObject):
         for obj in objects:
             name = obj.GetName()
             if "Preview" in name: continue
-            actor = self.data.get_actor_from_object(obj)
+            actor = self.data.add_actor(obj)
             if actor.is_avatar():
                 self.send_avatar(actor)
             elif actor.is_prop():
@@ -1382,7 +1395,6 @@ class DataLink(QObject):
             elif actor.is_camera():
                 self.send_camera()
         return
-
 
     def send_actor(self):
         actors = self.get_selected_actors()
@@ -1415,6 +1427,7 @@ class DataLink(QObject):
         export_data = encode_from_json({
             "path": export_path,
             "name": actor.name,
+            "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
         if update:
@@ -1445,6 +1458,7 @@ class DataLink(QObject):
         export_data = encode_from_json({
             "path": obj_path,
             "name": actor.name,
+            "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
         self.service.send(OpCodes.MORPH, export_data)
@@ -1458,6 +1472,7 @@ class DataLink(QObject):
         export_data = encode_from_json({
             "path": fbx_path,
             "name": actor.name,
+            "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
         self.service.send(OpCodes.CHARACTER, export_data)
@@ -1471,12 +1486,13 @@ class DataLink(QObject):
             update_data = encode_from_json({
                 "old_name": old_name,
                 "old_link_id": old_link_id,
+                "type": actor.get_type(),
                 "new_name": actor.name,
                 "new_link_id": actor.get_link_id(),
             })
             self.service.send(OpCodes.CHARACTER_UPDATE, update_data)
 
-    def send_rigify(self):
+    def send_rigify_request(self):
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
@@ -1485,6 +1501,7 @@ class DataLink(QObject):
                 self.send_notify(f"Rigify: {actor.name}")
                 rigify_data = encode_from_json({
                     "name": actor.name,
+                    "type": actor.get_type(),
                     "link_id": actor.get_link_id(),
                 })
                 self.service.send(OpCodes.RIGIFY, rigify_data)
@@ -1518,6 +1535,7 @@ class DataLink(QObject):
                 visemes = VC.GetVisemeNames()
             actor_data.append({
                 "name": actor.name,
+                "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
                 "bones": bones,
                 "expressions": expressions,
@@ -1541,6 +1559,7 @@ class DataLink(QObject):
         for actor in actors:
             actors_data.append({
                 "name": actor.name,
+                "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
             })
         return encode_from_json(data)
@@ -1557,6 +1576,7 @@ class DataLink(QObject):
 
             skin_bones = SC.GetSkinBones()
             data += pack_string(actor.name)
+            data += pack_string(actor.get_type())
             data += pack_string(actor.get_link_id())
             # pack object transform
             T: RTransform = actor.get_object().WorldTransform()
@@ -1616,6 +1636,7 @@ class DataLink(QObject):
         for actor in actors:
             actors_data.append({
                 "name": actor.name,
+                "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
             })
         return encode_from_json(data)
@@ -1893,9 +1914,10 @@ class DataLink(QObject):
         template_json = decode_to_json(template_data)
         count = template_json["count"]
         for actor_data in template_json["actors"]:
-            link_id = actor_data["link_id"]
             name = actor_data["name"]
-            actor = self.data.get_actor(link_id)
+            character_type = actor_data["type"]
+            link_id = actor_data["link_id"]
+            actor = self.data.get_actor(link_id, search_name=name, search_type=character_type)
             if actor:
                 utils.log_info(f"Character Template Received: {name}")
                 actor.set_template(actor_data["bones"])
@@ -1916,10 +1938,12 @@ class DataLink(QObject):
             pose = []
             transform = []
             offset, name = unpack_string(pose_data, offset)
+            offset, character_type = unpack_string(pose_data, offset)
             offset, link_id = unpack_string(pose_data, offset)
-            actor = self.data.get_actor(link_id)
+            actor = self.data.get_actor(link_id, search_name=name, search_type=character_type)
             actor_data = {
                 "name": name,
+                "type": character_type,
                 "link_id": link_id,
                 "actor": actor,
                 "transform": transform,
@@ -1962,8 +1986,9 @@ class DataLink(QObject):
         actors = []
         for actor_data in json_data["actors"]:
             name = actor_data["name"]
+            character_type = actor_data["type"]
             link_id = actor_data["link_id"]
-            actor = self.data.get_actor(link_id)
+            actor = self.data.get_actor(link_id, search_name=name, search_type=character_type)
             if actor:
                 self.prep_actor_clip(actor, time, 2)
                 actors.append(actor)
@@ -2013,8 +2038,9 @@ class DataLink(QObject):
         actors = []
         for actor_data in json_data["actors"]:
             name = actor_data["name"]
+            character_type = actor_data["type"]
             link_id = actor_data["link_id"]
-            actor = self.data.get_actor(link_id)
+            actor = self.data.get_actor(link_id, search_name=name, search_type=character_type)
             if actor:
                 self.prep_actor_clip(actor, start_time, num_frames)
                 actors.append(actor)
@@ -2078,14 +2104,15 @@ class DataLink(QObject):
         json_data = decode_to_json(data)
         fbx_path = json_data["path"]
         old_name = json_data["name"]
+        character_type = json_data["type"]
         old_link_id = json_data["link_id"]
         self.update_link_status(f"Receving Character Import: {old_name}")
         if os.path.exists(fbx_path):
             imp = importer.Importer(fbx_path, no_window=True)
-            imp.set_data_link_import()
+            imp.set_datalink_import()
             imp.import_fbx()
             self.update_link_status(f"Character Imported: {old_name}")
-            actor = self.data.get_actor(old_link_id)
+            actor = self.data.get_actor(old_link_id, search_name=old_name, search_type=character_type)
             # the new avatar will have it's ID changed
             avatar = cc.get_first_avatar()
             if actor and avatar:
@@ -2103,10 +2130,11 @@ class DataLink(QObject):
         obj_path = json_data["path"]
         key_path = json_data["key_path"]
         name = json_data["name"]
+        character_type = json_data["type"]
         link_id = json_data["link_id"]
         morph_name = json_data["morph_name"]
         morph_path = json_data["morph_path"]
-        actor = self.data.get_actor(link_id)
+        actor = self.data.get_actor(link_id, search_name=name, search_type=character_type)
         if actor:
             avatar: RIAvatar = actor.object
         morph_slider = morph.MorphSlider(obj_path, key_path)
