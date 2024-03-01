@@ -71,6 +71,11 @@ Known Issues
 Changelog
 =========
 
+### 2.0.2
+- iClone export settings.
+- Character generation correction on export of ActorBuild or ActorScan (were exporting as AccuRig).
+- Non-standard characters always export from CC4 with HIK and facial profile.
+
 ### 2.0.1
 - GoB toolbar added.
     - Go-B, Go-B morph, Export, Import, Datalink, Settings.

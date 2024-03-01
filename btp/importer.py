@@ -273,17 +273,13 @@ class Importer:
 
         utils.start_timer()
 
+        self.create_progress_window()
+        cc_mesh_materials = cc.get_avatar_mesh_materials(avatar, json_data=json_data)
+        utils.log("Rebuilding character materials and texures:")
+        self.update_shaders(cc_mesh_materials)
+        self.update_progress(0, "Done Initializing!", True)
+
         if self.option_textures or self.option_parameters:
-
-            self.create_progress_window()
-
-            cc_mesh_materials = cc.get_avatar_mesh_materials(avatar, json_data=json_data)
-
-            utils.log("Rebuilding character materials and texures:")
-
-            self.update_shaders(cc_mesh_materials)
-            self.update_progress(0, "Done Initializing!", True)
-
             self.import_substance_textures(cc_mesh_materials)
             self.import_custom_textures(cc_mesh_materials)
             self.import_physics(cc_mesh_materials)
@@ -316,6 +312,8 @@ class Importer:
 
         M: cc.CCMeshMaterial
         for M in cc_mesh_materials:
+
+            M.set_self_illumination(0)
 
             if M.has_json():
 

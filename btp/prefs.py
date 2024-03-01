@@ -33,12 +33,17 @@ EXPORT_MORPH_MATERIALS: bool = True
 DEFAULT_MORPH_SLIDER_PATH: str = "Custom/Blender"
 AUTO_START_SERVICE: bool = False
 MATCH_CLIENT_RATE: bool = True
-CC_USE_FACIAL_PROFILE: bool = False
-CC_USE_HIK_PROFILE: bool = False
-CC_USE_FACIAL_EXPRESSIONS: bool = False
+CC_USE_FACIAL_PROFILE: bool = True
+CC_USE_HIK_PROFILE: bool = True
+CC_USE_FACIAL_EXPRESSIONS: bool = True
+CC_DELETE_HIDDEN_FACES: bool = False
+CC_BAKE_TEXTURES: bool = False
+IC_USE_FACIAL_PROFILE: bool = False
+IC_USE_HIK_PROFILE: bool = False
+IC_USE_FACIAL_EXPRESSIONS: bool = False
+IC_DELETE_HIDDEN_FACES: bool = True
+IC_BAKE_TEXTURES: bool = True
 
-# TODO
-# export defaults for hidden faces, animation, pose for iClone and CC4 separately
 
 class Preferences(QObject):
     window: RLPy.RIDockWidget = None
@@ -52,6 +57,13 @@ class Preferences(QObject):
     checkbox_cc_use_facial_profile: QCheckBox = None
     checkbox_cc_use_hik_profile: QCheckBox = None
     checkbox_cc_use_facial_expressions: QCheckBox = None
+    checkbox_cc_delete_hidden_faces: QCheckBox = None
+    checkbox_cc_bake_textures: QCheckBox = None
+    checkbox_ic_use_facial_profile: QCheckBox = None
+    checkbox_ic_use_hik_profile: QCheckBox = None
+    checkbox_ic_use_facial_expressions: QCheckBox = None
+    checkbox_ic_delete_hidden_faces: QCheckBox = None
+    checkbox_ic_bake_textures: QCheckBox = None
     no_update: bool = False
 
     def __init__(self):
@@ -95,23 +107,49 @@ class Preferences(QObject):
 
         qt.spacing(layout, 10)
 
-        qt.label(layout, "Character Creator Settings:", style=qt.STYLE_RL_BOLD)
-
         # Export Morph Materials
         grid = qt.grid(layout)
 
-        self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
-                                                           update=self.update_checkbox_export_morph_materials,
-                                                           row=0, col=0)
+        qt.label(grid, "Character Creator:", style=qt.STYLE_RL_BOLD,
+                 row=0, col=0)
         self.checkbox_cc_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", CC_USE_FACIAL_PROFILE,
                                                           update=self.update_checkbox_cc_use_facial_profile,
-                                                          row=0, col=1)
+                                                          row=1, col=0)
         self.checkbox_cc_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", CC_USE_FACIAL_EXPRESSIONS,
                                                               update=self.update_checkbox_cc_use_facial_expressions,
-                                                              row=1, col=0)
+                                                              row=2, col=0)
         self.checkbox_cc_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", CC_USE_HIK_PROFILE,
                                                        update=self.update_checkbox_cc_use_hik_profile,
-                                                       row=1, col=1)
+                                                       row=3, col=0)
+        self.checkbox_cc_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", CC_DELETE_HIDDEN_FACES,
+                                                           update=self.update_checkbox_cc_delete_hidden_faces,
+                                                           row=4, col=0)
+        self.checkbox_cc_bake_textures = qt.checkbox(grid, "Bake Textures", CC_BAKE_TEXTURES,
+                                                           update=self.update_checkbox_cc_bake_textures,
+                                                           row=5, col=0)
+        self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
+                                                           update=self.update_checkbox_export_morph_materials,
+                                                           row=6, col=0)
+
+
+        qt.label(grid, "iClone:", style=qt.STYLE_RL_BOLD,
+                 row=0, col=1)
+        self.checkbox_ic_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", IC_USE_FACIAL_PROFILE,
+                                                          update=self.update_checkbox_ic_use_facial_profile,
+                                                          row=1, col=1)
+        self.checkbox_ic_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", IC_USE_FACIAL_EXPRESSIONS,
+                                                              update=self.update_checkbox_ic_use_facial_expressions,
+                                                              row=2, col=1)
+        self.checkbox_ic_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", IC_USE_HIK_PROFILE,
+                                                       update=self.update_checkbox_ic_use_hik_profile,
+                                                       row=3, col=1)
+        self.checkbox_ic_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", IC_DELETE_HIDDEN_FACES,
+                                                           update=self.update_checkbox_ic_delete_hidden_faces,
+                                                           row=4, col=1)
+        self.checkbox_ic_bake_textures = qt.checkbox(grid, "Bake Textures", IC_BAKE_TEXTURES,
+                                                           update=self.update_checkbox_ic_bake_textures,
+                                                           row=5, col=1)
+
         grid = qt.grid(layout)
         qt.label(grid, "Default Morph Slider Path", row=0, col=0)
         self.textbox_morph_slider_path = qt.textbox(grid, DEFAULT_MORPH_SLIDER_PATH, update=self.update_textbox_morph_slider_path,
@@ -214,12 +252,76 @@ class Preferences(QObject):
         write_temp_state()
         self.no_update = False
 
+    def update_checkbox_cc_delete_hidden_faces(self):
+        global CC_DELETE_HIDDEN_FACES
+        if self.no_update:
+            return
+        self.no_update = True
+        CC_DELETE_HIDDEN_FACES = self.checkbox_cc_delete_hidden_faces.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_cc_bake_textures(self):
+        global CC_BAKE_TEXTURES
+        if self.no_update:
+            return
+        self.no_update = True
+        CC_BAKE_TEXTURES = self.checkbox_cc_bake_textures.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+
+    def update_checkbox_ic_use_facial_profile(self):
+        global IC_USE_FACIAL_PROFILE
+        if self.no_update:
+            return
+        self.no_update = True
+        IC_USE_FACIAL_PROFILE = self.checkbox_ic_use_facial_profile.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_ic_use_hik_profile(self):
+        global IC_USE_HIK_PROFILE
+        if self.no_update:
+            return
+        self.no_update = True
+        IC_USE_HIK_PROFILE = self.checkbox_ic_use_hik_profile.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_ic_use_facial_expressions(self):
+        global IC_USE_FACIAL_EXPRESSIONS
+        if self.no_update:
+            return
+        self.no_update = True
+        IC_USE_FACIAL_EXPRESSIONS = self.checkbox_ic_use_facial_expressions.isChecked()
+        write_temp_state()
+        self.no_update = False
+
     def update_textbox_morph_slider_path(self):
         global DEFAULT_MORPH_SLIDER_PATH
         if self.no_update:
             return
         self.no_update = True
         DEFAULT_MORPH_SLIDER_PATH = self.textbox_morph_slider_path.text()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_ic_delete_hidden_faces(self):
+        global IC_DELETE_HIDDEN_FACES
+        if self.no_update:
+            return
+        self.no_update = True
+        IC_DELETE_HIDDEN_FACES = self.checkbox_ic_delete_hidden_faces.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_ic_bake_textures(self):
+        global IC_BAKE_TEXTURES
+        if self.no_update:
+            return
+        self.no_update = True
+        IC_BAKE_TEXTURES = self.checkbox_ic_bake_textures.isChecked()
         write_temp_state()
         self.no_update = False
 
@@ -281,6 +383,13 @@ def read_temp_state():
     global CC_USE_FACIAL_PROFILE
     global CC_USE_HIK_PROFILE
     global CC_USE_FACIAL_EXPRESSIONS
+    global CC_DELETE_HIDDEN_FACES
+    global CC_BAKE_TEXTURES
+    global IC_USE_FACIAL_PROFILE
+    global IC_USE_HIK_PROFILE
+    global IC_USE_FACIAL_EXPRESSIONS
+    global IC_DELETE_HIDDEN_FACES
+    global IC_BAKE_TEXTURES
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -293,9 +402,16 @@ def read_temp_state():
             DEFAULT_MORPH_SLIDER_PATH = get_attr(temp_state_json, "default_morph_slider_path", "Custom/Blender")
             AUTO_START_SERVICE = get_attr(temp_state_json, "auto_start_service", False)
             MATCH_CLIENT_RATE = get_attr(temp_state_json, "match_client_rate", True)
-            CC_USE_FACIAL_PROFILE = get_attr(temp_state_json, "cc_use_facial_profile", False)
-            CC_USE_HIK_PROFILE = get_attr(temp_state_json, "cc_use_hik_profile", False)
-            CC_USE_FACIAL_EXPRESSIONS = get_attr(temp_state_json, "cc_use_facial_expressions", False)
+            CC_USE_FACIAL_PROFILE = get_attr(temp_state_json, "cc_use_facial_profile", True)
+            CC_USE_HIK_PROFILE = get_attr(temp_state_json, "cc_use_hik_profile", True)
+            CC_USE_FACIAL_EXPRESSIONS = get_attr(temp_state_json, "cc_use_facial_expressions", True)
+            CC_DELETE_HIDDEN_FACES = get_attr(temp_state_json, "cc_delete_hidden_faces", False)
+            CC_BAKE_TEXTURES = get_attr(temp_state_json, "cc_bake_textures", False)
+            IC_USE_FACIAL_PROFILE = get_attr(temp_state_json, "ic_use_facial_profile", False)
+            IC_USE_HIK_PROFILE = get_attr(temp_state_json, "ic_use_hik_profile", False)
+            IC_USE_FACIAL_EXPRESSIONS = get_attr(temp_state_json, "ic_use_facial_expressions", False)
+            IC_DELETE_HIDDEN_FACES = get_attr(temp_state_json, "ic_delete_hidden_faces", True)
+            IC_BAKE_TEXTURES = get_attr(temp_state_json, "ic_bake_textures", True)
 
 
 def write_temp_state():
@@ -308,6 +424,13 @@ def write_temp_state():
     global CC_USE_FACIAL_PROFILE
     global CC_USE_HIK_PROFILE
     global CC_USE_FACIAL_EXPRESSIONS
+    global CC_DELETE_HIDDEN_FACES
+    global CC_BAKE_TEXTURES
+    global IC_USE_FACIAL_PROFILE
+    global IC_USE_HIK_PROFILE
+    global IC_USE_FACIAL_EXPRESSIONS
+    global IC_DELETE_HIDDEN_FACES
+    global IC_BAKE_TEXTURES
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -321,6 +444,13 @@ def write_temp_state():
         "cc_use_facial_profile": CC_USE_FACIAL_PROFILE,
         "cc_use_hik_profile": CC_USE_HIK_PROFILE,
         "cc_use_facial_expressions": CC_USE_FACIAL_EXPRESSIONS,
+        "cc_delete_hidden_faces": CC_DELETE_HIDDEN_FACES,
+        "cc_bake_textures": CC_BAKE_TEXTURES,
+        "ic_use_facial_profile": IC_USE_FACIAL_PROFILE,
+        "ic_use_hik_profile": IC_USE_HIK_PROFILE,
+        "ic_use_facial_expressions": IC_USE_FACIAL_EXPRESSIONS,
+        "ic_delete_hidden_faces": IC_DELETE_HIDDEN_FACES,
+        "ic_bake_textures": IC_BAKE_TEXTURES,
     }
     write_json(temp_state_json, temp_state_path)
 

@@ -194,12 +194,17 @@ class Exporter:
                                 "for complete round trip character editing.")
         self.option_bakehair = False
         self.option_bakeskin = False
-        self.option_hik_data = True
-        self.option_profile_data = True
         self.option_t_pose = False
         self.option_current_pose = False
         self.option_current_animation = False
         self.option_remove_hidden = False
+        if cc.is_cc():
+            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+            self.check_non_standard_export()
+        else:
+            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
         self.update_options()
 
     def preset_current_pose(self):
@@ -212,14 +217,22 @@ class Exporter:
         self.label_desc.setText("Accessory Creation / Replace Mesh:\n\n" +
                                 "Export the full character in the current pose, " +
                                 "for accessory creation or replacement mesh editing.\n")
-        self.option_bakehair = True
-        self.option_bakeskin = True
-        self.option_hik_data = True
-        self.option_profile_data = False
         self.option_t_pose = False
         self.option_current_pose = True
         self.option_current_animation = False
-        self.option_remove_hidden = False
+        if cc.is_cc():
+            self.option_bakehair = prefs.CC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
+            self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
+            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+            self.check_non_standard_export()
+        else:
+            self.option_bakehair = prefs.IC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
+            self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
+            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
         self.update_options()
 
     def preset_unity(self):
@@ -232,14 +245,18 @@ class Exporter:
         self.label_desc.setText("Blender to Unity Pipeline:\n\n" +
                                 "Export the character with hidden faces removed, skin & hair textures baked and " +
                                 "with T-pose bind pose, for editing in Blender before exporting from Blender to Unity.")
-        self.option_bakehair = True
-        self.option_bakeskin = True
         self.option_hik_data = False
         self.option_profile_data = False
         self.option_t_pose = True
         self.option_current_pose = False
         self.option_current_animation = False
         self.option_remove_hidden = True
+        if cc.is_cc():
+            self.option_bakehair = prefs.CC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
+        else:
+            self.option_bakehair = prefs.IC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
         self.update_options()
 
     def close_options_window(self):
@@ -255,44 +272,56 @@ class Exporter:
         self.check_t_pose = None
         self.check_remove_hidden = None
 
+    def check_non_standard_export(self):
+        # non standard characters, especially actorbuild and actorscan
+        # need the facial and HIK profile to come back into CC4
+        if (type(self.avatar) is RIAvatar and
+                (self.avatar.GetGeneration() == EAvatarGeneration_ActorBuild or
+                self.avatar.GetGeneration() == EAvatarGeneration_ActorScan or
+                self.avatar.GetAvatarType() == EAvatarType_NonStandard)):
+            self.option_hik_data = True
+            self.option_profile_data = True
+
     def set_datalink_export(self, file_path):
         self.option_t_pose = False
         if cc.is_cc():
-            self.option_bakehair = False
-            self.option_bakeskin = False
-            self.option_remove_hidden = False
+            self.option_bakehair = prefs.CC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
+            self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
             self.option_current_animation = False
             self.option_current_pose = True
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.check_non_standard_export()
         else:
-            self.option_bakehair = True
-            self.option_bakeskin = True
-            self.option_remove_hidden = True
+            self.option_bakehair = prefs.IC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
+            self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
             self.option_current_animation = True
             self.option_current_pose = False
-            self.option_hik_data = False
-            self.option_profile_data = False
+            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
+            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
         self.set_paths(file_path)
 
     def set_go_b_export(self, file_path):
         self.option_t_pose = False
         if cc.is_cc():
-            self.option_bakehair = False
-            self.option_bakeskin = False
-            self.option_remove_hidden = False
+            self.option_bakehair = prefs.CC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
+            self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
             self.option_current_animation = False
             self.option_current_pose = False
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.check_non_standard_export()
         else:
-            self.option_bakehair = True
-            self.option_bakeskin = True
-            self.option_remove_hidden = True
+            self.option_bakehair = prefs.IC_BAKE_TEXTURES
+            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
+            self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
             self.option_current_animation = True
             self.option_current_pose = False
-            self.option_hik_data = False
-            self.option_profile_data = False
+            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
+            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
         self.set_paths(file_path)
 
     def do_export(self):
@@ -420,16 +449,20 @@ class Exporter:
 
             utils.log(f"Avatar Type: {self.avatar_type_string}")
 
+            # correct the generation
+            generation_type = self.avatar.GetGeneration()
+            generation = json_data.set_character_generation(generation_type)
+            utils.log(f"Avatar Generation: {generation}")
+
             if self.option_hik_data:
 
                 # Non-standard HIK profile
-                if self.avatar_type == EAvatarType_NonStandard:
+                #if self.avatar_type == EAvatarType_NonStandard:
+                utils.log(f"Exporting HIK profile: {self.hik_path}")
 
-                    utils.log(f"Exporting HIK profile: {self.hik_path}")
-
-                    self.avatar.SaveHikProfile(self.hik_path)
-                    root_json["HIK"] = {}
-                    root_json["HIK"]["Profile_Path"] = os.path.relpath(self.hik_path, self.folder)
+                self.avatar.SaveHikProfile(self.hik_path)
+                root_json["HIK"] = {}
+                root_json["HIK"]["Profile_Path"] = os.path.relpath(self.hik_path, self.folder)
 
             if self.option_profile_data:
 

@@ -16,7 +16,7 @@
 
 import RLPy
 import os, json
-from . import utils
+from . import utils, vars
 from enum import IntEnum
 
 
@@ -429,6 +429,16 @@ class CCJsonData():
         except:
             return "Unknown"
 
+    def set_character_generation(self, generation_type):
+        try:
+            if generation_type in vars.AVATAR_GENERATIONS:
+                generation = vars.AVATAR_GENERATIONS[generation_type]
+                self.json_data[self.character_id]["Object"][self.character_id]["Generation"] = generation
+                return generation
+        except:
+            pass
+        return ""
+
     def get_character_type(self):
         character_type = "STANDARD"
         generation = self.get_character_generation().lower()
@@ -793,6 +803,10 @@ class CCMeshMaterial():
                     self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name)
                     if self.physx_mesh_json:
                         self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name)
+
+
+
+
 
 
 def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=None,
