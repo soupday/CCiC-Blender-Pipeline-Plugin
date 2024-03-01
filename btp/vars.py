@@ -16,7 +16,7 @@
 
 from RLPy import *
 
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 
 AVATAR_TYPES = {
     EAvatarType__None: "None",
@@ -25,6 +25,18 @@ AVATAR_TYPES = {
     EAvatarType_NonStandard: "NonStandard",
     EAvatarType_StandardSeries: "StandardSeries",
     EAvatarType_All: "All",
+}
+
+AVATAR_GENERATIONS = {
+    EAvatarGeneration__None: "",
+    EAvatarGeneration_AccuRig: "AccuRig",
+    EAvatarGeneration_ActorBuild: "ActorBuild",
+    EAvatarGeneration_ActorScan: "ActorScan",
+    EAvatarGeneration_CC_G1_Avatar: "G1",
+    EAvatarGeneration_CC_G3_Avatar: "G3",
+    EAvatarGeneration_CC_G3_Plus_Avatar: "RL_CC3_Plus",
+    EAvatarGeneration_CC_Game_Base_One: "RL_CharacterCreator_Base_Game_G1_One_UV",
+    EAvatarGeneration_CC_Game_Base_Multi: "RL_CharacterCreator_Base_Game_G1_Multi_UV",
 }
 
 FACIAL_PROFILES = {
