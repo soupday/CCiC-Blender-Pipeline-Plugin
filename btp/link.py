@@ -49,6 +49,7 @@ class OpCodes(IntEnum):
     STOP = 10
     DISCONNECT = 11
     NOTIFY = 50
+    SAVE = 60
     MORPH = 90
     MORPH_UPDATE = 91
     CHARACTER = 100
@@ -126,17 +127,22 @@ class LinkActor():
     def set_t_pose(self, t_pose):
         self.t_pose = t_pose
 
-    def get_type(self):
-        if self.is_avatar():
+    @staticmethod
+    def get_actor_type(obj):
+        T = type(obj)
+        if T is RIAvatar:
             return "AVATAR"
-        elif self.is_prop():
+        elif T is RIProp:
             return "PROP"
-        elif self.is_light():
+        elif T is RILight:
             return "LIGHT"
-        elif self.is_camera():
+        elif T is RICamera:
             return "CAMERA"
         else:
             return "NONE"
+
+    def get_type(self):
+        return self.get_actor_type(self.object)
 
     def is_avatar(self):
         return type(self.object) is RIAvatar
@@ -197,7 +203,7 @@ class LinkData():
                     return actor
         obj = cc.find_object_by_link_id(link_id)
         if obj:
-            if not search_type or actor.get_type() == search_type:
+            if not search_type or LinkActor.get_actor_type(obj) == search_type:
                 return self.add_actor(obj)
         if search_name:
             obj = cc.find_object_by_name_and_type(search_name, search_type)
@@ -254,25 +260,26 @@ def reset_animation():
     return start_time
 
 
-def prep_timeline(SC: RISkeletonComponent):
+def prep_timeline(SC: RISkeletonComponent, start_frame, end_frame):
     fps: RFps = RGlobal.GetFps()
-    current_time: RTime = RGlobal.GetTime()
-    start_time: RTime = RGlobal.GetStartTime()
-    end_time: RTime = RGlobal.GetEndTime()
+    start_time = fps.IndexedFrameTime(start_frame)
+    end_time: fps.IndexedFrameTime(end_frame)
+    RGlobal.SetStartTime(start_time)
+    RGlobal.SetEndTime(end_time)
     utils.log_info(f"start: {start_time.ToFloat()}, end: {end_time.ToFloat()}")
-    clips = SC.GetClipCount()
-    clip = SC.GetClip(0)
-    utils.log_info(f"clips: {clips}, clip: {clip}")
-    #if start_time.ToFloat() == 0 and end_time.ToFloat() == 0:
-    #    pass
-        #RGlobal.SetStartTime(RTime.FromValue(0))
-        #RGlobal.SetEndTime(RTime.FromValue(1000))
-        #RGlobal.SetPreviewStartTime(RTime.FromValue(0))
-        #RGlobal.SetPreviewEndTime(RTime.FromValue(1000))
-        #RGlobal.SetTime(RTime.FromValue(1000))
-        #RGlobal.Stop()
-    #if scene_time > end_time:
-    #    RGlobal.SetEndTime(scene_time)
+    num_clips = SC.GetClipCount()
+    if num_clips == 0:
+        clip = SC.AddClip(start_time)
+    elif num_clips == 1:
+        pass
+    else:
+        while SC.GetClipCount() > 1:
+            num_clips = SC.GetClipCount()
+            clip0 = SC.GetClip(num_clips-2)
+            clip1 = SC.GetClip(num_clips-1)
+            SC.MergeClips(clip0, clip1)
+    clip: RIClip = SC.GetClip(0)
+    return
 
 
 def get_current_frame():
@@ -748,6 +755,7 @@ class LinkService(QObject):
             except Exception as e:
                 utils.log_error("Client socket receive:select failed!", e)
                 self.service_lost()
+                return
             count = 0
             while r:
                 op_code = None
@@ -760,6 +768,7 @@ class LinkService(QObject):
                 except Exception as e:
                     utils.log_error("Client socket receive:recv failed!", e)
                     self.service_lost()
+                    return
                 if header and len(header) == 8:
                     op_code, size = struct.unpack("!II", header)
                     data = None
@@ -772,6 +781,7 @@ class LinkService(QObject):
                             except Exception as e:
                                 utils.log_error("Client socket receive:chunk_recv failed!", e)
                                 self.service_lost()
+                                return
                             data.extend(chunk)
                             size -= len(chunk)
                     self.parse(op_code, data)
@@ -787,6 +797,7 @@ class LinkService(QObject):
                 except Exception as e:
                     utils.log_error("Client socket receive:re-select failed!", e)
                     self.service_lost()
+                    return
                 if r:
                     self.is_data = True
                     if count >= MAX_RECEIVE or op_code == OpCodes.NOTIFY:
@@ -1290,6 +1301,9 @@ class DataLink(QObject):
         character_export_folder = utils.get_unique_folder_path(export_folder, character_name, create=True)
         export_path = os.path.join(character_export_folder, file_name)
         return export_path
+
+    def send_save(self):
+        self.service.send(OpCodes.SAVE)
 
     def get_selected_actors(self):
         selected = RScene.GetSelectedObjects()
@@ -1982,6 +1996,8 @@ class DataLink(QObject):
             no_timeline = True
         self.data.pose_frame = frame
         time = get_frame_time(frame)
+        # move to the start frame
+        RGlobal.SetTime(time)
         # pose actors
         actors = []
         for actor_data in json_data["actors"]:
@@ -1993,8 +2009,6 @@ class DataLink(QObject):
                 self.prep_actor_clip(actor, time, 2)
                 actors.append(actor)
         self.data.pose_actors = actors
-        # move to the frame
-        RGlobal.SetTime(get_frame_time(self.data.pose_frame))
 
     def receive_pose_frame(self, data):
         pose_frame_data = self.decode_pose_frame_data(data)
@@ -2014,16 +2028,14 @@ class DataLink(QObject):
             SC: RISkeletonComponent = actor.get_skeleton_component()
             clip: RIClip = SC.GetClipByTime(time)
             clip_time = clip.SceneTimeToClipTime(time)
-            clip_time2 = clip.SceneTimeToClipTime(time2)
+            #clip_time2 = clip.SceneTimeToClipTime(time2)
             apply_pose(actor, clip, clip_time, actor_data["pose"], actor.t_pose)
-            apply_pose(actor, clip, clip_time2, actor_data["pose"], actor.t_pose)
+            #apply_pose(actor, clip, clip_time2, actor_data["pose"], actor.t_pose)
         # set the scene time to the end of the clip(s)
         if not no_timeline:
             RGlobal.SetTime(time)
-            scene_start_time = RGlobal.GetTime()
-            scene_end_time = RGlobal.GetTime()
-            RGlobal.Play(scene_start_time, scene_end_time)
         if cc.is_cc():
+            RGlobal.SetTime(RTime.FromValue(0))
             RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
@@ -2034,6 +2046,8 @@ class DataLink(QObject):
         self.data.sequence_end_frame = json_data["end_frame"]
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         start_time = get_frame_time(self.data.sequence_start_frame)
+        # move to the start frame
+        RGlobal.SetTime(start_time)
         # sequence actors
         actors = []
         for actor_data in json_data["actors"]:

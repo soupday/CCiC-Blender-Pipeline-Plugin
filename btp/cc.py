@@ -1055,7 +1055,7 @@ def get_selected_mesh_names():
     return mesh_names
 
 
-def find_node(node : RLPy.RINode, id):
+def find_node(node: RLPy.RINode, id):
     if node.GetID() == id:
         return node
     children = node.GetChildren()
@@ -1066,10 +1066,10 @@ def find_node(node : RLPy.RINode, id):
     return None
 
 
-def find_parent_avatar_or_prop(obj : RLPy.RIObject):
+def find_parent_avatar_or_prop(obj: RLPy.RIObject):
     avatars = RLPy.RScene.GetAvatars()
     props = RLPy.RScene.GetProps()
-    root : RLPy.RINode = RLPy.RScene.GetRootNode()
+    root: RLPy.RINode = RLPy.RScene.GetRootNode()
     node = find_node(root, obj.GetID())
     while node:
         node_id = node.GetID()
@@ -1243,7 +1243,7 @@ def print_nodes(node, level=0):
     return None
 
 
-def print_note_tree(obj):
+def print_node_tree(obj):
     root : RLPy.RINode = RLPy.RScene.GetRootNode()
     node = find_node(root, obj.GetID())
     print_nodes(node)
