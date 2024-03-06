@@ -991,6 +991,19 @@ class DataLink(QObject):
     info_label_name: QLabel = None
     info_label_type: QLabel = None
     info_label_link_id: QLabel = None
+    #
+    button_send: QPushButton = None
+    button_rigify: QPushButton = None
+    button_pose: QPushButton = None
+    button_sequence: QPushButton = None
+    button_morph: QPushButton = None
+    button_morph_update: QPushButton = None
+    #
+    icon_avatar: QIcon = None
+    icon_prop: QIcon = None
+    icon_light: QIcon = None
+    icon_camera: QIcon = None
+    icon_all: QIcon = None
     # Service
     service: LinkService = None
     # Data
@@ -1015,6 +1028,12 @@ class DataLink(QObject):
     def create_window(self):
         self.window, layout = qt.window("Data Link (WIP)", 400, show_hide=self.on_show_hide)
 
+        self.icon_avatar = qt.get_icon("Character.png")
+        self.icon_prop = qt.get_icon("Prop.png")
+        self.icon_light = qt.get_icon("Light.png")
+        self.icon_camera = qt.get_icon("Camera.png")
+        self.icon_all = qt.get_icon("Actor.png")
+
         self.label_header = qt.label(layout, "Data Link: Not Connected", style=qt.STYLE_TITLE)
         self.label_folder = qt.label(layout, f"Working Folder: {self.get_remote_folder()}", style=qt.STYLE_TITLE, no_size=True)
 
@@ -1036,23 +1055,24 @@ class DataLink(QObject):
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon="Character.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_send = qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon=self.icon_avatar, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_pose = qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         #qt.button(layout, "Send Animation", self.send_animation)
-        qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+
+        if cc.is_cc():
+            qt.spacing(layout, 20)
+
+            grid = qt.grid(layout)
+            self.button_morph = qt.button(grid, "Send Morph", self.send_morph, row=0, col=0, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+            self.button_morph_update = qt.button(grid, "Update Morph", self.send_morph_update, row=0, col=1, icon="Morph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        qt.button(grid, "Send Morph", self.send_morph, row=0, col=0, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        qt.button(grid, "Update Morph", self.send_morph_update, row=0, col=1, icon="Morph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-
-        qt.spacing(layout, 20)
-
-        grid = qt.grid(layout)
-        qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon="Light.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon="Camera.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon=self.icon_light, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon=self.icon_camera, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         qt.stretch(layout, 20)
 
@@ -1096,19 +1116,111 @@ class DataLink(QObject):
         light: RILight = None
         camera: RICamera = None
 
+        num_avatars = 0
+        num_standard = 0
+        num_nonstandard = 0
+        num_props = 0
+        num_lights = 0
+        num_cameras = 0
+        num_total = 0
+        num_posable = 0
+        num_types = 0
+
         selected = RScene.GetSelectedObjects()
+        cc.get_selected_actor_objects()
         if selected:
             first = selected[0]
-            if type(first) is RIAvatar:
-                avatar = first
-            elif type(first) is RIProp:
-                prop = first
-            elif type(first) is RILight:
+            prop_or_avatar = cc.find_parent_avatar_or_prop(first)
+            T = type(first)
+            if prop_or_avatar:
+                T = type(prop_or_avatar)
+            if T is RIAvatar:
+                avatar = prop_or_avatar
+            elif T is RIProp:
+                prop = prop_or_avatar
+            elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
                 light = first
-            elif type(first) is RICamera:
+            elif T is RICamera:
                 camera = first
             else:
                 first = None
+
+        props_and_avatars = []
+        for obj in selected:
+            T = type(obj)
+            prop_or_avatar = cc.find_parent_avatar_or_prop(obj)
+            if prop_or_avatar:
+                T = type(prop_or_avatar)
+            if T is RIAvatar and prop_or_avatar not in props_and_avatars:
+                num_avatars += 1
+                props_and_avatars.append(prop_or_avatar)
+                if (prop_or_avatar.GetAvatarType() == EAvatarType_Standard or
+                    prop_or_avatar.GetAvatarType() == EAvatarType_StandardSeries):
+                    num_standard += 1
+                else:
+                    num_nonstandard += 1
+            elif T is RIProp and prop_or_avatar not in props_and_avatars:
+                props_and_avatars.append(prop_or_avatar)
+                num_props += 1
+            elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
+                num_lights += 1
+            elif T is RICamera:
+                num_cameras += 1
+
+        num_total = num_avatars + num_props + num_lights + num_cameras
+        num_posable = num_avatars + num_props + num_lights + num_cameras
+        num_types = min(1,num_avatars) + min(1, num_props) + min(1, num_lights) + min(1, num_cameras)
+
+        # button text
+
+        type_name = "All"
+        icon = self.icon_all
+        if num_types > 1:
+            type_name = "All"
+        elif num_avatars == 1:
+            type_name = "Avatar"
+            icon = self.icon_avatar
+        elif num_avatars > 1:
+            type_name = "Avatars"
+            icon = self.icon_avatar
+        elif num_props == 1:
+            type_name = "Prop"
+            icon = self.icon_prop
+        elif num_props > 1:
+            type_name = "Props"
+            icon = self.icon_prop
+        elif num_lights == 1:
+            type_name = "Light"
+            icon = self.icon_light
+        elif num_lights > 1:
+            type_name = "Lights"
+            icon = self.icon_light
+        elif num_cameras == 1:
+            type_name = "Camera"
+            icon = self.icon_camera
+        elif num_cameras > 1:
+            type_name = "Cameras"
+            icon = self.icon_camera
+        self.button_send.setText(f"Send {type_name}")
+        self.button_send.setIcon(icon)
+        if num_posable > 1:
+            self.button_pose.setText(f"Send Poses")
+        else:
+            self.button_pose.setText(f"Send Pose")
+
+        # button enable
+
+        qt.disable(self.button_send, self.button_rigify,
+                   self.button_pose, self.button_sequence,
+                   self.button_morph, self.button_morph_update)
+        if num_avatars > 0:
+            qt.enable(self.button_send, self.button_rigify, self.button_pose, self.button_sequence)
+        if num_props > 0:
+            qt.enable(self.button_send, self.button_pose, self.button_sequence)
+        if num_standard > 0:
+            qt.enable(self.button_morph, self.button_morph_update)
+
+        # context info
 
         if avatar:
             self.context_frame.show()
@@ -1155,6 +1267,8 @@ class DataLink(QObject):
             else:
                 self.info_label_link_id.setStyleSheet(qt.STYLE_NONE)
         else:
+            qt.disable(self.button_send, self.button_pose, self.button_sequence,
+                       self.button_rigify, self.button_morph, self.button_morph_update)
             self.context_frame.hide()
 
         return
