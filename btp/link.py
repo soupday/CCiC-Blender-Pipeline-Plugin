@@ -1000,6 +1000,8 @@ class DataLink(QObject):
     button_sequence: QPushButton = None
     button_morph: QPushButton = None
     button_morph_update: QPushButton = None
+    button_sync_lights: QPushButton = None
+    button_sync_camera: QPushButton = None
     #
     icon_avatar: QIcon = None
     icon_prop: QIcon = None
@@ -1073,8 +1075,8 @@ class DataLink(QObject):
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon=self.icon_light, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon=self.icon_camera, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_sync_lights = qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon=self.icon_light, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_sync_camera = qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon=self.icon_camera, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         qt.stretch(layout, 20)
 
@@ -1229,15 +1231,19 @@ class DataLink(QObject):
 
         qt.disable(self.button_send, self.button_rigify,
                    self.button_pose, self.button_sequence,
-                   self.button_morph, self.button_morph_update)
-        if num_posable > 0:
-            qt.enable(self.button_pose, self.button_sequence)
-        if num_sendable > 0:
-            qt.enable(self.button_send)
-        if num_standard > 0:
-            qt.enable(self.button_morph, self.button_morph_update)
-        if num_rigable > 0:
-            qt.enable(self.button_rigify)
+                   self.button_morph, self.button_morph_update,
+                   self.button_sync_lights, self.button_sync_camera)
+
+        if self.is_connected():
+            if num_posable > 0:
+                qt.enable(self.button_pose, self.button_sequence)
+            if num_sendable > 0:
+                qt.enable(self.button_send)
+            if num_standard > 0:
+                qt.enable(self.button_morph, self.button_morph_update)
+            if num_rigable > 0:
+                qt.enable(self.button_rigify)
+            qt.enable(self.button_sync_lights, self.button_sync_camera)
 
         # context info
 
@@ -1344,6 +1350,7 @@ class DataLink(QObject):
                 self.button_link.setText("Connect")
             self.label_header.setText("Not Connected")
             self.label_folder.setText(f"Working Folder: None")
+        self.update_ui()
 
     def is_connected(self):
         if self.service:
@@ -1409,6 +1416,7 @@ class DataLink(QObject):
             self.receive_camera_sync(data)
 
     def on_connected(self):
+        self.update_ui()
         self.send_notify("Connected")
 
     def send(self, op_code, data=None):
