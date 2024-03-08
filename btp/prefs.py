@@ -24,7 +24,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, json
-from . import qt
+from . import qt, utils
 
 BLENDER_PATH: str = None
 DATALINK_FOLDER: str = None
@@ -357,7 +357,7 @@ def read_json(json_path):
 
         return None
     except:
-        print(f"Error reading Json Data: {json_path}")
+        utils.log_info(f"Error reading Json Data: {json_path}")
         return None
 
 
@@ -487,8 +487,8 @@ def detect_paths():
     if changed:
         write_temp_state()
 
-    print(f"using Blender Executable Path: {BLENDER_PATH}")
-    print(f"Using Datalink Folder: {DATALINK_FOLDER}")
+    utils.log_info(f"using Blender Executable Path: {BLENDER_PATH}")
+    utils.log_info(f"Using Datalink Folder: {DATALINK_FOLDER}")
 
 
 

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import RLPy
+from RLPy import *
 import os, json
 from . import utils, vars
 from enum import IntEnum
@@ -53,21 +53,29 @@ class TextureChannel(IntEnum):
     VECTOR_DISPLACEMENT = 14
 
 
+class SkinBoneType(IntEnum):
+    BONE    = 0
+    OBJECT  = 1
+    PIVOT   = 2
+    NODE    = 3
+    MESH    = 4
+
+
 TEXTURE_MAPS = { # { "json_channel_name": [RL_Texture_Channel, is_Substance_Painter_Channel?, substance_channel_postfix], }
-    "Base Color": [RLPy.EMaterialTextureChannel_Diffuse, True, "diffuse"],
-    "Metallic": [RLPy.EMaterialTextureChannel_Metallic, True, "metallic"],
-    "Specular": [RLPy.EMaterialTextureChannel_Specular, True, "specular"],
-    "Roughness": [RLPy.EMaterialTextureChannel_Shininess, True, "roughness"],
-    "Glow": [RLPy.EMaterialTextureChannel_Glow, True, "glow"],
-    "Displacement": [RLPy.EMaterialTextureChannel_Displacement, True, "displacement"],
-    "Opacity": [RLPy.EMaterialTextureChannel_Opacity, True, "opacity"],
-    "Blend": [RLPy.EMaterialTextureChannel_DiffuseBlend, False, ""],
-    "Reflection": [RLPy.EMaterialTextureChannel_Reflection, False, ""],
-    "Refraction": [RLPy.EMaterialTextureChannel_Refraction, False, ""],
-    "Cube": [RLPy.EMaterialTextureChannel_Cube, False, ""],
-    "AO": [RLPy.EMaterialTextureChannel_AmbientOcclusion, True, "ao"],
-    "Bump": [RLPy.EMaterialTextureChannel_Bump, True, "bump"],
-    "Normal": [RLPy.EMaterialTextureChannel_Normal, True, "normal"],
+    "Base Color": [EMaterialTextureChannel_Diffuse, True, "diffuse"],
+    "Metallic": [EMaterialTextureChannel_Metallic, True, "metallic"],
+    "Specular": [EMaterialTextureChannel_Specular, True, "specular"],
+    "Roughness": [EMaterialTextureChannel_Shininess, True, "roughness"],
+    "Glow": [EMaterialTextureChannel_Glow, True, "glow"],
+    "Displacement": [EMaterialTextureChannel_Displacement, True, "displacement"],
+    "Opacity": [EMaterialTextureChannel_Opacity, True, "opacity"],
+    "Blend": [EMaterialTextureChannel_DiffuseBlend, False, ""],
+    "Reflection": [EMaterialTextureChannel_Reflection, False, ""],
+    "Refraction": [EMaterialTextureChannel_Refraction, False, ""],
+    "Cube": [EMaterialTextureChannel_Cube, False, ""],
+    "AO": [EMaterialTextureChannel_AmbientOcclusion, True, "ao"],
+    "Bump": [EMaterialTextureChannel_Bump, True, "bump"],
+    "Normal": [EMaterialTextureChannel_Normal, True, "normal"],
 }
 
 
@@ -110,11 +118,11 @@ class CCMaterialJson():
         try:
             offset = self.mat_json["Textures"][json_channel]["Offset"]
             tiling = self.mat_json["Textures"][json_channel]["Tiling"]
-            offset_vector = RLPy.RVector2(float(offset[0]), float(offset[1]))
-            tiling_vector = RLPy.RVector2(float(tiling[0]), float(tiling[1]))
+            offset_vector = RVector2(float(offset[0]), float(offset[1]))
+            tiling_vector = RVector2(float(tiling[0]), float(tiling[1]))
             return offset_vector, tiling_vector
         except:
-            return RLPy.RVector2(0.0, 0.0), RLPy.RVector2(1.0, 1.0)
+            return RVector2(0.0, 0.0), RVector2(1.0, 1.0)
 
     def get_tessellation(self):
         level = 0
@@ -526,7 +534,7 @@ class CCMeshMaterial():
     mat_name: str = None
     duf_material: dict = None
     duf_mesh: dict = None
-    mat_component: RLPy.RIMaterialComponent = None
+    mat_component: RIMaterialComponent = None
     data: dict = None
     substance_index = 1001
     json_data: CCJsonData = None
@@ -537,7 +545,7 @@ class CCMeshMaterial():
     physx_mesh_json: CCPhysicsMeshJson = None
     physx_mat_json: CCPhysicsMaterialJson = None
     physx_object = None
-    physx_component: RLPy.RIPhysicsComponent = None
+    physx_component: RIPhysicsComponent = None
 
     def __init__(self, actor = None, obj = None,
                  mesh_name = None, mat_name = None,
@@ -684,8 +692,8 @@ class CCMeshMaterial():
             c = utils.clamp(c, -100, 100)
             y = utils.clamp(y, -100, 100)
             m = utils.clamp(m, -100, 100)
-            hsbc = RLPy.RVector4(H, S, B, C)
-            cym = RLPy.RVector3(c, y, m)
+            hsbc = RVector4(H, S, B, C)
+            cym = RVector3(c, y, m)
             res = material_component.GetImageColor(self.mesh_name, self.mat_name, channel)
             if res == (-999):
                 return
@@ -812,11 +820,11 @@ class CCMeshMaterial():
 def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=None,
                                 mesh_filter=None, material_filter=None, json_data=None):
 
-    selected_objects = RLPy.RScene.GetSelectedObjects()
+    selected_objects = RScene.GetSelectedObjects()
 
     mesh_materials = []
 
-    obj: RLPy.RIObject
+    obj: RIObject
     for obj in selected_objects:
         actor = find_parent_avatar_or_prop(obj)
         obj_name = obj.GetName()
@@ -913,11 +921,11 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
 
 
 def is_cc():
-    return RLPy.RApplication.GetProductName() == "Character Creator"
+    return RApplication.GetProductName() == "Character Creator"
 
 
 def is_iclone():
-    return RLPy.RApplication.GetProductName() == "iClone"
+    return RApplication.GetProductName() == "iClone"
 
 
 def find_child_obj(obj, search):
@@ -932,7 +940,7 @@ def find_child_obj(obj, search):
 
 
 def get_parent_avatar(obj):
-    avatars = RLPy.RScene.GetAvatars()
+    avatars = RScene.GetAvatars()
     for avatar in avatars:
         if find_child_obj(avatar, obj):
             return avatar
@@ -940,8 +948,8 @@ def get_parent_avatar(obj):
 
 
 def get_first_avatar():
-    avatars = RLPy.RScene.GetAvatars()
-    avatar: RLPy.RIAvatar = None
+    avatars = RScene.GetAvatars()
+    avatar: RIAvatar = None
     if avatars:
         avatar = avatars[0]
     return avatar
@@ -949,7 +957,7 @@ def get_first_avatar():
 
 def get_selected_avatars():
     objects = get_selected_actor_objects()
-    all_avatars = RLPy.RScene.GetAvatars()
+    all_avatars = RScene.GetAvatars()
     avatars = []
     for obj in objects:
         if obj in all_avatars and obj not in avatars:
@@ -958,7 +966,7 @@ def get_selected_avatars():
 
 
 def get_selected_actor_objects():
-    selected = RLPy.RScene.GetSelectedObjects()
+    selected = RScene.GetSelectedObjects()
     actor_objects = []
     for obj in selected:
         actor_object = find_parent_avatar_or_prop(obj)
@@ -968,7 +976,7 @@ def get_selected_actor_objects():
 
 
 def find_content_in_folder(folder, search):
-    content_files = RLPy.RApplication.GetContentFilesInFolder(folder)
+    content_files = RApplication.GetContentFilesInFolder(folder)
     for content in content_files:
         folder, name = os.path.split(content)
         file, ext = os.path.splitext(name)
@@ -978,17 +986,17 @@ def find_content_in_folder(folder, search):
 
 
 def custom_content_path():
-    res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
+    res = RGlobal.GetPath(EPathType_CustomContent, "")
     return res[1]
 
 
 def custom_morph_path():
-    res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
+    res = RGlobal.GetPath(EPathType_CustomContent, "")
     return res[1]
 
 
 def temp_files_path(sub_path=None, create=False):
-    res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
+    res = RGlobal.GetPath(EPathType_Temp, "")
     path = res[1]
     if sub_path:
         path = os.path.join(path, sub_path)
@@ -1019,13 +1027,13 @@ def model_file_has_key(file_path):
 
 
 def key_zero():
-    key_zero = RLPy.RKey()
-    key_zero.SetTime(RLPy.RTime.FromValue(0))
+    key_zero = RKey()
+    key_zero.SetTime(RTime.FromValue(0))
     return key_zero
 
 
 def time_zero():
-    time_zero = RLPy.RTime.FromValue(0)
+    time_zero = RTime.FromValue(0)
     return time_zero
 
 
@@ -1047,15 +1055,15 @@ def un_shader_value(var_value):
 
 
 def get_selected_mesh_names():
-    selected = RLPy.RScene.GetSelectedObjects()
-    obj: RLPy.RIObject
+    selected = RScene.GetSelectedObjects()
+    obj: RIObject
     mesh_names = []
     for obj in selected:
         mesh_names.extend(obj.GetMeshNames())
     return mesh_names
 
 
-def find_node(node : RLPy.RINode, id):
+def find_node(node: RINode, id):
     if node.GetID() == id:
         return node
     children = node.GetChildren()
@@ -1066,10 +1074,10 @@ def find_node(node : RLPy.RINode, id):
     return None
 
 
-def find_parent_avatar_or_prop(obj : RLPy.RIObject):
-    avatars = RLPy.RScene.GetAvatars()
-    props = RLPy.RScene.GetProps()
-    root : RLPy.RINode = RLPy.RScene.GetRootNode()
+def find_parent_avatar_or_prop(obj: RIObject):
+    avatars = RScene.GetAvatars()
+    props = RScene.GetProps()
+    root: RINode = RScene.GetRootNode()
     node = find_node(root, obj.GetID())
     while node:
         node_id = node.GetID()
@@ -1083,20 +1091,20 @@ def find_parent_avatar_or_prop(obj : RLPy.RIObject):
     return None
 
 
-def add_data_block(obj: RLPy.RIObject, block_name):
-    data_block: RLPy.RDataBlock = None
+def add_data_block(obj: RIObject, block_name):
+    data_block: RDataBlock = None
     if obj:
         data_block = obj.GetDataBlock(block_name)
         if data_block:
             return data_block
-        data_block = RLPy.RDataBlock.Create([])
+        data_block = RDataBlock.Create([])
         obj.SetDataBlock(block_name, data_block)
         return data_block
     return None
 
 
-def has_attr(data_block: RLPy.RDataBlock, attr_name: str):
-    attr: RLPy.RAttribute = None
+def has_attr(data_block: RDataBlock, attr_name: str):
+    attr: RAttribute = None
     if data_block:
         attribs = data_block.GetAttributes()
         for attr in attribs:
@@ -1105,27 +1113,27 @@ def has_attr(data_block: RLPy.RDataBlock, attr_name: str):
     return False
 
 
-def add_attr(data_block: RLPy.RDataBlock, attr_name: str, attr_type, attr_flags):
-    attr: RLPy.RAttribute = None
+def add_attr(data_block: RDataBlock, attr_name: str, attr_type, attr_flags):
+    attr: RAttribute = None
     if data_block:
         attribs = data_block.GetAttributes()
         for attr in attribs:
             if attr.GetName() == attr_name:
                 return attr
-        attr = RLPy.RAttribute(attr_name, attr_type, attr_flags)
+        attr = RAttribute(attr_name, attr_type, attr_flags)
         data_block.AddAttribute(attr)
         return attr
     return None
 
 
-def get_data_block_str(obj: RLPy.RIObject, block_name, attr_name):
-    data_block: RLPy.RDataBlock = obj.GetDataBlock(block_name)
+def get_data_block_str(obj: RIObject, block_name, attr_name):
+    data_block: RDataBlock = obj.GetDataBlock(block_name)
     if data_block and has_attr(data_block, attr_name):
         return data_block.GetData(attr_name).ToString()
     return None
 
 
-def has_link_id(obj: RLPy.RIObject):
+def has_link_id(obj: RIObject):
     if obj:
         link_id = get_data_block_str(obj, "DataLink", "LinkID")
         if link_id:
@@ -1133,7 +1141,7 @@ def has_link_id(obj: RLPy.RIObject):
     return False
 
 
-def get_link_id(obj: RLPy.RIObject, add_if_missing=False):
+def get_link_id(obj: RIObject, add_if_missing=False):
     if obj:
         link_id = get_data_block_str(obj, "DataLink", "LinkID")
         if not link_id:
@@ -1144,19 +1152,19 @@ def get_link_id(obj: RLPy.RIObject, add_if_missing=False):
     return None
 
 
-def set_link_id(obj: RLPy.RIObject, link_id):
+def set_link_id(obj: RIObject, link_id):
     if obj:
-        data_block: RLPy.RDataBlock = add_data_block(obj, "DataLink")
-        add_attr(data_block, "LinkID", RLPy.EAttributeType_String, RLPy.EAttributeFlag_Default)
-        value = RLPy.RVariant(str(link_id))
+        data_block: RDataBlock = add_data_block(obj, "DataLink")
+        add_attr(data_block, "LinkID", EAttributeType_String, EAttributeFlag_Default)
+        value = RVariant(str(link_id))
         data_block.SetData("LinkID", value)
 
 
 def find_object_by_link_id(link_id):
-    objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
-                                      RLPy.EObjectType_Prop |
-                                      RLPy.EObjectType_Light |
-                                      RLPy.EObjectType_Camera)
+    objects = RScene.FindObjects(EObjectType_Avatar |
+                                      EObjectType_Prop |
+                                      EObjectType_Light |
+                                      EObjectType_Camera)
     for obj in objects:
         if get_link_id(obj) == link_id:
             return obj
@@ -1164,30 +1172,30 @@ def find_object_by_link_id(link_id):
 
 
 def find_object_by_name_and_type(search_name, search_type=None):
-    objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
-                                      RLPy.EObjectType_Prop |
-                                      RLPy.EObjectType_Light |
-                                      RLPy.EObjectType_Camera)
+    objects = RScene.FindObjects(EObjectType_Avatar |
+                                      EObjectType_Prop |
+                                      EObjectType_Light |
+                                      EObjectType_Camera)
     for obj in objects:
         if obj.GetName() == search_name:
             if search_type:
-                if search_type == "AVATAR" and type(obj) is RLPy.RIAvatar:
+                if search_type == "AVATAR" and type(obj) is RIAvatar:
                     return obj
-                elif search_type == "PROP" and type(obj) is RLPy.RIProp:
+                elif search_type == "PROP" and type(obj) is RIProp:
                     return obj
-                elif search_type == "LIGHT" and type(obj) is RLPy.RILight:
+                elif search_type == "LIGHT" and type(obj) is RILight:
                     return obj
-                elif search_type == "CAMERA" and type(obj) is RLPy.RICamera:
+                elif search_type == "CAMERA" and type(obj) is RICamera:
                     return obj
             else:
                 return obj
 
 
-def find_linked_objects(object: RLPy.RIObject):
-    objects = RLPy.RScene.FindObjects(RLPy.EObjectType_Avatar |
-                                      RLPy.EObjectType_Prop |
-                                      RLPy.EObjectType_Light |
-                                      RLPy.EObjectType_Camera)
+def find_linked_objects(object: RIObject):
+    objects = RScene.FindObjects(EObjectType_Avatar |
+                                      EObjectType_Prop |
+                                      EObjectType_Light |
+                                      EObjectType_Camera)
     linked_objects = []
     for obj in objects:
         linked_object = obj.GetLinkedObject()
@@ -1196,14 +1204,14 @@ def find_linked_objects(object: RLPy.RIObject):
     return linked_objects
 
 
-def find_attached_objects(object: RLPy.RIObject):
-    attached = RLPy.RScene.FindChildObjects(object,
-                                            RLPy.EObjectType_Light |
-                                            RLPy.EObjectType_Camera |
-                                            RLPy.EObjectType_Prop |
-                                            RLPy.EObjectType_Cloth |
-                                            RLPy.EObjectType_Accessory |
-                                            RLPy.EObjectType_Hair)
+def find_attached_objects(object: RIObject):
+    attached = RScene.FindChildObjects(object,
+                                            EObjectType_Light |
+                                            EObjectType_Camera |
+                                            EObjectType_Prop |
+                                            EObjectType_Cloth |
+                                            EObjectType_Accessory |
+                                            EObjectType_Hair)
     return attached
 
 
@@ -1218,7 +1226,7 @@ def find_object_by_id(object_id):
 
 
 def find_avatar_by_id(avatar_id):
-    avatars = RLPy.RScene.GetAvatars()
+    avatars = RScene.GetAvatars()
     for avatar in avatars:
         if avatar.GetID() == avatar_id:
             return avatar
@@ -1226,25 +1234,98 @@ def find_avatar_by_id(avatar_id):
 
 
 def find_prop_by_id(prop_id):
-    props = RLPy.RScene.GetProps()
+    props = RScene.GetProps()
     for prop in props:
         if prop.GetID() == prop_id:
             return prop
     return None
 
 
+def get_mesh_skin_bones(obj, skin_bones):
+    sub_objects = [obj]
+    sub_objects.extend(RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory))
+    sub_map = { p.GetID(): p for p in sub_objects }
+    mesh_bones = []
+    for bone in skin_bones:
+        bone_id = bone.GetID()
+        if bone_id in sub_map and bone.GetName() != "_Object_Pivot_Node_":
+            mesh_bones.append(bone)
+    return mesh_bones
+
+
+def remove_pivot_mesh_bones(skin_bones):
+    to_remove = []
+    for i, bone in enumerate(skin_bones):
+        if i > 1:
+            if skin_bones[i-1].GetName() == "_Object_Pivot_Node_":
+                if skin_bones[i-2].GetName() == bone.GetName():
+                    # only remove leaf bones
+                    if not bone.GetChildren():
+                        to_remove.append(bone)
+    for bone in to_remove:
+        skin_bones.remove(bone)
+    return skin_bones
+
+
+def get_extended_skin_bones(obj, skin_bones: list = None):
+    """Fetches the bones from the object and all child sub-objects"""
+    if skin_bones is None:
+        skin_bones = []
+    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+    sub_map = { p.GetID(): p for p in sub_objects }
+    SC = obj.GetSkeletonComponent()
+    bones = SC.GetSkinBones()
+    for bone in bones:
+        skin_bones.append(bone)
+        for child in bone.GetChildren():
+            if child.GetID() in sub_map:
+                get_extended_skin_bones(sub_map[child.GetID()], skin_bones)
+    return skin_bones
+
+
+def get_extended_skin_bones_tree(obj):
+    skin_bones = get_extended_skin_bones(obj)
+    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+    sub_map = [ p.GetID() for p in sub_objects ]
+    sub_map.append(obj.GetID())
+    root_def = None
+    bone_defs = {}
+    for bone in skin_bones:
+        bone_name = bone.GetName()
+        bone_type = SkinBoneType.BONE
+        if bone_name == "_Object_Pivot_Node_":
+            bone_type = SkinBoneType.PIVOT
+        elif bone.GetID() in sub_map:
+            bone_type = SkinBoneType.MESH
+        bone_def = {
+            "name": bone_name,
+            "id": bone.GetID(),
+            "type": bone_type,
+            "children": [],
+        }
+        if not root_def:
+            root_def = bone_def
+        bone_defs[bone.GetID()] = bone_def
+        parent = bone.GetParent()
+        if parent:
+            if parent.GetID() in bone_defs:
+                parent_def = bone_defs[parent.GetID()]
+                parent_def["children"].append(bone_def)
+    return root_def
+
+
 def print_nodes(node, level=0):
     node_id = node.GetID()
     node_name = node.GetName()
-    print(("  "*level) + f"node: {node_name} ({node_id})")
+    utils.log_always(("  "*level) + f"node: {node_name} ({node_id})")
     children = node.GetChildren()
     for child in children:
         print_nodes(child, level+1)
     return None
 
 
-def print_note_tree(obj):
-    root : RLPy.RINode = RLPy.RScene.GetRootNode()
+def print_node_tree(obj):
+    root : RINode = RScene.GetRootNode()
     node = find_node(root, obj.GetID())
     print_nodes(node)
 
@@ -1253,27 +1334,26 @@ IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
 
 def get_actor_objects(actor):
     objects = []
-    if actor and type(actor) is RLPy.RIAvatar:
-        avatar: RLPy.RIAvatar = actor
+    if actor and type(actor) is RIAvatar:
+        avatar: RIAvatar = actor
         objects.extend(avatar.GetClothes())
         objects.extend(avatar.GetAccessories())
         objects.extend(avatar.GetHairs())
-        child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
+        child_objects = RScene.FindChildObjects(actor, EObjectType_Avatar)
         for obj in child_objects:
             name = obj.GetName()
             if name not in IGNORE_NODES and obj not in objects:
                 objects.append(obj)
-        if avatar.GetAvatarType() != RLPy.EAvatarType_Standard:
+        if avatar.GetAvatarType() != EAvatarType_Standard:
             objects.append(avatar)
 
-    elif actor and type(actor) is RLPy.RIProp:
-        child_objects = RLPy.RScene.FindChildObjects(actor, RLPy.EObjectType_Avatar)
+    elif actor and type(actor) is RIProp:
+        child_objects = RScene.FindChildObjects(actor, EObjectType_Avatar)
         for obj in child_objects:
             name = obj.GetName()
             if name not in IGNORE_NODES and obj not in objects:
                 objects.append(obj)
     else:
-        print("Other")
         objects.append(actor)
 
     return objects
@@ -1291,9 +1371,9 @@ def find_actor_object(actor, mesh_name):
 def get_actor_physics_object(actor, mesh_name, mat_name):
     objects = get_actor_objects(actor)
     for obj in objects:
-        if (type(obj) == RLPy.RIAccessory or
-            type(obj) == RLPy.RIHair or
-            type(obj) == RLPy.RIAvatar):
+        if (type(obj) == RIAccessory or
+            type(obj) == RIHair or
+            type(obj) == RIAvatar):
             physics_component = obj.GetPhysicsComponent()
             if physics_component:
                 if mesh_name in physics_component.GetSoftPhysicsMeshNameList():
@@ -1302,13 +1382,13 @@ def get_actor_physics_object(actor, mesh_name, mat_name):
     return None, None
 
 
-def get_actor_physics_components(actor: RLPy.RIAvatar):
+def get_actor_physics_components(actor: RIAvatar):
     physics_components = []
     objects = get_actor_objects(actor)
     for obj in objects:
-        if (type(obj) == RLPy.RIAccessory or
-            type(obj) == RLPy.RIHair or
-            type(obj) == RLPy.RIAvatar):
+        if (type(obj) == RIAccessory or
+            type(obj) == RIHair or
+            type(obj) == RIAvatar):
             obj_physics_component = obj.GetPhysicsComponent()
             if obj_physics_component and obj_physics_component not in physics_components:
                 physics_components.append(obj_physics_component)
@@ -1347,27 +1427,27 @@ def get_full_path(rel_path, folder):
 
 
 def RGB_color(RGB):
-    c = RLPy.RRgb()
+    c = RRgb()
     c.From(RGB[0], RGB[1], RGB[2])
     return c
 
 
 def rgb_color(rgb):
-    c = RLPy.RRgb(rgb[0], rgb[1], rgb[2])
+    c = RRgb(rgb[0], rgb[1], rgb[2])
     return c
 
 
 def array_to_vector3(arr):
-    return RLPy.RVector3(arr[0], arr[1], arr[2])
+    return RVector3(arr[0], arr[1], arr[2])
 
 
 def array_to_vector4(arr):
-    return RLPy.RVector4(arr[0], arr[1], arr[2], arr[3])
+    return RVector4(arr[0], arr[1], arr[2], arr[3])
 
 
 def array_to_quaternion(arr):
     v = array_to_vector4(arr)
-    return RLPy.RQuaternion(v)
+    return RQuaternion(v)
 
 
 def get_material_resource(file_name):

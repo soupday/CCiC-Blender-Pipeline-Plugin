@@ -318,7 +318,6 @@ class Importer:
             if M.has_json():
 
                 # determine material duplication
-                print(f"Counting: {M.mesh_name} / {M.mat_name}")
                 if M.mat_name in self.mat_count:
                     self.mat_count[M.mat_name] += 1
                 else:
@@ -338,7 +337,7 @@ class Importer:
 
             else:
 
-                print(f"Material: {M.mesh_name} / {M.mat_name} has no Json!")
+                utils.log_info(f"Material: {M.mesh_name} / {M.mat_name} has no Json!")
 
         steps = 0
         # substance init & import

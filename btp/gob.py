@@ -112,6 +112,7 @@ def go_b_finish():
     LINK = link.get_data_link()
     # finally pose the characters
     LINK.send_pose()
+    LINK.send_save()
 
 
 
@@ -186,6 +187,7 @@ def go_morph_finish():
         LINK.send_camera_sync()
         for gob_data in GOB_OBJECTS:
             LINK.send_morph_exported(gob_data["object"], gob_data["path"])
+        LINK.send_save()
         GOB_EXPORTED = False
         GOB_CONNECTED = False
         GOB_OBJECTS = None
