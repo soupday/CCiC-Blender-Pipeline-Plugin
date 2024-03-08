@@ -437,8 +437,8 @@ class Exporter:
         """TODO write sub-object link_id's"""
 
         if self.avatar:
-            print(self.json_path)
-            print(self.fbx_path)
+            utils.log_info(self.json_path)
+            utils.log_info(self.fbx_path)
             json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
             root_json = json_data.get_root_json()
 

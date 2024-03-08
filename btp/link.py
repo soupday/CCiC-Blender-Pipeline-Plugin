@@ -72,6 +72,8 @@ class LinkActor():
     name: str = "Name"
     object: RIObject = None
     bones: list = []
+    skin_bones: list = []
+    skin_meshes: list = []
     expressions: list = []
     t_pose: dict = None
 
@@ -464,9 +466,9 @@ def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, t_pose_data,
     bone_name = try_get_pose_bone(source_name, actor.bones)
     #utils.update_timer("try_get_pose_bone")
 
-    #print(f"Trying: {bone_name}")
+    #utils.log_info(f"Trying: {bone_name}")
     if bone_name in actor.bones:
-        #print(f"Found: {bone_name} / {source_name}")
+        #utils.log_info(f"Found: {bone_name} / {source_name}")
 
         #utils.mark_timer("fetch_transforms")
         bone_index = actor.bones.index(bone_name)
@@ -964,7 +966,7 @@ class LinkEventCallback(REventCallback):
        self.target = target
 
     #def OnCurrentTimeChanged(self, fTime):
-    #    print('Current time:' + str(fTime))
+    #    utils.log_info('Current time:' + str(fTime))
 
     def OnObjectSelectionChanged(self):
         global LINK
@@ -1087,7 +1089,8 @@ class DataLink(QObject):
         qt.label(grid, "Link ID", style=qt.STYLE_BOLD, row=1, col=0)
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
 
-        #qt.button(layout, "Expresion Test", tests.expression_test)
+        #qt.button(layout, "Store", tests.store_bones)
+        #qt.button(layout, "Print", tests.bone_tree)
 
         self.show_link_state()
         self.update_ui()
@@ -1125,6 +1128,7 @@ class DataLink(QObject):
         num_total = 0
         num_posable = 0
         num_types = 0
+        num_rigable = 0
 
         selected = RScene.GetSelectedObjects()
         cc.get_selected_actor_objects()
@@ -1159,6 +1163,18 @@ class DataLink(QObject):
                     num_standard += 1
                 else:
                     num_nonstandard += 1
+                generation = prop_or_avatar.GetGeneration()
+                if (prop_or_avatar.GetAvatarType() == EAvatarType_Standard or
+                    prop_or_avatar.GetAvatarType() == EAvatarType_StandardSeries or
+                    generation == EAvatarGeneration_AccuRig or
+                    generation == EAvatarGeneration_ActorBuild or
+                    generation == EAvatarGeneration_ActorScan or
+                    generation == EAvatarGeneration_CC_G3_Plus_Avatar or
+                    generation == EAvatarGeneration_CC_G3_Avatar or
+                    generation == EAvatarGeneration_CC_Game_Base_Multi or
+                    generation == EAvatarGeneration_CC_Game_Base_One):
+                    num_rigable += 1
+
             elif T is RIProp and prop_or_avatar not in props_and_avatars:
                 props_and_avatars.append(prop_or_avatar)
                 num_props += 1
@@ -1168,7 +1184,8 @@ class DataLink(QObject):
                 num_cameras += 1
 
         num_total = num_avatars + num_props + num_lights + num_cameras
-        num_posable = num_avatars + num_props + num_lights + num_cameras
+        num_posable = num_avatars
+        num_sendable = num_avatars + num_props
         num_types = min(1,num_avatars) + min(1, num_props) + min(1, num_lights) + min(1, num_cameras)
 
         # button text
@@ -1213,12 +1230,14 @@ class DataLink(QObject):
         qt.disable(self.button_send, self.button_rigify,
                    self.button_pose, self.button_sequence,
                    self.button_morph, self.button_morph_update)
-        if num_avatars > 0:
-            qt.enable(self.button_send, self.button_rigify, self.button_pose, self.button_sequence)
-        if num_props > 0:
-            qt.enable(self.button_send, self.button_pose, self.button_sequence)
+        if num_posable > 0:
+            qt.enable(self.button_pose, self.button_sequence)
+        if num_sendable > 0:
+            qt.enable(self.button_send)
         if num_standard > 0:
             qt.enable(self.button_morph, self.button_morph_update)
+        if num_rigable > 0:
+            qt.enable(self.button_rigify)
 
         # context info
 
@@ -1301,14 +1320,14 @@ class DataLink(QObject):
         self.host_name = host_name
 
     def show_link_state(self):
-        if self.service and self.service.is_connected:
+        if self.is_connected():
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet("background-color: #82be0f; color: black; font: bold")
             self.button_link.setText("Linked")
             self.label_header.setText(f"Connected: {self.service.remote_app} ({self.service.remote_version})")
             self.label_folder.setText(f"Working Folder: {self.get_remote_folder()}")
-        elif self.service and self.service.is_listening:
+        elif self.is_listening():
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet("background-color: #505050; color: white; font: bold")
@@ -1329,6 +1348,12 @@ class DataLink(QObject):
     def is_connected(self):
         if self.service:
             return self.service.is_connected
+        else:
+            return False
+
+    def is_listening(self):
+        if self.service:
+            return self.service.is_listening
         else:
             return False
 
@@ -1386,9 +1411,25 @@ class DataLink(QObject):
     def on_connected(self):
         self.send_notify("Connected")
 
+    def send(self, op_code, data=None):
+        if self.is_connected():
+            self.service.send(op_code, data)
+
+    def start_sequence(self, func=None):
+        if self.is_connected():
+            self.service.start_sequence(func=func)
+
+    def stop_sequence(self):
+        if self.is_connected():
+            self.service.stop_sequence()
+
+    def update_sequence(self, rate):
+        if self.is_connected():
+            self.service.update_sequence(rate)
+
     def send_notify(self, message):
         notify_json = { "message": message }
-        self.service.send(OpCodes.NOTIFY, encode_from_json(notify_json))
+        self.send(OpCodes.NOTIFY, encode_from_json(notify_json))
 
     def receive_notify(self, data):
         notify_json = decode_to_json(data)
@@ -1407,19 +1448,21 @@ class DataLink(QObject):
             return "None"
 
     def get_export_path(self, character_name, file_name):
-        if self.service.remote_path:
-            export_folder = utils.make_sub_folder(self.service.remote_path, "imports")
-        else:
-            export_folder = utils.make_sub_folder(self.service.local_path, "imports")
+        if self.service:
+            if self.service.remote_path:
+                export_folder = utils.make_sub_folder(self.service.remote_path, "imports")
+            else:
+                export_folder = utils.make_sub_folder(self.service.local_path, "imports")
 
-        character_export_folder = utils.get_unique_folder_path(export_folder, character_name, create=True)
-        export_path = os.path.join(character_export_folder, file_name)
-        return export_path
+            character_export_folder = utils.get_unique_folder_path(export_folder, character_name, create=True)
+            export_path = os.path.join(character_export_folder, file_name)
+            return export_path
+        return "None"
 
     def send_save(self):
-        self.service.send(OpCodes.SAVE)
+        self.send(OpCodes.SAVE)
 
-    def get_selected_actors(self):
+    def get_selected_actors(self, of_types=None):
         selected = RScene.GetSelectedObjects()
         avatars = RScene.GetAvatars()
         actors = []
@@ -1428,7 +1471,10 @@ class DataLink(QObject):
         if not selected and len(avatars) == 1:
             actor = self.data.add_actor(avatars[0])
             if actor:
-                actors.append(actor)
+                if (not of_types or
+                    (type(of_types) is list and actor.get_type() in of_types) or
+                    (actor.get_type() == of_types)):
+                    actors.append(actor)
         else:
             for obj in selected:
                 actor_object = cc.find_parent_avatar_or_prop(obj)
@@ -1436,7 +1482,10 @@ class DataLink(QObject):
                     SC: RISkeletonComponent = actor_object.GetSkeletonComponent()
                     actor = self.data.add_actor(actor_object)
                     if actor and actor not in actors:
-                        actors.append(actor)
+                        if (not of_types or
+                            (type(of_types) is list and actor.get_type() in of_types) or
+                            (actor.get_type() == of_types)):
+                            actors.append(actor)
         return actors
 
     def get_active_actor(self):
@@ -1462,7 +1511,7 @@ class DataLink(QObject):
         self.update_link_status(f"Sending Avatar for Import: {actor.name}")
         self.send_notify(f"Exporting: {actor.name}")
         export_path = self.get_export_path(actor.name, actor.name + ".fbx")
-        print(f"Exporting Character: {export_path}")
+        utils.log_info(f"Exporting Character: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export(export_path)
@@ -1475,7 +1524,7 @@ class DataLink(QObject):
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
-        self.service.send(OpCodes.CHARACTER, export_data)
+        self.send(OpCodes.CHARACTER, export_data)
 
     def send_prop(self, actor: LinkActor):
         self.update_link_status(f"Sending Prop for Import: {actor.name}")
@@ -1491,7 +1540,7 @@ class DataLink(QObject):
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
-        self.service.send(OpCodes.PROP, export_data)
+        self.send(OpCodes.PROP, export_data)
 
 
     def send_light(self, actor: LinkActor):
@@ -1559,9 +1608,9 @@ class DataLink(QObject):
             "link_id": actor.get_link_id(),
         })
         if update:
-            self.service.send(OpCodes.MORPH_UPDATE, export_data)
+            self.send(OpCodes.MORPH_UPDATE, export_data)
         else:
-            self.service.send(OpCodes.MORPH, export_data)
+            self.send(OpCodes.MORPH, export_data)
 
     def send_morph(self):
         actors = self.get_selected_actors()
@@ -1589,7 +1638,7 @@ class DataLink(QObject):
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
-        self.service.send(OpCodes.MORPH, export_data)
+        self.send(OpCodes.MORPH, export_data)
 
     def send_actor_exported(self, avatar=None, fbx_path=None):
         """Send a pre-exported avatar/actor through the DataLink"""
@@ -1603,7 +1652,7 @@ class DataLink(QObject):
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
-        self.service.send(OpCodes.CHARACTER, export_data)
+        self.send(OpCodes.CHARACTER, export_data)
 
     def send_actor_update(self, actor, old_name, old_link_id):
         if not actor:
@@ -1618,7 +1667,7 @@ class DataLink(QObject):
                 "new_name": actor.name,
                 "new_link_id": actor.get_link_id(),
             })
-            self.service.send(OpCodes.CHARACTER_UPDATE, update_data)
+            self.send(OpCodes.CHARACTER_UPDATE, update_data)
 
     def send_rigify_request(self):
         actors = self.get_selected_actors()
@@ -1632,7 +1681,7 @@ class DataLink(QObject):
                     "type": actor.get_type(),
                     "link_id": actor.get_link_id(),
                 })
-                self.service.send(OpCodes.RIGIFY, rigify_data)
+                self.send(OpCodes.RIGIFY, rigify_data)
 
     def encode_light_data(self, actors: list):
         return
@@ -1649,14 +1698,24 @@ class DataLink(QObject):
             FC: RIFaceComponent = actor.get_face_component()
             VC: RIVisemeComponent = actor.get_viseme_component()
             MC: RIMorphComponent = actor.get_morph_component()
-            skin_bones = SC.GetSkinBones()
+            if actor.get_type() == "PROP":
+                skin_bones = cc.get_extended_skin_bones(actor.object)
+                skin_meshes = cc.get_mesh_skin_bones(actor.object, skin_bones)
+            else:
+                skin_bones = SC.GetSkinBones()
+                skin_meshes = []
+            actor.skin_bones = skin_bones
+            actor.skin_meshes = skin_meshes
             bones = []
+            meshes = []
             expressions = []
             visemes = []
             morphs = []
             if SC:
                 for bone_node in skin_bones:
                     bones.append(bone_node.GetName())
+                for mesh_obj in skin_meshes:
+                    meshes.append(mesh_obj.GetName())
             if FC:
                 expressions = FC.GetExpressionNames("")
             if VC:
@@ -1666,6 +1725,7 @@ class DataLink(QObject):
                 "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
                 "bones": bones,
+                "meshes": meshes,
                 "expressions": expressions,
                 "visemes": visemes,
                 "morphs": morphs,
@@ -1702,10 +1762,13 @@ class DataLink(QObject):
             VC: RIVisemeComponent = actor.get_viseme_component()
             MC: RIMorphComponent = actor.get_morph_component()
 
-            skin_bones = SC.GetSkinBones()
+            skin_bones = actor.skin_bones
+            skin_meshes = actor.skin_meshes
+
             data += pack_string(actor.name)
             data += pack_string(actor.get_type())
             data += pack_string(actor.get_link_id())
+
             # pack object transform
             T: RTransform = actor.get_object().WorldTransform()
             t: RVector3 = T.T()
@@ -1717,6 +1780,16 @@ class DataLink(QObject):
             data += struct.pack("!I", len(skin_bones))
             bone: RIObject
             for bone in skin_bones:
+                T: RTransform = bone.WorldTransform()
+                t: RVector3 = T.T()
+                r: RQuaternion = T.R()
+                s: RVector3 = T.S()
+                data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+
+            # pack mesh transforms
+            data += struct.pack("!I", len(skin_meshes))
+            bone: RIObject
+            for bone in skin_meshes:
                 T: RTransform = bone.WorldTransform()
                 t: RVector3 = T.T()
                 r: RQuaternion = T.R()
@@ -1869,7 +1942,7 @@ class DataLink(QObject):
         self.send_notify(f"Sync Lights")
         lights = self.get_all_lights()
         lights_data = self.encode_lights_data(lights)
-        self.service.send(OpCodes.LIGHTS, lights_data)
+        self.send(OpCodes.LIGHTS, lights_data)
 
     def get_camera_data(self, camera: RICamera):
         link_id = cc.get_link_id(camera, add_if_missing=True)
@@ -1923,8 +1996,6 @@ class DataLink(QObject):
             min = RVector3()
             mid = RVector3()
             obj.GetBounds(max, mid, min)
-            #print(f"t: {t.x}, {t.y}, {t.z}")
-            #print(f"off: {off.x}, {off.y}, {off.z}")
             pivot += mid
         l = len(selected_objects)
         if l > 0:
@@ -1941,7 +2012,7 @@ class DataLink(QObject):
             "view_camera": camera_data,
             "pivot": [pivot.x, pivot.y, pivot.z],
         }
-        self.service.send(OpCodes.CAMERA_SYNC, encode_from_json(data))
+        self.send(OpCodes.CAMERA_SYNC, encode_from_json(data))
 
     def decode_camera_sync_data(self, data):
         data = decode_to_json(data)
@@ -1966,26 +2037,26 @@ class DataLink(QObject):
 
     def send_pose(self):
         # get actors
-        actors = self.get_selected_actors()
+        actors = self.get_selected_actors(of_types="AVATAR")
         if actors:
             self.update_link_status(f"Sending Current Pose Set")
             self.send_notify(f"Pose Set")
             # send pose info
             pose_data = self.encode_pose_data(actors)
-            self.service.send(OpCodes.POSE, pose_data)
+            self.send(OpCodes.POSE, pose_data)
             # send template data
             template_data = self.encode_character_templates(actors)
-            self.service.send(OpCodes.TEMPLATE, template_data)
+            self.send(OpCodes.TEMPLATE, template_data)
             # send pose frame data
             pose_frame_data = self.encode_pose_frame_data(actors)
-            self.service.send(OpCodes.POSE_FRAME, pose_frame_data)
+            self.send(OpCodes.POSE_FRAME, pose_frame_data)
 
     def send_animation(self):
         return
 
     def send_sequence(self):
         # get actors
-        actors = self.get_selected_actors()
+        actors = self.get_selected_actors(of_types="AVATAR")
         if actors:
             self.update_link_status(f"Sending Animation Sequence")
             self.send_notify(f"Animation Sequence")
@@ -1993,13 +2064,13 @@ class DataLink(QObject):
             self.data.sequence_current_frame_time = reset_animation()
             # send animation meta data
             sequence_data = self.encode_sequence_data(actors)
-            self.service.send(OpCodes.SEQUENCE, sequence_data)
+            self.send(OpCodes.SEQUENCE, sequence_data)
             # send template data first
             template_data = self.encode_character_templates(actors)
-            self.service.send(OpCodes.TEMPLATE, template_data)
+            self.send(OpCodes.TEMPLATE, template_data)
             # start the sending sequence
             self.data.sequence_actors = actors
-            self.service.start_sequence(self.send_sequence_frame)
+            self.start_sequence(func=self.send_sequence_frame)
             self.data.ack_rate = 60
             self.data.ack_time = 0
 
@@ -2011,10 +2082,10 @@ class DataLink(QObject):
         self.update_link_status(f"Sending Sequence Frame: {current_frame}")
         # send current sequence frame actor poses
         pose_data = self.encode_pose_frame_data(self.data.sequence_actors)
-        self.service.send(OpCodes.SEQUENCE_FRAME, pose_data)
+        self.send(OpCodes.SEQUENCE_FRAME, pose_data)
         # check for end
         if current_frame >= get_end_frame():
-            self.service.stop_sequence()
+            self.stop_sequence()
             self.send_sequence_end()
             return
         # advance to next frame
@@ -2024,7 +2095,7 @@ class DataLink(QObject):
         actors = self.data.sequence_actors
         if actors:
             sequence_data = self.encode_sequence_data(actors)
-            self.service.send(OpCodes.SEQUENCE_END, sequence_data)
+            self.send(OpCodes.SEQUENCE_END, sequence_data)
             self.data.sequence_actors = None
 
     def prep_actor_clip(self, actor: LinkActor, start_time, num_frames):
@@ -2176,7 +2247,7 @@ class DataLink(QObject):
         # move to end of range
         RGlobal.SetTime(get_frame_time(self.data.sequence_end_frame))
         # start the sequence
-        self.service.start_sequence()
+        self.start_sequence()
         #utils.start_timer("apply_world_fk_pose")
         #utils.start_timer("try_get_pose_bone")
         #utils.start_timer("fetch_transforms")
@@ -2200,7 +2271,7 @@ class DataLink(QObject):
 
     def receive_sequence_end(self, data):
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
-        self.service.stop_sequence()
+        self.stop_sequence()
         self.data.sequence_actors = None
         scene_start_time = get_frame_time(self.data.sequence_start_frame)
         scene_end_time = get_frame_time(self.data.sequence_end_frame)
@@ -2216,17 +2287,16 @@ class DataLink(QObject):
         if prefs.MATCH_CLIENT_RATE:
             if self.data.ack_time == 0.0:
                 self.data.ack_time = time.time()
-                self.service.update_sequence(120)
+                self.update_sequence(120)
             else:
                 t = time.time()
                 delta_time = max(t - self.data.ack_time, 1/120)
                 self.data.ack_time = t
                 rate = (1.0 / delta_time) * 1.1
                 self.data.ack_rate = utils.lerp(self.data.ack_rate, rate, 0.1)
-                #print(f"dt: {delta_time}, rate: {rate}, lerped: {self.data.ack_rate}")
-                self.service.update_sequence(self.data.ack_rate)
+                self.update_sequence(self.data.ack_rate)
         else:
-            self.service.update_sequence(0)
+            self.update_sequence(0)
 
     def receive_character_import(self,data):
         json_data = decode_to_json(data)

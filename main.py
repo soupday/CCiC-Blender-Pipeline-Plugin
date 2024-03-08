@@ -114,7 +114,7 @@ def menu_settings():
 
 def menu_go_b():
     data_link = link.get_data_link()
-    if data_link.service.is_connected:
+    if data_link.is_connected():
         data_link.send_actor()
     else:
         gob.go_b()

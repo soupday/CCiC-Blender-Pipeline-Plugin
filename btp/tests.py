@@ -14,9 +14,57 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
+import os, json
 from RLPy import *
 from . import cc, utils
+
+
+BONES = []
+
+
+def write_json(json_data, path):
+    json_object = json.dumps(json_data, indent = 4)
+    with open(path, "w") as write_file:
+        write_file.write(json_object)
+
+def bone_tree():
+    for obj in RScene.GetSelectedObjects():
+        tree = cc.get_extended_skin_bones_tree(obj)
+        write_json(tree, "f:\\tree.json")
+        return
+
+
+def get_bone_tree(obj, bone_store):
+    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop)
+    sub_map = { p.GetID(): p for p in sub_objects }
+    SC = obj.GetSkeletonComponent()
+    bones = SC.GetSkinBones()
+    utils.log_info(f"(Object: {obj.GetName()} {obj.GetID()})")
+    for bone in bones:
+        children = bone.GetChildren()
+        utils.log_info(f" - Bone: {bone.GetName()} {bone.GetID()} {type(bone)}")
+        bone_store.append(bone)
+        for child in children:
+            cid = child.GetID()
+            if cid in sub_map:
+                get_bone_tree(sub_map[cid], bone_store)
+
+
+def store_bones():
+    global BONES
+    BONES = []
+    for obj in RScene.GetSelectedObjects():
+        get_bone_tree(obj, BONES)
+        return
+
+
+def print_bones():
+    global BONES
+    print("--------- BONES --------")
+    for bone in BONES:
+        T: RTransform = bone.WorldTransform()
+        t: RVector3 = T.T()
+        print(f"{bone.GetName()} - {t.x}, {t.y}, {t.z}")
 
 
 def expression_test():

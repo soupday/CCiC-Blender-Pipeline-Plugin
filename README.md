@@ -71,6 +71,14 @@ Known Issues
 Changelog
 =========
 
+### 2.0.4
+- Prop posing disabled for now until a solution can be found to match or remove the pivot bones.
+- Go-B launch fix when link not listening or connected.
+- Version sync with Blender Add-on.
+
+### 2.0.3
+- Context enable/disable buttons
+
 ### 2.0.2
 - iClone export settings.
 - Character generation correction on export of ActorBuild or ActorScan (were exporting as AccuRig).
