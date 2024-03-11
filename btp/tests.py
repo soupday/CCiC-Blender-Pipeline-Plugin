@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import os, json
+import os, json, RLPy
 from RLPy import *
 from . import cc, utils
 
