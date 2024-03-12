@@ -2142,9 +2142,6 @@ class DataLink(QObject):
         RGlobal.RemoveAllAnimations(actor.object)
         clip: RIClip = SC.GetClip(0)
         clip = make_avatar_clip(actor.object, RTime.FromValue(0), end_frame)
-        fps: RFps = RGlobal.GetFps()
-        length = fps.IndexedFrameTime(end_frame)
-        clip.SetLength(length)
         set_transform_control(RTime.FromValue(0), actor.object, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
         RGlobal.ObjectModified(actor.object, EObjectModifiedType_Transform)
         actor.object.Update()
@@ -2255,7 +2252,7 @@ class DataLink(QObject):
             RGlobal.SetTime(time2)
         elif cc.is_cc():
             RGlobal.SetTime(RTime.FromValue(0))
-            RGlobal.ForceViewportUpdate()
+        RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
         self.update_link_status(f"Receiving Live Sequence...")

@@ -64,6 +64,8 @@ def initialize_plugin():
     icon_link = qt.get_icon("BlenderDataLink.png")
     qt.add_toolbar_action(toolbar, icon_link, "Data-link", menu_link, toggle=True)
 
+    qt.add_toolbar_separator(toolbar)
+
     icon_settings = qt.get_icon("BlenderSettings.png")
     qt.add_toolbar_action(toolbar, icon_settings, "Settings", menu_settings, toggle=True)
 
