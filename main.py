@@ -54,15 +54,17 @@ def initialize_plugin():
         icon_morph = qt.get_icon("MeshIcoSphere.png")
         qt.add_toolbar_action(toolbar, icon_morph, "Morph", menu_go_morph)
 
+    icon_link = qt.get_icon("BlenderDataLink.png")
+    qt.add_toolbar_action(toolbar, icon_link, "Data-link", menu_link, toggle=True)
+
+    qt.add_toolbar_separator(toolbar)
+
     icon_export = qt.get_icon("BlenderExport.png")
     qt.add_toolbar_action(toolbar, icon_export, "Export", menu_export)
 
     if cc.is_cc():
         icon_import = qt.get_icon("BlenderImport.png")
         qt.add_toolbar_action(toolbar, icon_import, "Import", menu_import)
-
-    icon_link = qt.get_icon("BlenderDataLink.png")
-    qt.add_toolbar_action(toolbar, icon_link, "Data-link", menu_link, toggle=True)
 
     qt.add_toolbar_separator(toolbar)
 
