@@ -447,6 +447,18 @@ class CCJsonData():
             pass
         return ""
 
+    def get_link_id(self):
+        try:
+            return self.json_data[self.character_id]["Link_ID"]
+        except:
+            return None
+
+    def set_link_id(self, link_id):
+        try:
+            self.json_data[self.character_id]["Link_ID"] = link_id
+        except:
+            pass
+
     def get_character_type(self):
         character_type = "STANDARD"
         generation = self.get_character_generation().lower()

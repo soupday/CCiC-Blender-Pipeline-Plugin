@@ -155,6 +155,10 @@ def add_toolbar_action(toolbar: QToolBar, icon, text, action=None, toggle=False)
     return toolbar_action
 
 
+def add_toolbar_separator(toolbar: QToolBar):
+    toolbar.addSeparator()
+
+
 class QLabelClickable(QLabel):
     clicked=Signal()
 

@@ -76,6 +76,7 @@ class Importer:
 
         self.generation = self.json_data.get_character_generation()
         self.character_type = self.json_data.get_character_type()
+        self.link_id = self.json_data.get_link_id()
         utils.log_info(f"Character Generation: {self.generation}")
         utils.log_info(f"Character Type: {self.character_type}")
 
@@ -216,11 +217,12 @@ class Importer:
         self.fetch_options()
         self.close_options_window()
 
+        objects = []
+
         if self.json_data:
 
             # importing changes the selection so store it first.
             selected_objects = RLPy.RScene.GetSelectedObjects()
-            objects = []
 
             if self.option_mesh:
 
@@ -254,15 +256,31 @@ class Importer:
             # if not importing a prop, use the current avatar
             if self.character_type != "PROP":
                 avatar = cc.get_first_avatar()
-                avatar.SetName(self.name)
-                objects = [avatar]
+                if avatar:
+                    utils.log_info(f"Setting Character Name: {self.name}")
+                    avatar.SetName(self.name)
+                    objects = [avatar]
 
             if len(objects) > 0:
                 for obj in objects:
-                    self.avatar = obj
-                    self.rebuild_materials()
-                    RLPy.RScene.SelectObject(obj)
+                    if obj:
+                        self.avatar = obj
+                        self.rebuild_materials()
+                        RLPy.RScene.SelectObject(obj)
 
+            # link ids
+            if self.link_id:
+                # single import, set the link_id
+                if len(objects) == 1:
+                    utils.log_info(f"Setting Link-ID: {objects[0].GetName()} {self.link_id}")
+                    cc.set_link_id(objects[0], self.link_id)
+                # if split props, generate new link id's
+                elif len(objects) > 1:
+                    utils.log_info(f"Generating new Link-ID's for split props")
+                    for obj in objects:
+                        link_id = cc.get_link_id(obj, add_if_missing=True)
+                        utils.log_info(f"New Link-ID: {obj.GetName()} {link_id}")
+        return objects
 
     def rebuild_materials(self):
         """Material reconstruction process.

@@ -71,6 +71,10 @@ Known Issues
 Changelog
 =========
 
+### 2.0.5
+- Receiving pose or animation sequence from Blender resets character transform.
+- Better data transfer rate synchronization. iClone/Blender will drop view port updates to maintain transfer speed.
+
 ### 2.0.4
 - Prop posing disabled for now until a solution can be found to match or remove the pivot bones.
 - Go-B launch fix when link not listening or connected.
