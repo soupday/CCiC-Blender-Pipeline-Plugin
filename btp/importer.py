@@ -259,6 +259,8 @@ class Importer:
                 if avatar:
                     utils.log_info(f"Setting Character Name: {self.name}")
                     avatar.SetName(self.name)
+                    #utils.log_info(f"Adjusting foot height: {self.name}")
+                    #avatar.AutoAdjustFootHeight()
                     objects = [avatar]
 
             if len(objects) > 0:

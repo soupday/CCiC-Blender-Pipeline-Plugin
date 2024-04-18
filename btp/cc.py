@@ -1298,8 +1298,7 @@ def get_extended_skin_bones(obj, skin_bones: list = None):
 def get_extended_skin_bones_tree(obj):
     skin_bones = get_extended_skin_bones(obj)
     sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
-    sub_map = [ p.GetID() for p in sub_objects ]
-    sub_map.append(obj.GetID())
+    sub_ids = [obj.GetID()].extend([p.GetID() for p in sub_objects])
     root_def = None
     bone_defs = {}
     for bone in skin_bones:
@@ -1307,7 +1306,7 @@ def get_extended_skin_bones_tree(obj):
         bone_type = SkinBoneType.BONE
         if bone_name == "_Object_Pivot_Node_":
             bone_type = SkinBoneType.PIVOT
-        elif bone.GetID() in sub_map:
+        elif bone.GetID() in sub_ids:
             bone_type = SkinBoneType.MESH
         bone_def = {
             "name": bone_name,

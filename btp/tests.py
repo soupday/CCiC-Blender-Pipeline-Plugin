@@ -22,6 +22,66 @@ from . import cc, utils
 BONES = []
 
 
+def get_control_position(avatar: RIAvatar, effector, clip: RIClip, time: RTime):
+    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
+    effector = SC.GetEffector(effector)
+    effector_settings = clip.GetDataBlock("Layer", effector)
+    clip_time = clip.SceneTimeToClipTime(time)
+    f_control_x: RFloatControl = effector_settings.GetControl("Position/PositionX")
+    f_control_y: RFloatControl = effector_settings.GetControl("Position/PositionY")
+    f_control_z: RFloatControl = effector_settings.GetControl("Position/PositionZ")
+    x = y = z = 0
+    f_control_x.ClearKeys()
+    f_control_y.ClearKeys()
+    f_control_z.ClearKeys()
+    x = f_control_x.GetValue(clip_time, x, -1)[1]
+    y = f_control_y.GetValue(clip_time, y, -1)[1]
+    z = f_control_z.GetValue(clip_time, z, -1)[1]
+    #f_control_z.SetValue(tz, 5)
+    return RVector3(x, y, z)
+
+
+def debug_vector3(name, v3: RVector3):
+    print(f"{name}: ({v3.x}, {v3.y}, {v3.z})")
+
+
+def end_effectors():
+    avatar = cc.get_first_avatar()
+    time = RGlobal.GetTime()
+    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
+    clip: RIClip = SC.GetClipByTime(time)
+
+    ik_foot_l = get_control_position(avatar, EHikEffector_LeftFoot, clip, time)
+    ik_foot_r = get_control_position(avatar, EHikEffector_RightFoot, clip, time)
+    ik_toe_l = get_control_position(avatar, EHikEffector_LeftToe, clip, time)
+    ik_toe_r = get_control_position(avatar, EHikEffector_RightToe, clip, time)
+    ik_knee_l = get_control_position(avatar, EHikEffector_LeftKnee, clip, time)
+    ik_knee_r = get_control_position(avatar, EHikEffector_RightKnee, clip, time)
+    debug_vector3("left foot IK", ik_foot_l)
+    debug_vector3("right foot IK", ik_foot_r)
+    debug_vector3("left toe IK", ik_toe_l)
+    debug_vector3("right toe IK", ik_toe_r)
+    debug_vector3("left knee IK", ik_knee_l)
+    debug_vector3("right knee IK", ik_knee_r)
+
+
+def end_effectors2():
+    time = RGlobal.GetTime()
+    avatar = cc.get_first_avatar()
+    skeleton_component = avatar.GetSkeletonComponent()
+    clip = skeleton_component.GetClipByTime(time)
+    # Get Effector
+    l_foot = skeleton_component.GetEffector( RLPy.EHikEffector_LeftFoot )
+    effector_settings = clip.GetDataBlock( "Layer", l_foot )
+    float_control = effector_settings.GetControl("Position/PositionZ")
+    floor_z = 0.0
+    ret_list = float_control.GetValue(time, floor_z)
+    floor_z = ret_list[1]
+    print("lfoot z position is "+str(floor_z))
+    # add a key at frame
+    float_control.SetValue(time, floor_z+30)
+
+
 def write_json(json_data, path):
     json_object = json.dumps(json_data, indent = 4)
     with open(path, "w") as write_file:

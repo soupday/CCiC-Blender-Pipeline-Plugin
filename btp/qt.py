@@ -497,8 +497,8 @@ def wait(t, force = False):
             total += 0.025
 
 
-def message_box(msg):
-    RLPy.RUi.ShowMessageBox("Message", str(msg), RLPy.EMsgButton_Ok)
+def message_box(title, msg):
+    RLPy.RUi.ShowMessageBox(title, str(msg), RLPy.EMsgButton_Ok)
 
 
 def do_events():

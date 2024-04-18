@@ -71,7 +71,7 @@ def go_b():
         fbx_path = os.path.join(object_folder, name + ".fbx")
         gob_data["path"] = fbx_path
         export = exporter.Exporter(obj, no_window=True)
-        export.set_go_b_export(fbx_path)
+        export.set_datalink_export(fbx_path)
         export.export_fbx()
         GOB_QUEUE.append(gob_data)
         go_b_send()
@@ -110,8 +110,8 @@ def go_b_finish():
     GOB_DONE = False
     GOB_QUEUE = None
     LINK = link.get_data_link()
-    # finally pose the characters
-    LINK.send_pose()
+    # finally pose the characters ()
+    LINK.send_frame_sync()
     LINK.send_save()
 
 
