@@ -1213,7 +1213,7 @@ class DataLink(QObject):
         qt.label(grid, "Link ID", style=qt.STYLE_BOLD, row=1, col=0)
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
 
-        qt.button(layout, "IK Effectors", tests.end_effectors)
+        #qt.button(layout, "IK Effectors", tests.end_effectors)
         #qt.button(layout, "Print", tests.bone_tree)
 
         self.show_link_state()
