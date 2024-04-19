@@ -22,7 +22,7 @@ import random
 import shutil
 
 LOG_TIMER = {}
-LOG_LEVEL = "ALL"
+LOG_LEVEL = "DETAILS"
 LOG_INDENT = 0
 DO_EVENTS = True
 

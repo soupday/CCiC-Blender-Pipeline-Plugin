@@ -44,6 +44,9 @@ class Exporter:
     profile_type = None
     profile_type_string = "None"
     window_options = None
+    window_progress = None
+    progress_count = 0
+    progress_bar = None
     check_bakehair = None
     check_bakeskin = None
     check_t_pose = None
@@ -125,7 +128,7 @@ class Exporter:
 
         row = qt.row(layout)
         self.preset_button_1 = qt.button(row, "Mesh Only", self.preset_mesh_only, height=24, toggle=True, value=True)
-        self.preset_button_2 = qt.button(row, "Current Pose", self.preset_current_pose, height=24, toggle=True, value=False)
+        self.preset_button_2 = qt.button(row, "Pose/Animation", self.preset_current_pose, height=24, toggle=True, value=False)
         self.preset_button_3 = qt.button(row, "Blender > Unity", self.preset_unity, height=24, toggle=True, value=False)
         self.label_desc = qt.label(layout, "", "color: #d2ff7b; font: italic 13px", wrap=True)
 
@@ -160,6 +163,32 @@ class Exporter:
 
         self.preset_mesh_only()
         self.window_options.Show()
+
+    def create_progress_window(self):
+        title = "Blender Character Export - Progress"
+        self.window_progress, layout = qt.window(title, 500)
+        qt.label(layout, f"Export Progress: {self.avatar.GetName()}" )
+        self.progress_bar = qt.progress(layout, 0, 0, 0, "Intializing...")
+        self.progress_count = 0
+        steps = 3
+        if self.avatar:
+            steps += 1 # physics
+            if self.option_hik_data:
+                steps += 1
+            if self.option_profile_data:
+                steps += 2
+        qt.progress_range(self.progress_bar, 0, steps - 1)
+        self.window_progress.Show()
+
+    def update_progress(self, inc, text = "", events = False):
+        self.progress_count += inc
+        qt.progress_update(self.progress_bar, self.progress_count, text)
+        if events:
+            qt.do_events()
+
+    def close_progress_window(self):
+        if self.window_progress:
+            self.window_progress.Close()
 
     def update_options(self):
         if self.check_hik_data: self.check_hik_data.setChecked(self.option_hik_data)
@@ -288,8 +317,15 @@ class Exporter:
             self.option_bakehair = prefs.CC_BAKE_TEXTURES
             self.option_bakeskin = prefs.CC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-            self.option_current_animation = False
-            self.option_current_pose = True
+            if prefs.CC_EXPORT_MODE == "Current Pose":
+                self.option_current_animation = False
+                self.option_current_pose = True
+            elif prefs.CC_EXPORT_MODE == "Animation":
+                self.option_current_animation = True
+                self.option_current_pose = False
+            else:
+                self.option_current_animation = False
+                self.option_current_pose = False
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
             self.check_non_standard_export()
@@ -297,29 +333,15 @@ class Exporter:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            self.option_current_animation = True
-            self.option_current_pose = False
-            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
-            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
-        self.set_paths(file_path)
-
-    def set_go_b_export(self, file_path):
-        self.option_t_pose = False
-        if cc.is_cc():
-            self.option_bakehair = prefs.CC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
-            self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-            self.option_current_animation = False
-            self.option_current_pose = False
-            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
-            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
-            self.check_non_standard_export()
-        else:
-            self.option_bakehair = prefs.IC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
-            self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            self.option_current_animation = True
-            self.option_current_pose = False
+            if prefs.CC_EXPORT_MODE == "Current Pose":
+                self.option_current_animation = False
+                self.option_current_pose = True
+            elif prefs.CC_EXPORT_MODE == "Animation":
+                self.option_current_animation = True
+                self.option_current_pose = False
+            else:
+                self.option_current_animation = False
+                self.option_current_pose = False
             self.option_hik_data = prefs.IC_USE_HIK_PROFILE
             self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
         self.set_paths(file_path)
@@ -339,8 +361,12 @@ class Exporter:
     def export_fbx(self):
 
         if self.avatar:
+            self.create_progress_window()
+            self.update_progress(0, "Exporting character Fbx...", True)
             self.export_avatar_fbx()
+            self.update_progress(3, "Exported character Fbx.", True)
             self.export_extra_data()
+            self.close_progress_window()
         elif self.prop:
             self.export_prop_fbx()
             self.export_extra_data()
@@ -388,14 +414,18 @@ class Exporter:
             start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
             end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
             export_fbx_setting.EnableExportMotion(True)
-            #export_fbx_setting.SetExportMotionFps(RFps.Fps60)
-            #export_fbx_setting.SetExportMotionRange(RRangePair(0, 800))
+            export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+            export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
+            utils.log_info(f"Exporting with current animation: {start_frame} - {end_frame}")
         elif self.option_current_pose:
+            fps = RGlobal.GetFps()
             export_fbx_setting.EnableExportMotion(True)
-            #export_fbx_setting.SetExportMotionFps(RFps.Fps60)
-            export_fbx_setting.SetExportMotionRange(RRangePair(0, 1))
+            frame = fps.GetFrameIndex(RGlobal.GetTime())
+            export_fbx_setting.SetExportMotionRange(RRangePair(frame, frame))
+            utils.log_info(f"Exporting with current frame pose: {frame}")
         else:
             export_fbx_setting.EnableExportMotion(False)
+            utils.log_info(f"Exporting without motion")
 
         result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
 
@@ -456,6 +486,8 @@ class Exporter:
 
             if self.option_hik_data:
 
+                self.update_progress(0, "Exporting HIK Profile...", True)
+
                 # Non-standard HIK profile
                 #if self.avatar_type == EAvatarType_NonStandard:
                 utils.log(f"Exporting HIK profile: {self.hik_path}")
@@ -464,12 +496,16 @@ class Exporter:
                 root_json["HIK"] = {}
                 root_json["HIK"]["Profile_Path"] = os.path.relpath(self.hik_path, self.folder)
 
+                self.update_progress(1, "Exported HIK Profile.", True)
+
             if self.option_profile_data:
 
                 # Standard and Non-standard facial profiles
                 if (self.avatar_type == EAvatarType_NonStandard or
                     self.avatar_type == EAvatarType_Standard or
                     self.avatar_type == EAvatarType_StandardSeries):
+
+                    self.update_progress(0, "Exporting Facial Profile...", True)
 
                     utils.log(f"Exporting Facial Expression profile ({self.profile_type_string}): {self.profile_path}")
 
@@ -484,8 +520,13 @@ class Exporter:
                         slider_names = facial_profile.GetExpressionSliderNames(category)
                         root_json["Facial_Profile"]["Categories"][category] = slider_names
 
+                    self.update_progress(2, "Exported Facial Profile.", True)
+
+            self.update_progress(0, "Exporting Additional Physics...", True)
 
             self.export_physics(mesh_materials)
+
+            self.update_progress(1, "Exported Additional Physics.", True)
 
             # Update JSON data
             utils.log(f"Re-writing JSON data: {self.json_path}")

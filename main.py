@@ -116,16 +116,28 @@ def menu_settings():
         preferences.show()
 
 
+def show_settings():
+    preferences = prefs.get_preferences()
+    if not preferences.is_shown():
+        preferences.show()
+
+
 def menu_go_b():
     data_link = link.get_data_link()
     if data_link.is_connected():
         data_link.send_actor()
     else:
-        gob.go_b()
+        if prefs.check_paths():
+            gob.go_b()
+        else:
+            show_settings()
 
 
 def menu_go_morph():
-    gob.go_morph()
+    if prefs.check_paths():
+        gob.go_morph()
+    else:
+        show_settings()
 
 
 def run_script():

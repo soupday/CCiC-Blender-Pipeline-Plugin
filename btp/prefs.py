@@ -38,11 +38,13 @@ CC_USE_HIK_PROFILE: bool = True
 CC_USE_FACIAL_EXPRESSIONS: bool = True
 CC_DELETE_HIDDEN_FACES: bool = False
 CC_BAKE_TEXTURES: bool = False
+CC_EXPORT_MODE: str = "Animation"
 IC_USE_FACIAL_PROFILE: bool = False
 IC_USE_HIK_PROFILE: bool = False
 IC_USE_FACIAL_EXPRESSIONS: bool = False
 IC_DELETE_HIDDEN_FACES: bool = True
 IC_BAKE_TEXTURES: bool = True
+IC_EXPORT_MODE: str = "Animation"
 
 
 class Preferences(QObject):
@@ -64,6 +66,8 @@ class Preferences(QObject):
     checkbox_ic_use_facial_expressions: QCheckBox = None
     checkbox_ic_delete_hidden_faces: QCheckBox = None
     checkbox_ic_bake_textures: QCheckBox = None
+    combo_cc_export_mode: QComboBox = None
+    combo_ic_export_mode: QComboBox = None
     no_update: bool = False
 
     def __init__(self):
@@ -109,46 +113,61 @@ class Preferences(QObject):
 
         # Export Morph Materials
         grid = qt.grid(layout)
+        grid.setColumnStretch(1, 2)
+        grid.setColumnStretch(3, 2)
 
         qt.label(grid, "Character Creator:", style=qt.STYLE_RL_BOLD,
-                 row=0, col=0)
+                 row=0, col=0, col_span=2)
         self.checkbox_cc_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", CC_USE_FACIAL_PROFILE,
                                                           update=self.update_checkbox_cc_use_facial_profile,
-                                                          row=1, col=0)
+                                                          row=1, col=0, col_span=2)
         self.checkbox_cc_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", CC_USE_FACIAL_EXPRESSIONS,
                                                               update=self.update_checkbox_cc_use_facial_expressions,
-                                                              row=2, col=0)
+                                                              row=2, col=0, col_span=2)
         self.checkbox_cc_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", CC_USE_HIK_PROFILE,
                                                        update=self.update_checkbox_cc_use_hik_profile,
-                                                       row=3, col=0)
+                                                       row=3, col=0, col_span=2)
         self.checkbox_cc_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", CC_DELETE_HIDDEN_FACES,
                                                            update=self.update_checkbox_cc_delete_hidden_faces,
-                                                           row=4, col=0)
+                                                           row=4, col=0, col_span=2)
         self.checkbox_cc_bake_textures = qt.checkbox(grid, "Bake Textures", CC_BAKE_TEXTURES,
                                                            update=self.update_checkbox_cc_bake_textures,
-                                                           row=5, col=0)
+                                                           row=5, col=0, col_span=2)
         self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
                                                            update=self.update_checkbox_export_morph_materials,
-                                                           row=6, col=0)
-
+                                                           row=6, col=0, col_span=2)
+        qt.label(grid, "Export With:", style=qt.STYLE_NONE,
+                 row=7, col=0)
+        self.combo_cc_export_mode = qt.combobox(grid, CC_EXPORT_MODE, options = [
+                                                    "Bind Pose", "Current Pose", "Animation"
+                                                ], update=self.update_combo_cc_export_mode,
+                                                row=7, col=1)
 
         qt.label(grid, "iClone:", style=qt.STYLE_RL_BOLD,
-                 row=0, col=1)
+                 row=0, col=2, col_span=2)
         self.checkbox_ic_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", IC_USE_FACIAL_PROFILE,
                                                           update=self.update_checkbox_ic_use_facial_profile,
-                                                          row=1, col=1)
+                                                          row=1, col=2, col_span=2)
         self.checkbox_ic_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", IC_USE_FACIAL_EXPRESSIONS,
                                                               update=self.update_checkbox_ic_use_facial_expressions,
-                                                              row=2, col=1)
+                                                              row=2, col=2, col_span=2)
         self.checkbox_ic_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", IC_USE_HIK_PROFILE,
                                                        update=self.update_checkbox_ic_use_hik_profile,
-                                                       row=3, col=1)
+                                                       row=3, col=2, col_span=2)
         self.checkbox_ic_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", IC_DELETE_HIDDEN_FACES,
                                                            update=self.update_checkbox_ic_delete_hidden_faces,
-                                                           row=4, col=1)
+                                                           row=4, col=2, col_span=2)
         self.checkbox_ic_bake_textures = qt.checkbox(grid, "Bake Textures", IC_BAKE_TEXTURES,
                                                            update=self.update_checkbox_ic_bake_textures,
-                                                           row=5, col=1)
+                                                           row=5, col=2, col_span=2)
+        qt.label(grid, "Export With:", style=qt.STYLE_NONE,
+                 row=7, col=2)
+        self.combo_ic_export_mode = qt.combobox(grid, IC_EXPORT_MODE, options = [
+                                                    "Bind Pose", "Current Pose", "Animation"
+                                                ], update=self.update_combo_ic_export_mode,
+                                                row=7, col=3)
+
+        qt.spacing(layout, 10)
 
         grid = qt.grid(layout)
         qt.label(grid, "Default Morph Slider Path", row=0, col=0)
@@ -270,6 +289,14 @@ class Preferences(QObject):
         write_temp_state()
         self.no_update = False
 
+    def update_combo_cc_export_mode(self):
+        global CC_EXPORT_MODE
+        if self.no_update:
+            return
+        self.no_update = True
+        CC_EXPORT_MODE = self.combo_cc_export_mode.currentText()
+        write_temp_state()
+        self.no_update = False
 
     def update_checkbox_ic_use_facial_profile(self):
         global IC_USE_FACIAL_PROFILE
@@ -322,6 +349,15 @@ class Preferences(QObject):
             return
         self.no_update = True
         IC_BAKE_TEXTURES = self.checkbox_ic_bake_textures.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_combo_ic_export_mode(self):
+        global IC_EXPORT_MODE
+        if self.no_update:
+            return
+        self.no_update = True
+        IC_EXPORT_MODE = self.combo_ic_export_mode.currentText()
         write_temp_state()
         self.no_update = False
 
@@ -390,6 +426,8 @@ def read_temp_state():
     global IC_USE_FACIAL_EXPRESSIONS
     global IC_DELETE_HIDDEN_FACES
     global IC_BAKE_TEXTURES
+    global CC_EXPORT_MODE
+    global IC_EXPORT_MODE
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -412,6 +450,8 @@ def read_temp_state():
             IC_USE_FACIAL_EXPRESSIONS = get_attr(temp_state_json, "ic_use_facial_expressions", False)
             IC_DELETE_HIDDEN_FACES = get_attr(temp_state_json, "ic_delete_hidden_faces", True)
             IC_BAKE_TEXTURES = get_attr(temp_state_json, "ic_bake_textures", True)
+            CC_EXPORT_MODE = get_attr(temp_state_json, "cc_export_mode", "Animation")
+            IC_EXPORT_MODE = get_attr(temp_state_json, "ic_export_mode", "Animation")
 
 
 def write_temp_state():
@@ -431,6 +471,8 @@ def write_temp_state():
     global IC_USE_FACIAL_EXPRESSIONS
     global IC_DELETE_HIDDEN_FACES
     global IC_BAKE_TEXTURES
+    global CC_EXPORT_MODE
+    global IC_EXPORT_MODE
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -451,6 +493,8 @@ def write_temp_state():
         "ic_use_facial_expressions": IC_USE_FACIAL_EXPRESSIONS,
         "ic_delete_hidden_faces": IC_DELETE_HIDDEN_FACES,
         "ic_bake_textures": IC_BAKE_TEXTURES,
+        "cc_export_mode": CC_EXPORT_MODE,
+        "ic_export_mode": IC_EXPORT_MODE,
     }
     write_json(temp_state_json, temp_state_path)
 
@@ -465,7 +509,7 @@ def detect_paths():
 
     if not BLENDER_PATH:
         blender_base_path = "C:\\Program Files\\Blender Foundation\\"
-        blender_versions = [ "4.0", "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0", "2.93", "2.92", "2.91", "2.90", "2.83" ]
+        blender_versions = [ "4.3", "4.2", "4.1", "4.0", "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0", "2.93", "2.92", "2.91", "2.90", "2.83" ]
         for ver in blender_versions:
             B = f"Blender {ver}"
             try_path = os.path.join(blender_base_path, B, "blender.exe")
@@ -491,8 +535,38 @@ def detect_paths():
     utils.log_info(f"Using Datalink Folder: {DATALINK_FOLDER}")
 
 
+def check_paths():
+    global BLENDER_PATH
+    global DATALINK_FOLDER
 
+    report = ""
+    valid = True
 
+    if DATALINK_FOLDER:
+        if not os.path.exists(DATALINK_FOLDER):
+            os.makedirs(DATALINK_FOLDER, exist_ok=True)
+
+    if not DATALINK_FOLDER:
+        valid = False
+        report += "Invalid Datalink folder!\n"
+
+    if os.path.exists(DATALINK_FOLDER):
+        if not os.path.isdir(DATALINK_FOLDER):
+            valid = False
+            report += "Datalink path is not a folder!\n"
+    else:
+        valid = False
+        report += "Datalink folder could not be created!\n"
+
+    if not BLENDER_PATH or not os.path.exists(BLENDER_PATH):
+        valid = False
+        report += "Blender .exe path is invalid!\n"
+
+    if not valid:
+        report += "\n\nPlease check plugin path settings."
+        qt.message_box("Path Error", report)
+
+    return valid
 
 PREFERENCES: Preferences = None
 
