@@ -1279,49 +1279,121 @@ def remove_pivot_mesh_bones(skin_bones):
     return skin_bones
 
 
-def get_extended_skin_bones(obj, skin_bones: list = None):
-    """Fetches the bones from the object and all child sub-objects"""
-    if skin_bones is None:
-        skin_bones = []
-    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
-    sub_map = { p.GetID(): p for p in sub_objects }
-    SC = obj.GetSkeletonComponent()
-    bones = SC.GetSkinBones()
-    for bone in bones:
-        skin_bones.append(bone)
-        for child in bone.GetChildren():
-            if child.GetID() in sub_map:
-                get_extended_skin_bones(sub_map[child.GetID()], skin_bones)
+def get_extended_skin_bones(obj, skin_bones: list=None, ignore_pivot=False):
+    """Fetches the bones from the object and all child sub-objects in no particular order"""
+    child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+    objects = [obj]
+    objects.extend(child_objects)
+    skin_bones = []
+    for obj in objects:
+        SC = obj.GetSkeletonComponent()
+        skin_bones = SC.GetSkinBones()
+        for bone in skin_bones:
+            if bone not in skin_bones:
+                skin_bones.append(bone)
     return skin_bones
 
 
-def get_extended_skin_bones_tree(obj):
-    skin_bones = get_extended_skin_bones(obj)
-    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
-    sub_ids = [obj.GetID()].extend([p.GetID() for p in sub_objects])
+def get_extended_skin_bones_tree(prop: RIProp, deduplicate=False):
+    child_objects: list = RScene.FindChildObjects(prop, EObjectType_Prop | EObjectType_Accessory)
+    objects = [prop]
+    objects.extend(child_objects)
+
+    # deduplicate object names
+    if deduplicate:
+        names = {}
+        done = []
+        for obj in objects:
+            if obj not in done:
+                done.append(obj)
+                name = obj.GetName()
+                if name != "_Object_Pivot_Node_":
+                    if name not in names:
+                        names[name] = 1
+                    else:
+                        print(f"Deduplicating sub-item name: {name}")
+                        count = names[name]
+                        names[name] += 1
+                        obj.SetName(f"{name}_{count:03d}")
+
     root_def = None
     bone_defs = {}
-    for bone in skin_bones:
-        bone_name = bone.GetName()
-        bone_type = SkinBoneType.BONE
-        if bone_name == "_Object_Pivot_Node_":
-            bone_type = SkinBoneType.PIVOT
-        elif bone.GetID() in sub_ids:
-            bone_type = SkinBoneType.MESH
-        bone_def = {
-            "name": bone_name,
-            "id": bone.GetID(),
-            "type": bone_type,
-            "children": [],
-        }
-        if not root_def:
-            root_def = bone_def
-        bone_defs[bone.GetID()] = bone_def
-        parent = bone.GetParent()
-        if parent:
-            if parent.GetID() in bone_defs:
-                parent_def = bone_defs[parent.GetID()]
-                parent_def["children"].append(bone_def)
+    for obj in objects:
+        SC = obj.GetSkeletonComponent()
+        skin_bones = SC.GetSkinBones()
+        bone: RINode
+        for bone in skin_bones:
+            bone_name = bone.GetName()
+            bone_def = {
+                "bone": bone,
+                "name": bone_name,
+                "children": [],
+            }
+            if not root_def:
+                root_def = bone_def
+            bone_defs[bone.GetID()] = bone_def
+            parent = bone.GetParent()
+            if parent:
+                if parent.GetID() in bone_defs:
+                    parent_def = bone_defs[parent.GetID()]
+                    parent_def["children"].append(bone_def)
+    return root_def
+
+
+def extract_mesh_bones_from_tree(bone_def, mesh_bones=None):
+    if mesh_bones is None:
+        mesh_bones = []
+    to_remove = []
+    for child_def in bone_def["children"]:
+        if child_def["children"]:
+            extract_mesh_bones_from_tree(child_def, mesh_bones)
+        else:
+            bone = child_def["bone"]
+            mesh_bones.append(bone)
+            to_remove.append(child_def)
+    for child_def in to_remove:
+        bone_def["children"].remove(child_def)
+    return mesh_bones
+
+
+def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None):
+    if skin_bones is None:
+        skin_bones = []
+    bone = bone_def["bone"]
+    skin_bones.append(bone)
+    bone_def.pop("bone")
+    for child_def in bone_def["children"]:
+        extract_skin_bones_from_tree(child_def, skin_bones)
+    return skin_bones
+
+
+def get_extended_skin_bones_tree_debug(obj: RIProp):
+    child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+    objects = [obj]
+    objects.extend(child_objects)
+    root_def = None
+    bone_defs = {}
+    for obj in objects:
+        SC = obj.GetSkeletonComponent()
+        skin_bones = SC.GetSkinBones()
+        bone: RINode
+        for bone in skin_bones:
+            bone_name = bone.GetName()
+            bone_def = {
+                "object": obj.GetName(),
+                "object_id": obj.GetID(),
+                "name": bone_name,
+                "id": bone.GetID(),
+                "children": [],
+            }
+            if not root_def:
+                root_def = bone_def
+            bone_defs[bone.GetID()] = bone_def
+            parent = bone.GetParent()
+            if parent:
+                if parent.GetID() in bone_defs:
+                    parent_def = bone_defs[parent.GetID()]
+                    parent_def["children"].append(bone_def)
     return root_def
 
 

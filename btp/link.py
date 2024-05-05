@@ -67,6 +67,7 @@ class OpCodes(IntEnum):
     LIGHTS = 230
     CAMERA_SYNC = 231
     FRAME_SYNC = 232
+    MOTION = 240
 
 
 VISEME_NAME_MAP = {
@@ -1120,6 +1121,7 @@ class DataLink(QObject):
     button_rigify: QPushButton = None
     button_pose: QPushButton = None
     button_sequence: QPushButton = None
+    button_animation: QPushButton = None
     button_morph: QPushButton = None
     button_morph_update: QPushButton = None
     button_sync_lights: QPushButton = None
@@ -1184,8 +1186,8 @@ class DataLink(QObject):
         self.button_send = qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon=self.icon_avatar, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         self.button_pose = qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        #qt.button(layout, "Send Animation", self.send_animation)
-        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence, row=1, col=1, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_animation = qt.button(grid, "Send Motion", self.send_motion, row=1, col=1, icon="Animation.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence, row=2, col=0, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         if cc.is_cc():
             qt.spacing(layout, 20)
@@ -1215,6 +1217,7 @@ class DataLink(QObject):
 
         #qt.button(layout, "IK Effectors", tests.end_effectors)
         #qt.button(layout, "Print", tests.bone_tree)
+        #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
         self.update_ui()
@@ -1308,7 +1311,7 @@ class DataLink(QObject):
                 num_cameras += 1
 
         num_total = num_avatars + num_props + num_lights + num_cameras
-        num_posable = num_avatars
+        num_posable = num_avatars + num_props
         num_sendable = num_avatars + num_props
         num_types = min(1,num_avatars) + min(1, num_props) + min(1, num_lights) + min(1, num_cameras)
 
@@ -1352,13 +1355,13 @@ class DataLink(QObject):
         # button enable
 
         qt.disable(self.button_send, self.button_rigify,
-                   self.button_pose, self.button_sequence,
+                   self.button_pose, self.button_sequence, self.button_animation,
                    self.button_morph, self.button_morph_update,
                    self.button_sync_lights, self.button_sync_camera)
 
         if self.is_connected():
             if num_posable > 0:
-                qt.enable(self.button_pose, self.button_sequence)
+                qt.enable(self.button_pose, self.button_sequence, self.button_animation)
             if num_sendable > 0:
                 qt.enable(self.button_send)
             if num_standard > 0:
@@ -1414,7 +1417,7 @@ class DataLink(QObject):
             else:
                 self.info_label_link_id.setStyleSheet(qt.STYLE_NONE)
         else:
-            qt.disable(self.button_send, self.button_pose, self.button_sequence,
+            qt.disable(self.button_send, self.button_pose, self.button_sequence, self.button_animation,
                        self.button_rigify, self.button_morph, self.button_morph_update)
             self.context_frame.hide()
 
@@ -1719,6 +1722,28 @@ class DataLink(QObject):
             elif actor.is_camera():
                 self.send_camera()
 
+    def send_motion(self):
+        actors = self.get_selected_actors()
+        actor: LinkActor
+        for actor in actors:
+            self.update_link_status(f"Sending Animation: {actor.name}")
+            self.send_notify(f"Exporting Motion: {actor.name}")
+            export_path = self.get_export_path(actor.name, actor.name + ".fbx")
+            utils.log_info(f"Exporting Character: {export_path}")
+            #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
+            export = exporter.Exporter(actor.object, no_window=True)
+            export.set_datalink_motion_export(export_path)
+            export.export_motion_fbx()
+            time.sleep(0.5)
+            self.send_notify(f"Motion Import: {actor.name}")
+            export_data = encode_from_json({
+                "path": export_path,
+                "name": actor.name,
+                "type": actor.get_type(),
+                "link_id": actor.get_link_id(),
+            })
+            self.send(OpCodes.MOTION, export_data)
+
     def send_avatar_morph(self, actor: LinkActor, update=False):
         self.update_link_status(f"Sending Character for Morph: {actor.name}")
         self.send_notify(f"Exporting Morph: {actor.name}")
@@ -1832,8 +1857,9 @@ class DataLink(QObject):
             VC: RIVisemeComponent = actor.get_viseme_component()
             MC: RIMorphComponent = actor.get_morph_component()
             if actor.get_type() == "PROP":
-                skin_bones = cc.get_extended_skin_bones(actor.object)
-                skin_meshes = cc.get_mesh_skin_bones(actor.object, skin_bones)
+                skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
+                skin_meshes = cc.extract_mesh_bones_from_tree(skin_bone_tree)
+                skin_bones = cc.extract_skin_bones_from_tree(skin_bone_tree)
             else:
                 skin_bones = SC.GetSkinBones()
                 skin_meshes = []
@@ -2219,7 +2245,7 @@ class DataLink(QObject):
 
     def send_pose(self):
         # get actors
-        actors = self.get_selected_actors(of_types="AVATAR")
+        actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
         if actors:
             self.update_link_status(f"Sending Current Pose Set")
             self.send_notify(f"Pose Set")
@@ -2235,12 +2261,9 @@ class DataLink(QObject):
             pose_frame_data = self.encode_pose_frame_data(actors)
             self.send(OpCodes.POSE_FRAME, pose_frame_data)
 
-    def send_animation(self):
-        return
-
     def send_sequence(self):
         # get actors
-        actors = self.get_selected_actors(of_types="AVATAR")
+        actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
         RScene.ClearSelectObjects()
         if actors:
             self.update_link_status(f"Sending Animation Sequence")

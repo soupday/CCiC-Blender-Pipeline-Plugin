@@ -22,6 +22,19 @@ from . import cc, utils
 BONES = []
 
 
+def prop_clip_test():
+    for obj in RScene.GetSelectedObjects():
+        RGlobal.RemoveAllAnimations(obj)
+        SC: RISkeletonComponent = obj.GetSkeletonComponent()
+        clip_count = SC.GetClipCount()
+        clip = SC.GetClip(0)
+        print(clip_count)
+        print(clip)
+        clip = SC.AddClip(RGlobal.GetTime())
+        print(clip)
+
+
+
 def get_control_position(avatar: RIAvatar, effector, clip: RIClip, time: RTime):
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
     effector = SC.GetEffector(effector)
@@ -89,8 +102,10 @@ def write_json(json_data, path):
 
 def bone_tree():
     for obj in RScene.GetSelectedObjects():
-        tree = cc.get_extended_skin_bones_tree(obj)
+        cc.print_node_tree(obj)
+        tree = cc.get_extended_skin_bones_tree_debug(obj)
         write_json(tree, "f:\\tree.json")
+        os.startfile("f:\\tree.json")
         return
 
 

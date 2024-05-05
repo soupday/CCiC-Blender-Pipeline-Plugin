@@ -63,6 +63,7 @@ class Exporter:
     option_hik_data = False
     option_profile_data = False
     option_remove_hidden = False
+    option_animation_only = False
     preset_button_1 = None
     preset_button_2 = None
     preset_button_3 = None
@@ -346,6 +347,18 @@ class Exporter:
             self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
         self.set_paths(file_path)
 
+    def set_datalink_motion_export(self, file_path):
+        self.option_t_pose = False
+        self.option_bakehair = False
+        self.option_bakeskin = False
+        self.option_remove_hidden = False
+        self.option_current_animation = True
+        self.option_current_pose = False
+        self.option_hik_data = False
+        self.option_profile_data = False
+        self.option_animation_only = True
+        self.set_paths(file_path)
+
     def do_export(self):
         file_path = RUi.SaveFileDialog("Fbx Files(*.fbx)")
         if file_path and file_path != "":
@@ -462,6 +475,47 @@ class Exporter:
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
         result = RFileIO.ExportFbxFile(prop, file_path, export_fbx_setting)
+
+    def export_motion_fbx(self):
+        avatar = self.avatar
+        prop = self.prop
+        file_path = self.fbx_path
+
+        utils.log(f"Exporting Motion FBX: {file_path}")
+
+        options1 = EExportFbxOptions__None
+
+        options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
+        options1 = options1 | EExportFbxOptions_RemoveAllUnused
+        options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
+        options1 = options1 | EExportFbxOptions_ExportRootMotion
+
+        options2 = EExportFbxOptions2__None
+        options2 = options2 | EExportFbxOptions2_ResetBoneScale
+        options2 = options2 | EExportFbxOptions2_ResetSelfillumination
+
+        options3 = EExportFbxOptions3__None
+
+        export_fbx_setting = RExportFbxSetting()
+
+        export_fbx_setting.SetOption(options1)
+        export_fbx_setting.SetOption2(options2)
+        export_fbx_setting.SetOption3(options3)
+
+        export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
+        export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
+
+        fps = RGlobal.GetFps()
+        start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
+        end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        export_fbx_setting.EnableExportMotion(True)
+        export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+        export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
+
+        if avatar:
+            result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
+        elif prop:
+            result = RFileIO.ExportFbxFile(prop, file_path, export_fbx_setting)
 
     def export_extra_data(self):
         """TODO write sub-object link_id's"""

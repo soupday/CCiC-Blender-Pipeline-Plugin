@@ -71,6 +71,10 @@ Known Issues
 Changelog
 =========
 
+### 2.0.8
+- Send prop pose and sequence.
+- Send motion to Blender character (direct motion export/import).
+
 ### 2.0.7
 - Datalink receives facial expression data for pose and sequence.
 - Datalink settings for exporting characters with animation, pose or none.
