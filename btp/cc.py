@@ -358,6 +358,7 @@ class CCJsonData():
     file_name: str = ""
     character_id: str = ""
     json_data: dict = None
+    valid: bool = False
 
     meshes: dict = None
     physics_meshes: dict = None
@@ -370,6 +371,7 @@ class CCJsonData():
             self.parse()
 
     def read(self):
+        self.valid = False
         try:
             if os.path.exists(self.json_path):
                 utils.log(" - Loading Json data: " + self.json_path)
@@ -390,6 +392,7 @@ class CCJsonData():
                 self.json_data = json.loads(text_data)
                 file.close()
                 utils.log(" - Json data successfully parsed!")
+                self.valid = True
                 return True
 
             else:

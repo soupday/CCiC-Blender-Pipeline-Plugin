@@ -1162,8 +1162,12 @@ class DataLink(QObject):
         self.icon_camera = qt.get_icon("Camera.png")
         self.icon_all = qt.get_icon("Actor.png")
 
-        self.label_header = qt.label(layout, "Data Link: Not Connected", style=qt.STYLE_TITLE)
-        self.label_folder = qt.label(layout, f"Working Folder: {self.get_remote_folder()}", style=qt.STYLE_TITLE, no_size=True)
+        grid = qt.grid(layout)
+        grid.setColumnStretch(1, 3)
+        qt.label(grid, f"Data Link ({vars.VERSION}):", row=0, col=0, style=qt.STYLE_TITLE)
+        self.label_header = qt.label(grid, f"Not Connected", row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
+        qt.label(grid, f"Working Folder:", row=1, col=0, style=qt.STYLE_TITLE)
+        self.label_folder = qt.label(grid, f"{self.get_remote_folder()}", row=1, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
 
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
@@ -1457,14 +1461,14 @@ class DataLink(QObject):
             self.button_link.setStyleSheet("background-color: #82be0f; color: black; font: bold")
             self.button_link.setText("Linked")
             self.label_header.setText(f"Connected: {self.service.remote_app} ({self.service.remote_version})")
-            self.label_folder.setText(f"Working Folder: {self.get_remote_folder()}")
+            self.label_folder.setText(f"{self.get_remote_folder()}")
         elif self.is_listening():
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet("background-color: #505050; color: white; font: bold")
             self.button_link.setText("Listening...")
             self.label_header.setText("Waiting for Connection")
-            self.label_folder.setText(f"Working Folder: None")
+            self.label_folder.setText(f"None")
         else:
             self.textbox_host.setEnabled(True)
             self.combo_target.setEnabled(True)
@@ -1473,8 +1477,8 @@ class DataLink(QObject):
                 self.button_link.setText("Start Server")
             else:
                 self.button_link.setText("Connect")
-            self.label_header.setText("Not Connected")
-            self.label_folder.setText(f"Working Folder: None")
+            self.label_header.setText(f"Not Connected")
+            self.label_folder.setText(f"None")
         self.update_ui()
 
     def is_connected(self):

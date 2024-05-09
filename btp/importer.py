@@ -81,12 +81,12 @@ class Importer:
         utils.log_info(f"Character Type: {self.character_type}")
 
         error = False
-        if not self.json_data:
-            qt.message_box("There is no JSON data with this character!\n\nThe plugin will be unable to set-up any materials.\n\nPlease use the standard character importer instead (File Menu > Import).")
+        if not self.json_data.valid:
+            qt.message_box("Invalid JSON Data", "There is no valid JSON data with this character or this is not a compatible CC3+ character.\n\nThe plugin will be unable to set-up any materials.\n\nPlease use the standard character importer instead (File Menu > Import).")
             error = True
         if self.character_type == "STANDARD":
             if not os.path.exists(self.key):
-                qt.message_box("There is no Fbx Key with this character!\n\nCC3/4 Standard characters cannot be imported back into Character Creator without a corresponding Fbx Key.\nThe Fbx Key will be generated when the character is exported as Mesh only, or in Calibration Pose, and with no hidden faces.")
+                qt.message_box("No FBX Key", "There is no Fbx Key with this character!\n\nCC3/4 Standard characters cannot be imported back into Character Creator without a corresponding Fbx Key.\nThe Fbx Key will be generated when the character is exported as Mesh only, or in Calibration Pose, and with no hidden faces.")
                 error = True
 
         self.option_mesh = True
@@ -95,7 +95,7 @@ class Importer:
         self.option_import_hik = False
         self.option_import_profile = False
         self.option_import_expressions = False
-        if self.json_data:
+        if self.json_data.valid:
             root_json = self.json_data.get_root_json()
             if "HIK" in root_json and "Profile_Path" in root_json["HIK"]:
                 self.hik_path = os.path.normpath(os.path.join(self.folder, root_json["HIK"]["Profile_Path"]))
@@ -219,7 +219,7 @@ class Importer:
 
         objects = []
 
-        if self.json_data:
+        if self.json_data.valid:
 
             # importing changes the selection so store it first.
             selected_objects = RLPy.RScene.GetSelectedObjects()

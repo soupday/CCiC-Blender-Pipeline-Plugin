@@ -24,7 +24,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, json
-from . import qt, utils
+from . import qt, utils, vars
 
 BLENDER_PATH: str = None
 DATALINK_FOLDER: str = None
@@ -84,7 +84,7 @@ class Preferences(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window("CC/iC Blender Pipeline Preferences", 600, show_hide=self.on_show_hide)
+        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", 600, show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)

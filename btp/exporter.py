@@ -374,32 +374,33 @@ class Exporter:
     def export_fbx(self):
 
         if self.avatar:
+            obj = self.avatar
+            is_avatar = True
+        elif self.prop:
+            obj = self.prop
+            is_avatar = False
+        else:
+            utils.log_error("No avatar or prop to export!")
+            return
+
+        if is_avatar:
             self.create_progress_window()
             self.update_progress(0, "Exporting character Fbx...", True)
-            self.export_avatar_fbx()
-            self.update_progress(3, "Exported character Fbx.", True)
-            self.export_extra_data()
-            self.close_progress_window()
-        elif self.prop:
-            self.export_prop_fbx()
-            self.export_extra_data()
 
-    def export_avatar_fbx(self):
-
-        avatar = self.avatar
         file_path = self.fbx_path
 
-        utils.log(f"Exporting Avatar FBX: {file_path}")
+        utils.log(f"Exporting {('Avatar' if is_avatar else 'Prop')} FBX: {file_path}")
 
         options1 = EExportFbxOptions__None
         options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
         options1 = options1 | EExportFbxOptions_RemoveAllUnused
         options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
         options1 = options1 | EExportFbxOptions_ExportRootMotion
-        if self.option_remove_hidden:
-            options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
-        else:
-            options1 = options1 | EExportFbxOptions_FbxKey
+        if is_avatar:
+            if self.option_remove_hidden:
+                options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
+            else:
+                options1 = options1 | EExportFbxOptions_FbxKey
 
         options2 = EExportFbxOptions2__None
         options2 = options2 | EExportFbxOptions2_ResetBoneScale
@@ -415,9 +416,10 @@ class Exporter:
         export_fbx_setting.SetOption2(options2)
         export_fbx_setting.SetOption3(options3)
 
-        export_fbx_setting.EnableBakeDiffuseSpecularFromShader(self.option_bakehair)
-        export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
-        export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
+        if is_avatar:
+            export_fbx_setting.EnableBakeDiffuseSpecularFromShader(self.option_bakehair)
+            export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
+            export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
 
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
@@ -440,46 +442,26 @@ class Exporter:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
 
-        result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
+        result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
 
-    def export_prop_fbx(self):
+        if is_avatar:
+            self.update_progress(3, "Exported character Fbx.", True)
 
-        prop = self.prop
-        file_path = self.fbx_path
+        self.export_extra_data()
 
-        utils.log(f"Exporting Prop FBX: {file_path}")
-
-        options1 = EExportFbxOptions__None
-        options1 = options1 | EExportFbxOptions_FbxKey
-        options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
-        options1 = options1 | EExportFbxOptions_RemoveAllUnused
-        options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
-        options1 = options1 | EExportFbxOptions_ExportRootMotion
-        if self.option_remove_hidden:
-            options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
-
-        options2 = EExportFbxOptions2__None
-        options2 = options2 | EExportFbxOptions2_ResetBoneScale
-        options2 = options2 | EExportFbxOptions2_ResetSelfillumination
-
-        options3 = EExportFbxOptions3__None
-        options3 = options3 | EExportFbxOptions3_ExportJson
-        options3 = options3 | EExportFbxOptions3_ExportVertexColor
-
-        export_fbx_setting = RExportFbxSetting()
-
-        export_fbx_setting.SetOption(options1)
-        export_fbx_setting.SetOption2(options2)
-        export_fbx_setting.SetOption3(options3)
-        export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
-        export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
-
-        result = RFileIO.ExportFbxFile(prop, file_path, export_fbx_setting)
+        if is_avatar:
+            self.close_progress_window()
 
     def export_motion_fbx(self):
-        avatar = self.avatar
-        prop = self.prop
+
         file_path = self.fbx_path
+
+        if self.avatar:
+            obj = self.avatar
+            is_avatar = True
+        elif self.prop:
+            obj = self.prop
+            is_avatar = False
 
         utils.log(f"Exporting Motion FBX: {file_path}")
 
@@ -487,7 +469,8 @@ class Exporter:
 
         options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
         options1 = options1 | EExportFbxOptions_RemoveAllUnused
-        options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
+        if is_avatar:
+            options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
         options1 = options1 | EExportFbxOptions_ExportRootMotion
 
         options2 = EExportFbxOptions2__None
@@ -504,6 +487,10 @@ class Exporter:
 
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
+        if is_avatar:
+            export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
+        else:
+            export_fbx_setting.EnableBasicBindPose(True)
 
         fps = RGlobal.GetFps()
         start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
@@ -512,10 +499,7 @@ class Exporter:
         export_fbx_setting.SetExportMotionFps(RFps.Fps60)
         export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
 
-        if avatar:
-            result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
-        elif prop:
-            result = RFileIO.ExportFbxFile(prop, file_path, export_fbx_setting)
+        result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
 
     def export_extra_data(self):
         """TODO write sub-object link_id's"""
