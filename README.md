@@ -72,6 +72,7 @@ Changelog
 =========
 
 ### 2.0.8
+- Fix to error messages when importing invalid characters.
 - Send prop pose and sequence.
 - Send motion to Blender character (direct motion export/import).
 
