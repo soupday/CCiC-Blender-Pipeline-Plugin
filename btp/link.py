@@ -361,6 +361,7 @@ def next_frame(time):
     current_time = RGlobal.GetTime()
     next_time = fps.GetNextFrameTime(time)
     RGlobal.SetTime(next_time)
+    RGlobal.ForceViewportUpdate()
     return next_time
 
 
@@ -1860,13 +1861,12 @@ class DataLink(QObject):
             FC: RIFaceComponent = actor.get_face_component()
             VC: RIVisemeComponent = actor.get_viseme_component()
             MC: RIMorphComponent = actor.get_morph_component()
+            skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
             if actor.get_type() == "PROP":
-                skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
                 skin_meshes = cc.extract_mesh_bones_from_tree(skin_bone_tree)
-                skin_bones = cc.extract_skin_bones_from_tree(skin_bone_tree)
             else:
-                skin_bones = SC.GetSkinBones()
                 skin_meshes = []
+            skin_bones = cc.extract_skin_bones_from_tree(skin_bone_tree)
             actor.skin_bones = skin_bones
             actor.skin_meshes = skin_meshes
             bones = []
