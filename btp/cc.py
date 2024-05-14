@@ -1194,16 +1194,27 @@ def find_object_by_name_and_type(search_name, search_type=None):
     for obj in objects:
         if obj.GetName() == search_name:
             if search_type:
-                if search_type == "AVATAR" and type(obj) is RIAvatar:
-                    return obj
-                elif search_type == "PROP" and type(obj) is RIProp:
-                    return obj
-                elif search_type == "LIGHT" and type(obj) is RILight:
-                    return obj
-                elif search_type == "CAMERA" and type(obj) is RICamera:
+                if get_object_type(obj) == search_type:
                     return obj
             else:
                 return obj
+
+
+def get_object_type(obj):
+    T = type(obj)
+    if T is RIAvatar:
+        return "AVATAR"
+    elif T is RIProp:
+        return "PROP"
+    elif T is RIAccessory:
+        return "ACCESSORY"
+    elif T is RILight:
+        return "LIGHT"
+    elif T is RICamera:
+        return "CAMERA"
+    elif T is RIHair:
+        return "HAIR"
+    return "NONE"
 
 
 def find_linked_objects(object: RIObject):
@@ -1323,6 +1334,7 @@ def get_extended_skin_bones_tree(prop: RIObject, deduplicate=False):
     defs = []
     for obj in objects:
         SC = obj.GetSkeletonComponent()
+        root = SC.GetRootBone()
         skin_bones = SC.GetSkinBones()
         if skin_bones:
             num_bones = 0
@@ -1330,12 +1342,16 @@ def get_extended_skin_bones_tree(prop: RIObject, deduplicate=False):
                 if bone.GetName():
                     num_bones += 1
             bone: RINode
+            if num_bones > 0:
+                link_id = get_link_id(obj, add_if_missing=True)
             for bone in skin_bones:
                 if bone.GetID() not in bone_defs:
                     bone_name = bone.GetName()
                     if bone_name:
                         bone_def = {
                             "bone": bone,
+                            "object": obj,
+                            "root": bone.GetID() == root.GetID(),
                             "name": bone_name,
                             "children": [],
                         }
@@ -1374,7 +1390,7 @@ def extract_mesh_bones_from_tree(bone_def, mesh_bones=None):
 def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None):
     if skin_bones is None:
         skin_bones = []
-    bone: RINode = bone_def.pop("bone")
+    bone: RINode = bone_def["bone"]
     skin_bones.append(bone)
     children = bone.GetChildren()
     # go through bones in the correct order
@@ -1385,18 +1401,70 @@ def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None):
     done = []
     for child in children:
         for child_def in bone_def["children"]:
-            if "bone" in child_def:
-                child_bone = child_def["bone"]
-                if child_bone.GetID() == child.GetID():
-                    extract_skin_bones_from_tree(child_def, skin_bones)
-                    done.append(child_def)
-                    break
+            child_bone = child_def["bone"]
+            if child_def not in done and child_bone.GetID() == child.GetID():
+                extract_skin_bones_from_tree(child_def, skin_bones)
+                done.append(child_def)
+                break
         # bones not explicitly children of the node are sub props
         for child_def in bone_def["children"]:
-            if child_def not in done and "bone" in child_def:
+            if child_def not in done:
                 extract_skin_bones_from_tree(child_def, skin_bones)
                 done.append(child_def)
     return skin_bones
+
+
+def rl_export_bone_name(bone_name):
+    bone_name = bone_name.replace(' ', '_')
+    bone_name = bone_name.replace('(', '_')
+    bone_name = bone_name.replace(')', '_')
+    bone_name = bone_name.replace('&', '_')
+    return bone_name
+
+
+def extract_root_bones_from_tree(bone_def: dict, root_bones=None, names=None):
+    if root_bones is None:
+        root_bones = []
+    if names is None:
+        names = {}
+    bone: RINode = bone_def["bone"]
+    name: str = bone_def["name"]
+    if name not in names:
+        names[name] = 0
+    count = names[name]
+    names[name] += 1
+    if bone_def["root"]:
+        export_name = rl_export_bone_name(name)
+        blender_name = f"{export_name}.{count:03d}" if count > 0 else export_name
+        obj = bone_def["object"]
+        link_id = get_link_id(obj, add_if_missing=True)
+        root_bones.append({
+            "Name": blender_name,
+            "Original Name": name,
+            "Object": obj.GetName(),
+            "Type": get_object_type(obj),
+            "Link_ID": link_id,
+        })
+    children = bone.GetChildren()
+    # go through bones in the correct order
+    #       very important to recreate bone structure in Blender,
+    #       as it is impossible to match duplicate bone names
+    #       unless the order and hierarchy of the bones matches the
+    #       exported armature *exactly*.
+    done = []
+    for child in children:
+        for child_def in bone_def["children"]:
+            child_bone = child_def["bone"]
+            if child_def not in done and child_bone.GetID() == child.GetID():
+                extract_root_bones_from_tree(child_def, root_bones, names)
+                done.append(child_def)
+                break
+        # bones not explicitly children of the node are sub props
+        for child_def in bone_def["children"]:
+            if child_def not in done:
+                extract_root_bones_from_tree(child_def, root_bones, names)
+                done.append(child_def)
+    return root_bones
 
 
 def get_extended_skin_bones_tree_debug(obj: RIProp):

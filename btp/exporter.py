@@ -504,11 +504,15 @@ class Exporter:
     def export_extra_data(self):
         """TODO write sub-object link_id's"""
 
+        utils.log_info(self.json_path)
+        utils.log_info(self.fbx_path)
+        json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
+        root_json = json_data.get_root_json()
+
+        obj = self.avatar if self.avatar else self.prop
+        if not obj: return
+
         if self.avatar:
-            utils.log_info(self.json_path)
-            utils.log_info(self.fbx_path)
-            json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
-            root_json = json_data.get_root_json()
 
             mesh_materials = cc.get_avatar_mesh_materials(self.avatar, json_data=json_data)
 
@@ -566,23 +570,44 @@ class Exporter:
 
             self.update_progress(1, "Exported Additional Physics.", True)
 
-            # Update JSON data
-            utils.log(f"Re-writing JSON data: {self.json_path}")
-
-            json_data.write()
-
         elif self.prop:
-
-            json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
-            root_json = json_data.get_root_json()
 
             root_json["Avatar_Type"] = "Prop"
             root_json["Link_ID"] = cc.get_link_id(self.prop)
 
-            # Update JSON data
-            utils.log(f"Re-writing JSON data: {self.json_path}")
+        # Add sub object id's and root bones
+        info_json = []
+        child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+        objects = [obj]
+        objects.extend(child_objects)
+        root_def = cc.get_extended_skin_bones_tree(obj)
+        root_json["Root Bones"] = cc.extract_root_bones_from_tree(root_def)
+        for obj in objects:
+            obj_name = obj.GetName()
+            SC: RISkeletonComponent = obj.GetSkeletonComponent()
+            root_bone = SC.GetRootBone()
+            root_name = root_bone.GetName() if root_bone else ""
+            skin_bones = SC.GetSkinBones()
+            skin_bone_names = [ b.GetName() for b in skin_bones if b.GetName() ] if skin_bones else []
+            obj_type = cc.get_object_type(obj)
+            if obj_type != "NONE" and skin_bone_names:
+                id = cc.get_link_id(obj, add_if_missing=True)
+                info_obj_json = {
+                    "Link_ID": id,
+                    "Name": obj_name,
+                    "Type": obj_type,
+                    "Root": root_name,
+                    "Bones": skin_bone_names,
+                }
+                info_json.append(info_obj_json)
 
-            json_data.write()
+
+        root_json["Object_Info"] = info_json
+
+        # Update JSON data
+        utils.log(f"Re-writing JSON data: {self.json_path}")
+
+        json_data.write()
 
     def export_physics(self, mesh_materials):
         utils.log(f"Exporting Extra Physics Data")
