@@ -120,6 +120,16 @@ class LinkActor():
         self.name = name
         self.set_link_id(link_id)
 
+    def begin_editing(self):
+        FC = self.get_face_component()
+        if FC:
+            FC.BeginKeyEditing()
+
+    def end_editing(self):
+        FC = self.get_face_component()
+        if FC:
+            FC.EndKeyEditing()
+
     def get_skeleton_component(self) -> RISkeletonComponent:
         if self.object:
             if type(self.object) is RIAvatar or type(self.object) is RIProp:
@@ -459,8 +469,8 @@ def apply_pose(actor: LinkActor, time: RTime, pose_data, t_pose_data):
             #apply_world_ik_pose(SC, clip, current_time, pose_data)
             scene_time = clip.ClipTimeToSceneTime(clip_time)
             SC.BakeFkToIk(scene_time, False)
-            avatar.Update()
-            RGlobal.ObjectModified(avatar, EObjectModifiedType_Transform)
+            #avatar.Update()
+            #RGlobal.ObjectModified(avatar, EObjectModifiedType_Transform)
 
 
 
@@ -656,12 +666,12 @@ def apply_shapes(actor: LinkActor, time: RTime, shape_weights: list):
     if FC and actor.expressions:
         expressions = [expression for expression in actor.expressions]
         strengths = [shape_weights[idx] for idx in actor.expressions.values()]
-        FC.BeginKeyEditing()
+        #FC.BeginKeyEditing()
         FC.AddExpressivenessKey(time, 1.0)
         res = FC.AddExpressionKeys(time, expressions, strengths, RTime.FromValue(1))
         if res.IsError():
             utils.log_error("Failed to set expressions")
-        FC.EndKeyEditing()
+        #FC.EndKeyEditing()
 
     # can only have one active viseme key at a time?
     # disabled for now: viseme's need their own system...
@@ -1191,7 +1201,7 @@ class DataLink(QObject):
         self.button_send = qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon=self.icon_avatar, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         self.button_pose = qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_animation = qt.button(grid, "Send Motion", self.send_motion, row=1, col=1, icon="Animation.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_animation = qt.button(grid, "Send Motion", self.send_motion_export, row=1, col=1, icon="Animation.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
         self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence, row=2, col=0, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         if cc.is_cc():
@@ -1220,6 +1230,7 @@ class DataLink(QObject):
         qt.label(grid, "Link ID", style=qt.STYLE_BOLD, row=1, col=0)
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
 
+        qt.button(layout, "Bone Test", tests.bone_test)
         #qt.button(layout, "IK Effectors", tests.end_effectors)
         #qt.button(layout, "Print", tests.bone_tree)
         #qt.button(layout, "Prop Clip", tests.prop_clip_test)
@@ -1727,25 +1738,40 @@ class DataLink(QObject):
             elif actor.is_camera():
                 self.send_camera()
 
-    def send_motion(self):
+    def send_motion_export(self):
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
-            self.update_link_status(f"Sending Animation: {actor.name}")
-            self.send_notify(f"Exporting Motion: {actor.name}")
-            export_path = self.get_export_path(actor.name, actor.name + ".fbx")
+            motion_name = actor.name + "_motion"
+            self.update_link_status(f"Sending Animation: {motion_name}")
+            self.send_notify(f"Exporting Motion: {motion_name}")
+            export_path = self.get_export_path(motion_name, motion_name + ".fbx")
             utils.log_info(f"Exporting Character: {export_path}")
             #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
             export = exporter.Exporter(actor.object, no_window=True)
             export.set_datalink_motion_export(export_path)
             export.export_motion_fbx()
             time.sleep(0.5)
-            self.send_notify(f"Motion Import: {actor.name}")
+            self.send_notify(f"Motion Import: {motion_name}")
+            fps: RFps = RGlobal.GetFps()
+            start_time: RTime = RGlobal.GetStartTime()
+            end_time: RTime = RGlobal.GetEndTime()
+            start_frame = fps.GetFrameIndex(start_time)
+            end_frame = fps.GetFrameIndex(end_time)
+            current_time: RTime = RGlobal.GetTime()
+            current_frame = fps.GetFrameIndex(current_time)
             export_data = encode_from_json({
                 "path": export_path,
                 "name": actor.name,
                 "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
+                "fps": fps.ToFloat(),
+                "start_time": start_time.ToFloat(),
+                "end_time": end_time.ToFloat(),
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "time": current_time.ToFloat(),
+                "frame": current_frame,
             })
             self.send(OpCodes.MOTION, export_data)
 
@@ -2448,9 +2474,12 @@ class DataLink(QObject):
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
             set_transform_control(time, actor.object, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
+            actor.begin_editing()
             apply_shapes(actor, time, actor_data["shapes"])
+            apply_shapes(actor, time2, actor_data["shapes"])
             apply_pose(actor, time, actor_data["pose"], actor.t_pose)
             apply_pose(actor, time2, actor_data["pose"], actor.t_pose)
+            actor.end_editing()
         # set the scene time to the end of the clip(s)
         RGlobal.SetTime(time2)
         RGlobal.ForceViewportUpdate()
@@ -2483,10 +2512,11 @@ class DataLink(QObject):
             actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
             if actor:
                 self.prep_actor_clip(actor, start_time, num_frames, start_frame, end_frame)
+                actor.begin_editing()
                 actors.append(actor)
         self.data.sequence_actors = actors
         # move to end of range
-        #RGlobal.SetTime(get_frame_time(self.data.sequence_end_frame))
+        RGlobal.SetTime(get_frame_time(self.data.sequence_end_frame))
         # start the sequence
         self.start_sequence()
         #utils.start_timer("apply_world_fk_pose")
@@ -2508,7 +2538,6 @@ class DataLink(QObject):
             actor: LinkActor = actor_data["actor"]
             apply_shapes(actor, scene_time, actor_data["shapes"])
             apply_pose(actor, scene_time, actor_data["pose"], actor.t_pose)
-        RGlobal.SetTime(scene_time)
         # send sequence frame ack
         self.send_sequence_ack(frame)
 
@@ -2529,6 +2558,9 @@ class DataLink(QObject):
         scene_end_time = get_frame_time(self.data.sequence_end_frame)
         self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
         RGlobal.Play(scene_start_time, scene_end_time)
+        actor: LinkActor
+        for actor in self.data.sequence_actors:
+            actor.end_editing()
         #utils.log_timer("apply_world_fk_pose", name="apply_world_fk_pose")
         #utils.log_timer("try_get_pose_bone", name="try_get_pose_bone")
         #utils.log_timer("fetch_transforms", name="fetch_transforms")

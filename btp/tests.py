@@ -22,6 +22,17 @@ from . import cc, utils
 BONES = []
 
 
+
+def bone_test():
+    for obj in RScene.GetSelectedObjects():
+        SC: RISkeletonComponent = obj.GetSkeletonComponent()
+        bones = SC.GetSkinBones()
+        for bone in bones:
+            if bone.GetName() == "CC_Base_L_ToeBase":
+                pos = SC.GetBoneTPosePosition(bone)
+                pos.y + 100
+                SC.SetBoneTPosePosition(bone, pos)
+
 def prop_clip_test():
     for obj in RScene.GetSelectedObjects():
         RGlobal.RemoveAllAnimations(obj)
