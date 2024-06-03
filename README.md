@@ -78,6 +78,7 @@ Changelog
     - Adds prop structure data to json export.
 - Send Motion to Blender character/prop (direct motion export/import).
 - More robust & partial name matching for json meshes and materials.
+- iC motion export settings fix.
 
 ### 2.0.7
 - Datalink receives facial expression data for pose and sequence.
