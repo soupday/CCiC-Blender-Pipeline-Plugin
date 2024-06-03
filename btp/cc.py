@@ -1319,6 +1319,27 @@ def find_prop_by_id(prop_id):
     return None
 
 
+def deduplicate_scene():
+    objects = RScene.FindObjects(EObjectType_Avatar |
+                                 EObjectType_Prop |
+                                 EObjectType_Light |
+                                 EObjectType_Camera)
+    names = {}
+    ids_done = []
+    for obj in objects:
+        obj_id = obj.GetID()
+        if obj_id not in ids_done:
+            ids_done.append(obj_id)
+            name = obj.GetName()
+            if name not in names:
+                names[name] = 1
+            else:
+                print(f"Deduplicating sub-item name: {name}")
+                count = names[name]
+                names[name] += 1
+                obj.SetName(f"{name}_{count:03d}")
+
+
 def get_mesh_skin_bones(obj, skin_bones):
     sub_objects = [obj]
     sub_objects.extend(RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory))

@@ -1730,6 +1730,7 @@ class DataLink(QObject):
         return
 
     def send_actor(self):
+        #cc.deduplicate_scene()
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
