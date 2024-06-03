@@ -1460,12 +1460,15 @@ def extract_mesh_bones_from_tree(bone_def, mesh_bones=None):
     return mesh_bones
 
 
-def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None):
+def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None, mesh_bones=None, extract_mesh=True):
     if skin_bones is None:
         skin_bones = []
-    bone: RINode = bone_def["bone"]
-    skin_bones.append(bone)
-    children = bone.GetChildren()
+    if mesh_bones is None:
+        mesh_bones = []
+    to_remove = []
+    child_bone: RINode = bone_def["bone"]
+    skin_bones.append(child_bone)
+    children = child_bone.GetChildren()
     # go through bones in the correct order
     #       very important to recreate bone structure in Blender,
     #       as it is impossible to match duplicate bone names
@@ -1476,15 +1479,24 @@ def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None):
         for child_def in bone_def["children"]:
             child_bone = child_def["bone"]
             if child_def not in done and child_bone.GetID() == child.GetID():
+                if extract_mesh and not child_def["children"]:
+                    mesh_bones.append(child_bone)
+                    to_remove.append(child_def)
                 extract_skin_bones_from_tree(child_def, skin_bones)
                 done.append(child_def)
                 break
         # bones not explicitly children of the node are sub props
         for child_def in bone_def["children"]:
+            child_bone = child_def["bone"]
             if child_def not in done:
+                if extract_mesh and not child_def["children"]:
+                    mesh_bones.append(child_bone)
+                    to_remove.append(child_def)
                 extract_skin_bones_from_tree(child_def, skin_bones)
                 done.append(child_def)
-    return skin_bones
+    for child_def in to_remove:
+        bone_def["children"].remove(child_def)
+    return skin_bones, mesh_bones
 
 
 def rl_export_bone_name(bone_name):

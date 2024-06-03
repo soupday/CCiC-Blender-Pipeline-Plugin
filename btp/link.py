@@ -1893,11 +1893,8 @@ class DataLink(QObject):
             VC: RIVisemeComponent = actor.get_viseme_component()
             MC: RIMorphComponent = actor.get_morph_component()
             skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
-            if actor.get_type() == "PROP":
-                skin_meshes = cc.extract_mesh_bones_from_tree(skin_bone_tree)
-            else:
-                skin_meshes = []
-            skin_bones = cc.extract_skin_bones_from_tree(skin_bone_tree)
+            is_prop = actor.get_type() == "PROP"
+            skin_bones, skin_meshes = cc.extract_skin_bones_from_tree(skin_bone_tree, extract_mesh=is_prop)
             actor.skin_bones = skin_bones
             actor.skin_meshes = skin_meshes
             bones = []

@@ -333,10 +333,10 @@ class Exporter:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            if prefs.CC_EXPORT_MODE == "Current Pose":
+            if prefs.IC_EXPORT_MODE == "Current Pose":
                 self.option_current_animation = False
                 self.option_current_pose = True
-            elif prefs.CC_EXPORT_MODE == "Animation":
+            elif prefs.IC_EXPORT_MODE == "Animation":
                 self.option_current_animation = True
                 self.option_current_pose = False
             else:
@@ -423,16 +423,18 @@ class Exporter:
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
-        if self.option_current_animation:
-            fps = RGlobal.GetFps()
-            start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
-            end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        # determine if any frames to export
+        fps = RGlobal.GetFps()
+        start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
+        end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        num_frames = end_frame - start_frame
+        #
+        if self.option_current_animation and num_frames > 0:
             export_fbx_setting.EnableExportMotion(True)
             export_fbx_setting.SetExportMotionFps(RFps.Fps60)
             export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
-            utils.log_info(f"Exporting with current animation: {start_frame} - {end_frame}")
-        elif self.option_current_pose:
-            fps = RGlobal.GetFps()
+            utils.log_info(f"Exporting with current animation: {num_frames}")
+        elif self.option_current_pose and num_frames > 0:
             export_fbx_setting.EnableExportMotion(True)
             frame = fps.GetFrameIndex(RGlobal.GetTime())
             export_fbx_setting.SetExportMotionRange(RRangePair(frame, frame))
