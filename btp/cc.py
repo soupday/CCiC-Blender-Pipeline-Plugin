@@ -267,13 +267,30 @@ class CCMeshJson():
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
-        for mat_name in self.materials:
-            if mat_name in try_names:
-                return mat_name
-            if mat_name.endswith("_Transparency"):
-                trunc_mat_name = mat_name[:-13]
-                if trunc_mat_name in try_names:
-                    return mat_name
+        if search_mat_name.endswith("_Transparency"):
+            try_names.add(search_mat_name[:-13])
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
+                return json_mat_name
+        # try a partial match, but only if there is only one result
+        partial_mat_name = None
+        partial_mat_count = 0
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            for try_name in try_names:
+                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                    partial_mat_count += 1
+                    if not partial_mat_name:
+                        partial_mat_name = json_mat_name
+                    # only count 1 match per try set
+                    break
+        if partial_mat_count == 1:
+            return partial_mat_name
         return None
 
     def find_material(self, search_mat_name):
@@ -334,13 +351,30 @@ class CCPhysicsMeshJson():
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
-        for mat_name in self.materials:
-            if mat_name in try_names:
-                return mat_name
-            if mat_name.endswith("_Transparency"):
-                trunc_mat_name = mat_name[:-13]
-                if trunc_mat_name in try_names:
-                    return mat_name
+        if search_mat_name.endswith("_Transparency"):
+            try_names.add(search_mat_name[:-13])
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
+                return json_mat_name
+        # try a partial match, but only if there is only one result
+        partial_mat_name = None
+        partial_mat_count = 0
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            for try_name in try_names:
+                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                    partial_mat_count += 1
+                    if not partial_mat_name:
+                        partial_mat_name = json_mat_name
+                    # only count 1 match per try set
+                    break
+        if partial_mat_count == 1:
+            return partial_mat_name
         return None
 
     def find_material(self, search_mat_name):
@@ -465,7 +499,7 @@ class CCJsonData():
     def get_character_type(self):
         character_type = "STANDARD"
         generation = self.get_character_generation().lower()
-        if generation == "humanoid" or generation == "":
+        if generation == "humanoid" or generation == "" or generation == "rigify" or generation == "rigify+":
             character_type = "HUMANOID"
         elif generation == "actorcore" or generation == "actorbuild" or generation == "actorscan":
             character_type = "HUMANOID"
@@ -510,6 +544,20 @@ class CCJsonData():
         for mesh_name in self.meshes:
             if mesh_name in try_names:
                 return mesh_name
+        print(try_names)
+        # try a partial match, but only if there is only one result
+        partial_mesh_name = None
+        partial_mesh_count = 0
+        for mesh_name in self.meshes:
+            for try_name in try_names:
+                if try_name in mesh_name:
+                    partial_mesh_count += 1
+                    if not partial_mesh_name:
+                        partial_mesh_name = mesh_name
+                    # only count 1 match per try set
+                    break
+        if partial_mesh_count == 1:
+            return partial_mesh_name
         return None
 
     def find_mesh(self, search_mesh_name, search_obj_name = None):
@@ -822,10 +870,14 @@ class CCMeshMaterial():
                 self.mat_json = self.mesh_json.find_material(self.mat_name)
                 if self.mat_json:
                     self.json_mat_name = self.mat_json.name
+                else:
+                    utils.log_warn(f"Material JSON {self.mat_name} not found!")
                 if self.physx_object:
                     self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name)
                     if self.physx_mesh_json:
                         self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name)
+            else:
+                utils.log_warn(f"Mesh JSON {self.obj_name}/{self.mesh_name} not found!")
 
 
 
@@ -914,7 +966,7 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
                     if material_filter and material_filter(mesh_name):
                         continue
 
-                    utils.log_info(f"Mesh/Material: {mesh_name} / {mat_name}")
+                    utils.log_info(f"Mesh / Material: {mesh_name} / {mat_name}")
                     utils.log_indent()
 
                     physics_object, physics_component = get_actor_physics_object(avatar, mesh_name, mat_name)

@@ -125,10 +125,12 @@ class LinkActor():
         if FC:
             FC.BeginKeyEditing()
 
-    def end_editing(self):
+    def end_editing(self, time):
         FC = self.get_face_component()
         if FC:
             FC.EndKeyEditing()
+        SC = self.get_skeleton_component()
+        SC.BakeFkToIk(time, True)
 
     def get_skeleton_component(self) -> RISkeletonComponent:
         if self.object:
@@ -996,8 +998,8 @@ class LinkService(QObject):
 
     def service_stop(self):
         self.send(OpCodes.STOP)
-        self.stop_timer()
         self.stop_client()
+        self.stop_timer()
         self.stop_server()
 
     def service_lost(self):
@@ -1230,10 +1232,11 @@ class DataLink(QObject):
         qt.label(grid, "Link ID", style=qt.STYLE_BOLD, row=1, col=0)
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
 
-        qt.button(layout, "Bone Test", tests.bone_test)
-        #qt.button(layout, "IK Effectors", tests.end_effectors)
-        #qt.button(layout, "Print", tests.bone_tree)
-        #qt.button(layout, "Prop Clip", tests.prop_clip_test)
+        if vars.DEV:
+            qt.button(layout, "Bone Test", tests.load_motion)
+            #qt.button(layout, "IK Effectors", tests.end_effectors)
+            #qt.button(layout, "Print", tests.bone_tree)
+            #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
         self.update_ui()
@@ -1441,6 +1444,7 @@ class DataLink(QObject):
 
     def update_link_status(self, text):
         self.label_status.setText(text)
+        #utils.log_info(text)
 
     def update_host(self):
         if self.textbox_host:
@@ -2262,6 +2266,8 @@ class DataLink(QObject):
         start_frame = frame_data["start_frame"]
         end_frame = frame_data["end_frame"]
         current_frame = frame_data["current_frame"]
+        end_frame = max(current_frame, end_frame)
+        start_frame = min(current_frame, start_frame)
         start_time = get_frame_time(start_frame)
         end_time = get_frame_time(end_frame)
         current_time = get_frame_time(current_frame)
@@ -2442,9 +2448,11 @@ class DataLink(QObject):
         end_frame = json_data["end_frame"]
         # sequence frame range
         self.data.pose_frame = frame
+        end_frame = max(frame + 1, end_frame)
+        start_frame = min(frame, start_frame)
         start_time = get_frame_time(start_frame)
         end_time = get_frame_time(end_frame)
-        time = get_frame_time(frame)
+        frame_time = get_frame_time(frame)
         # move to the start frame
         RGlobal.SetStartTime(start_time)
         RGlobal.SetEndTime(end_time)
@@ -2457,7 +2465,7 @@ class DataLink(QObject):
             link_id = actor_data["link_id"]
             actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
             if actor:
-                self.prep_actor_clip(actor, time, 1, start_frame, end_frame)
+                self.prep_actor_clip(actor, frame_time, 1, start_frame, end_frame)
                 actors.append(actor)
         self.data.sequence_actors = actors
 
@@ -2467,21 +2475,25 @@ class DataLink(QObject):
             return
         frame = pose_frame_data["frame"]
         has_timeline = True
-        time = get_frame_time(frame)
-        time2 = get_frame_time(frame+1)
+        scene_time = get_frame_time(frame)
+        scene_time2 = get_frame_time(frame+1)
+        if scene_time2 > RGlobal.GetEndTime():
+            RGlobal.SetEndTime(scene_time2)
+        if scene_time < RGlobal.GetStartTime():
+            RGlobal.SetStartTime(scene_time)
         self.update_link_status(f"Pose Data Recevied: {frame}")
         # update all actor poses
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
-            set_transform_control(time, actor.object, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
+            set_transform_control(scene_time, actor.object, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
             actor.begin_editing()
-            apply_shapes(actor, time, actor_data["shapes"])
-            apply_shapes(actor, time2, actor_data["shapes"])
-            apply_pose(actor, time, actor_data["pose"], actor.t_pose)
-            apply_pose(actor, time2, actor_data["pose"], actor.t_pose)
-            actor.end_editing()
+            apply_shapes(actor, scene_time, actor_data["shapes"])
+            apply_shapes(actor, scene_time2, actor_data["shapes"])
+            apply_pose(actor, scene_time, actor_data["pose"], actor.t_pose)
+            apply_pose(actor, scene_time2, actor_data["pose"], actor.t_pose)
+            actor.end_editing(scene_time)
         # set the scene time to the end of the clip(s)
-        RGlobal.SetTime(time2)
+        RGlobal.SetTime(scene_time2)
         RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
@@ -2495,7 +2507,6 @@ class DataLink(QObject):
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame + 1
         start_time = get_frame_time(self.data.sequence_start_frame)
         end_time = get_frame_time(self.data.sequence_end_frame)
-
         # move to start of timeline
         RScene.ClearSelectObjects()
         RGlobal.SetStartTime(start_time)
@@ -2530,6 +2541,10 @@ class DataLink(QObject):
         RScene.ClearSelectObjects()
         frame = sequence_frame_data["frame"]
         scene_time = get_frame_time(frame)
+        if scene_time > RGlobal.GetEndTime():
+            RGlobal.SetEndTime(scene_time)
+        if scene_time < RGlobal.GetStartTime():
+            RGlobal.SetStartTime(scene_time)
         self.data.sequence_current_frame_time = scene_time
         self.data.sequence_current_frame = frame
         self.update_link_status(f"Sequence Frame: {frame} Received")
@@ -2553,14 +2568,14 @@ class DataLink(QObject):
     def receive_sequence_end(self, data):
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         self.stop_sequence()
-        self.data.sequence_actors = None
         scene_start_time = get_frame_time(self.data.sequence_start_frame)
         scene_end_time = get_frame_time(self.data.sequence_end_frame)
-        self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
-        RGlobal.Play(scene_start_time, scene_end_time)
         actor: LinkActor
         for actor in self.data.sequence_actors:
-            actor.end_editing()
+            actor.end_editing(scene_start_time)
+        self.data.sequence_actors = None
+        self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
+        RGlobal.Play(scene_start_time, scene_end_time)
         #utils.log_timer("apply_world_fk_pose", name="apply_world_fk_pose")
         #utils.log_timer("try_get_pose_bone", name="try_get_pose_bone")
         #utils.log_timer("fetch_transforms", name="fetch_transforms")

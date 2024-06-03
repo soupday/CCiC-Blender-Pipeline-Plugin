@@ -21,6 +21,12 @@ from . import cc, utils
 
 BONES = []
 
+def load_motion():
+    av = cc.get_first_avatar()
+    file_path = RLPy.RUi.OpenFileDialog("Model Files(*.fbx *.obj)")
+    print(file_path)
+    args = RLPy.EImportFbxOption__None
+    RFileIO.LoadFbxFile(file_path, args)
 
 
 def bone_test():
