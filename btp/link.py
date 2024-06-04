@@ -1233,9 +1233,9 @@ class DataLink(QObject):
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
 
         if vars.DEV:
-            qt.button(layout, "Bone Test", tests.load_motion)
+            #qt.button(layout, "Bone Test", tests.load_motion)
             #qt.button(layout, "IK Effectors", tests.end_effectors)
-            #qt.button(layout, "Print", tests.bone_tree)
+            qt.button(layout, "Print", tests.bone_tree)
             #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
