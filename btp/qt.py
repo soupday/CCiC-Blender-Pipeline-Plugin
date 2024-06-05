@@ -34,6 +34,7 @@ STYLE_RL_TAB = "background-color: none; color: white; font: bold"
 STYLE_RL_TAB_SELECTED = "background-color: gray; color: white; font: bold"
 TINY_TEXT = "font: bold 4px"
 BUTTON_HEIGHT = 32
+ALIGN_LEFT = Qt.AlignLeft
 ALIGN_CENTRE = Qt.AlignCenter
 HORIZONTAL = Qt.Horizontal
 ICON_BUTTON_HEIGHT = 64

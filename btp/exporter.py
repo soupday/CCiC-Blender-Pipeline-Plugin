@@ -63,6 +63,7 @@ class Exporter:
     option_hik_data = False
     option_profile_data = False
     option_remove_hidden = False
+    option_animation_only = False
     preset_button_1 = None
     preset_button_2 = None
     preset_button_3 = None
@@ -247,21 +248,20 @@ class Exporter:
                                 "Export the full character in the current pose, " +
                                 "for accessory creation or replacement mesh editing.\n")
         self.option_t_pose = False
-        self.option_current_pose = True
-        self.option_current_animation = False
+        self.option_current_pose = prefs.CC_EXPORT_MODE != "Animation"
+        self.option_current_animation = prefs.CC_EXPORT_MODE == "Animation"
+        self.option_profile_data = False
+        self.option_hik_data = prefs.CC_USE_HIK_PROFILE
         if cc.is_cc():
             self.option_bakehair = prefs.CC_BAKE_TEXTURES
             self.option_bakeskin = prefs.CC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
-            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+
             self.check_non_standard_export()
         else:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
-            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
         self.update_options()
 
     def preset_unity(self):
@@ -333,10 +333,10 @@ class Exporter:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            if prefs.CC_EXPORT_MODE == "Current Pose":
+            if prefs.IC_EXPORT_MODE == "Current Pose":
                 self.option_current_animation = False
                 self.option_current_pose = True
-            elif prefs.CC_EXPORT_MODE == "Animation":
+            elif prefs.IC_EXPORT_MODE == "Animation":
                 self.option_current_animation = True
                 self.option_current_pose = False
             else:
@@ -344,6 +344,18 @@ class Exporter:
                 self.option_current_pose = False
             self.option_hik_data = prefs.IC_USE_HIK_PROFILE
             self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+        self.set_paths(file_path)
+
+    def set_datalink_motion_export(self, file_path):
+        self.option_t_pose = False
+        self.option_bakehair = False
+        self.option_bakeskin = False
+        self.option_remove_hidden = False
+        self.option_current_animation = True
+        self.option_current_pose = False
+        self.option_hik_data = False
+        self.option_profile_data = False
+        self.option_animation_only = True
         self.set_paths(file_path)
 
     def do_export(self):
@@ -361,32 +373,33 @@ class Exporter:
     def export_fbx(self):
 
         if self.avatar:
+            obj = self.avatar
+            is_avatar = True
+        elif self.prop:
+            obj = self.prop
+            is_avatar = False
+        else:
+            utils.log_error("No avatar or prop to export!")
+            return
+
+        if is_avatar:
             self.create_progress_window()
             self.update_progress(0, "Exporting character Fbx...", True)
-            self.export_avatar_fbx()
-            self.update_progress(3, "Exported character Fbx.", True)
-            self.export_extra_data()
-            self.close_progress_window()
-        elif self.prop:
-            self.export_prop_fbx()
-            self.export_extra_data()
 
-    def export_avatar_fbx(self):
-
-        avatar = self.avatar
         file_path = self.fbx_path
 
-        utils.log(f"Exporting Avatar FBX: {file_path}")
+        utils.log(f"Exporting {('Avatar' if is_avatar else 'Prop')} FBX: {file_path}")
 
         options1 = EExportFbxOptions__None
         options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
         options1 = options1 | EExportFbxOptions_RemoveAllUnused
         options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
         options1 = options1 | EExportFbxOptions_ExportRootMotion
-        if self.option_remove_hidden:
-            options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
-        else:
-            options1 = options1 | EExportFbxOptions_FbxKey
+        if is_avatar:
+            if self.option_remove_hidden:
+                options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
+            else:
+                options1 = options1 | EExportFbxOptions_FbxKey
 
         options2 = EExportFbxOptions2__None
         options2 = options2 | EExportFbxOptions2_ResetBoneScale
@@ -402,23 +415,26 @@ class Exporter:
         export_fbx_setting.SetOption2(options2)
         export_fbx_setting.SetOption3(options3)
 
-        export_fbx_setting.EnableBakeDiffuseSpecularFromShader(self.option_bakehair)
-        export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
-        export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
+        if is_avatar:
+            export_fbx_setting.EnableBakeDiffuseSpecularFromShader(self.option_bakehair)
+            export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
+            export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
 
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
-        if self.option_current_animation:
-            fps = RGlobal.GetFps()
-            start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
-            end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        # determine if any frames to export
+        fps = RGlobal.GetFps()
+        start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
+        end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        num_frames = end_frame - start_frame
+        #
+        if self.option_current_animation and num_frames > 0:
             export_fbx_setting.EnableExportMotion(True)
             export_fbx_setting.SetExportMotionFps(RFps.Fps60)
             export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
-            utils.log_info(f"Exporting with current animation: {start_frame} - {end_frame}")
-        elif self.option_current_pose:
-            fps = RGlobal.GetFps()
+            utils.log_info(f"Exporting with current animation: {num_frames}")
+        elif self.option_current_pose and num_frames > 0:
             export_fbx_setting.EnableExportMotion(True)
             frame = fps.GetFrameIndex(RGlobal.GetTime())
             export_fbx_setting.SetExportMotionRange(RRangePair(frame, frame))
@@ -427,50 +443,77 @@ class Exporter:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
 
-        result = RFileIO.ExportFbxFile(avatar, file_path, export_fbx_setting)
+        result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
 
-    def export_prop_fbx(self):
+        if is_avatar:
+            self.update_progress(3, "Exported character Fbx.", True)
 
-        prop = self.prop
+        self.export_extra_data()
+
+        if is_avatar:
+            self.close_progress_window()
+
+    def export_motion_fbx(self):
+
         file_path = self.fbx_path
 
-        utils.log(f"Exporting Prop FBX: {file_path}")
+        if self.avatar:
+            obj = self.avatar
+            is_avatar = True
+        elif self.prop:
+            obj = self.prop
+            is_avatar = False
+
+        utils.log(f"Exporting Motion FBX: {file_path}")
 
         options1 = EExportFbxOptions__None
-        options1 = options1 | EExportFbxOptions_FbxKey
+
         options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
         options1 = options1 | EExportFbxOptions_RemoveAllUnused
-        options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
+        if is_avatar:
+            options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
         options1 = options1 | EExportFbxOptions_ExportRootMotion
-        if self.option_remove_hidden:
-            options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
 
         options2 = EExportFbxOptions2__None
         options2 = options2 | EExportFbxOptions2_ResetBoneScale
         options2 = options2 | EExportFbxOptions2_ResetSelfillumination
 
         options3 = EExportFbxOptions3__None
-        options3 = options3 | EExportFbxOptions3_ExportJson
-        options3 = options3 | EExportFbxOptions3_ExportVertexColor
 
         export_fbx_setting = RExportFbxSetting()
 
         export_fbx_setting.SetOption(options1)
         export_fbx_setting.SetOption2(options2)
         export_fbx_setting.SetOption3(options3)
+
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
+        if is_avatar:
+            export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
+        else:
+            export_fbx_setting.EnableBasicBindPose(True)
 
-        result = RFileIO.ExportFbxFile(prop, file_path, export_fbx_setting)
+        fps = RGlobal.GetFps()
+        start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
+        end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        export_fbx_setting.EnableExportMotion(True)
+        export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+        export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
+
+        result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
 
     def export_extra_data(self):
         """TODO write sub-object link_id's"""
 
+        utils.log_info(self.json_path)
+        utils.log_info(self.fbx_path)
+        json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
+        root_json = json_data.get_root_json()
+
+        obj = self.avatar if self.avatar else self.prop
+        if not obj: return
+
         if self.avatar:
-            utils.log_info(self.json_path)
-            utils.log_info(self.fbx_path)
-            json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
-            root_json = json_data.get_root_json()
 
             mesh_materials = cc.get_avatar_mesh_materials(self.avatar, json_data=json_data)
 
@@ -528,23 +571,44 @@ class Exporter:
 
             self.update_progress(1, "Exported Additional Physics.", True)
 
-            # Update JSON data
-            utils.log(f"Re-writing JSON data: {self.json_path}")
-
-            json_data.write()
-
         elif self.prop:
-
-            json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
-            root_json = json_data.get_root_json()
 
             root_json["Avatar_Type"] = "Prop"
             root_json["Link_ID"] = cc.get_link_id(self.prop)
 
-            # Update JSON data
-            utils.log(f"Re-writing JSON data: {self.json_path}")
+        # Add sub object id's and root bones
+        info_json = []
+        child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+        objects = [obj]
+        objects.extend(child_objects)
+        root_def = cc.get_extended_skin_bones_tree(obj)
+        root_json["Root Bones"] = cc.extract_root_bones_from_tree(root_def)
+        for obj in objects:
+            obj_name = obj.GetName()
+            SC: RISkeletonComponent = obj.GetSkeletonComponent()
+            root_bone = SC.GetRootBone()
+            root_name = root_bone.GetName() if root_bone else ""
+            skin_bones = SC.GetSkinBones()
+            skin_bone_names = [ b.GetName() for b in skin_bones if b.GetName() ] if skin_bones else []
+            obj_type = cc.get_object_type(obj)
+            if obj_type != "NONE" and skin_bone_names:
+                id = cc.get_link_id(obj, add_if_missing=True)
+                info_obj_json = {
+                    "Link_ID": id,
+                    "Name": obj_name,
+                    "Type": obj_type,
+                    "Root": root_name,
+                    "Bones": skin_bone_names,
+                }
+                info_json.append(info_obj_json)
 
-            json_data.write()
+
+        root_json["Object_Info"] = info_json
+
+        # Update JSON data
+        utils.log(f"Re-writing JSON data: {self.json_path}")
+
+        json_data.write()
 
     def export_physics(self, mesh_materials):
         utils.log(f"Exporting Extra Physics Data")

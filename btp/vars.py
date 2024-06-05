@@ -16,7 +16,8 @@
 
 from RLPy import *
 
-VERSION = "2.0.5"
+VERSION = "2.0.8"
+DEV = False
 
 AVATAR_TYPES = {
     EAvatarType__None: "None",

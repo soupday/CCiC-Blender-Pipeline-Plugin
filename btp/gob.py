@@ -16,6 +16,8 @@ def go_b():
     GOB_CONNECTED = False
     GOB_DONE = False
 
+    #cc.deduplicate_scene()
+
     objects = cc.get_selected_actor_objects()
 
     if cc.is_cc():

@@ -21,6 +21,36 @@ from . import cc, utils
 
 BONES = []
 
+def load_motion():
+    av = cc.get_first_avatar()
+    file_path = RLPy.RUi.OpenFileDialog("Model Files(*.fbx *.obj)")
+    print(file_path)
+    args = RLPy.EImportFbxOption__None
+    RFileIO.LoadFbxFile(file_path, args)
+
+
+def bone_test():
+    for obj in RScene.GetSelectedObjects():
+        SC: RISkeletonComponent = obj.GetSkeletonComponent()
+        bones = SC.GetSkinBones()
+        for bone in bones:
+            if bone.GetName() == "CC_Base_L_ToeBase":
+                pos = SC.GetBoneTPosePosition(bone)
+                pos.y + 100
+                SC.SetBoneTPosePosition(bone, pos)
+
+def prop_clip_test():
+    for obj in RScene.GetSelectedObjects():
+        RGlobal.RemoveAllAnimations(obj)
+        SC: RISkeletonComponent = obj.GetSkeletonComponent()
+        clip_count = SC.GetClipCount()
+        clip = SC.GetClip(0)
+        print(clip_count)
+        print(clip)
+        clip = SC.AddClip(RGlobal.GetTime())
+        print(clip)
+
+
 
 def get_control_position(avatar: RIAvatar, effector, clip: RIClip, time: RTime):
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
@@ -89,8 +119,10 @@ def write_json(json_data, path):
 
 def bone_tree():
     for obj in RScene.GetSelectedObjects():
-        tree = cc.get_extended_skin_bones_tree(obj)
+        cc.print_node_tree(obj)
+        tree = cc.get_extended_skin_bones_tree_debug(obj)
         write_json(tree, "f:\\tree.json")
+        os.startfile("f:\\tree.json")
         return
 
 

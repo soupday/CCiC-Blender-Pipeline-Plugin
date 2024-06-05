@@ -267,13 +267,30 @@ class CCMeshJson():
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
-        for mat_name in self.materials:
-            if mat_name in try_names:
-                return mat_name
-            if mat_name.endswith("_Transparency"):
-                trunc_mat_name = mat_name[:-13]
-                if trunc_mat_name in try_names:
-                    return mat_name
+        if search_mat_name.endswith("_Transparency"):
+            try_names.add(search_mat_name[:-13])
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
+                return json_mat_name
+        # try a partial match, but only if there is only one result
+        partial_mat_name = None
+        partial_mat_count = 0
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            for try_name in try_names:
+                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                    partial_mat_count += 1
+                    if not partial_mat_name:
+                        partial_mat_name = json_mat_name
+                    # only count 1 match per try set
+                    break
+        if partial_mat_count == 1:
+            return partial_mat_name
         return None
 
     def find_material(self, search_mat_name):
@@ -334,13 +351,30 @@ class CCPhysicsMeshJson():
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
-        for mat_name in self.materials:
-            if mat_name in try_names:
-                return mat_name
-            if mat_name.endswith("_Transparency"):
-                trunc_mat_name = mat_name[:-13]
-                if trunc_mat_name in try_names:
-                    return mat_name
+        if search_mat_name.endswith("_Transparency"):
+            try_names.add(search_mat_name[:-13])
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
+                return json_mat_name
+        # try a partial match, but only if there is only one result
+        partial_mat_name = None
+        partial_mat_count = 0
+        for json_mat_name in self.materials:
+            trunc_mat_name = None
+            if json_mat_name.endswith("_Transparency"):
+                trunc_mat_name = json_mat_name[:-13]
+            for try_name in try_names:
+                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                    partial_mat_count += 1
+                    if not partial_mat_name:
+                        partial_mat_name = json_mat_name
+                    # only count 1 match per try set
+                    break
+        if partial_mat_count == 1:
+            return partial_mat_name
         return None
 
     def find_material(self, search_mat_name):
@@ -358,6 +392,7 @@ class CCJsonData():
     file_name: str = ""
     character_id: str = ""
     json_data: dict = None
+    valid: bool = False
 
     meshes: dict = None
     physics_meshes: dict = None
@@ -370,6 +405,7 @@ class CCJsonData():
             self.parse()
 
     def read(self):
+        self.valid = False
         try:
             if os.path.exists(self.json_path):
                 utils.log(" - Loading Json data: " + self.json_path)
@@ -390,6 +426,7 @@ class CCJsonData():
                 self.json_data = json.loads(text_data)
                 file.close()
                 utils.log(" - Json data successfully parsed!")
+                self.valid = True
                 return True
 
             else:
@@ -462,7 +499,7 @@ class CCJsonData():
     def get_character_type(self):
         character_type = "STANDARD"
         generation = self.get_character_generation().lower()
-        if generation == "humanoid" or generation == "":
+        if generation == "humanoid" or generation == "" or generation == "rigify" or generation == "rigify+":
             character_type = "HUMANOID"
         elif generation == "actorcore" or generation == "actorbuild" or generation == "actorscan":
             character_type = "HUMANOID"
@@ -507,6 +544,20 @@ class CCJsonData():
         for mesh_name in self.meshes:
             if mesh_name in try_names:
                 return mesh_name
+        print(try_names)
+        # try a partial match, but only if there is only one result
+        partial_mesh_name = None
+        partial_mesh_count = 0
+        for mesh_name in self.meshes:
+            for try_name in try_names:
+                if try_name in mesh_name:
+                    partial_mesh_count += 1
+                    if not partial_mesh_name:
+                        partial_mesh_name = mesh_name
+                    # only count 1 match per try set
+                    break
+        if partial_mesh_count == 1:
+            return partial_mesh_name
         return None
 
     def find_mesh(self, search_mesh_name, search_obj_name = None):
@@ -819,10 +870,14 @@ class CCMeshMaterial():
                 self.mat_json = self.mesh_json.find_material(self.mat_name)
                 if self.mat_json:
                     self.json_mat_name = self.mat_json.name
+                else:
+                    utils.log_warn(f"Material JSON {self.mat_name} not found!")
                 if self.physx_object:
                     self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name)
                     if self.physx_mesh_json:
                         self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name)
+            else:
+                utils.log_warn(f"Mesh JSON {self.obj_name}/{self.mesh_name} not found!")
 
 
 
@@ -911,7 +966,7 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
                     if material_filter and material_filter(mesh_name):
                         continue
 
-                    utils.log_info(f"Mesh/Material: {mesh_name} / {mat_name}")
+                    utils.log_info(f"Mesh / Material: {mesh_name} / {mat_name}")
                     utils.log_indent()
 
                     physics_object, physics_component = get_actor_physics_object(avatar, mesh_name, mat_name)
@@ -1191,16 +1246,27 @@ def find_object_by_name_and_type(search_name, search_type=None):
     for obj in objects:
         if obj.GetName() == search_name:
             if search_type:
-                if search_type == "AVATAR" and type(obj) is RIAvatar:
-                    return obj
-                elif search_type == "PROP" and type(obj) is RIProp:
-                    return obj
-                elif search_type == "LIGHT" and type(obj) is RILight:
-                    return obj
-                elif search_type == "CAMERA" and type(obj) is RICamera:
+                if get_object_type(obj) == search_type:
                     return obj
             else:
                 return obj
+
+
+def get_object_type(obj):
+    T = type(obj)
+    if T is RIAvatar:
+        return "AVATAR"
+    elif T is RIProp:
+        return "PROP"
+    elif T is RIAccessory:
+        return "ACCESSORY"
+    elif T is RILight:
+        return "LIGHT"
+    elif T is RICamera:
+        return "CAMERA"
+    elif T is RIHair:
+        return "HAIR"
+    return "NONE"
 
 
 def find_linked_objects(object: RIObject):
@@ -1253,6 +1319,27 @@ def find_prop_by_id(prop_id):
     return None
 
 
+def deduplicate_scene():
+    objects = RScene.FindObjects(EObjectType_Avatar |
+                                 EObjectType_Prop |
+                                 EObjectType_Light |
+                                 EObjectType_Camera)
+    names = {}
+    ids_done = []
+    for obj in objects:
+        obj_id = obj.GetID()
+        if obj_id not in ids_done:
+            ids_done.append(obj_id)
+            name = obj.GetName()
+            if name not in names:
+                names[name] = 1
+            else:
+                print(f"Deduplicating sub-item name: {name}")
+                count = names[name]
+                names[name] += 1
+                obj.SetName(f"{name}_{count:03d}")
+
+
 def get_mesh_skin_bones(obj, skin_bones):
     sub_objects = [obj]
     sub_objects.extend(RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory))
@@ -1279,50 +1366,240 @@ def remove_pivot_mesh_bones(skin_bones):
     return skin_bones
 
 
-def get_extended_skin_bones(obj, skin_bones: list = None):
-    """Fetches the bones from the object and all child sub-objects"""
-    if skin_bones is None:
-        skin_bones = []
-    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
-    sub_map = { p.GetID(): p for p in sub_objects }
-    SC = obj.GetSkeletonComponent()
-    bones = SC.GetSkinBones()
-    for bone in bones:
-        skin_bones.append(bone)
-        for child in bone.GetChildren():
-            if child.GetID() in sub_map:
-                get_extended_skin_bones(sub_map[child.GetID()], skin_bones)
+def get_extended_skin_bones(obj, skin_bones: list=None, ignore_pivot=False):
+    """Fetches the bones from the object and all child sub-objects in no particular order"""
+    child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+    objects = [obj]
+    objects.extend(child_objects)
+    skin_bones = []
+    for obj in objects:
+        SC = obj.GetSkeletonComponent()
+        skin_bones = SC.GetSkinBones()
+        for bone in skin_bones:
+            if bone not in skin_bones:
+                skin_bones.append(bone)
     return skin_bones
 
 
-def get_extended_skin_bones_tree(obj):
-    skin_bones = get_extended_skin_bones(obj)
-    sub_objects = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
-    sub_ids = [obj.GetID()].extend([p.GetID() for p in sub_objects])
-    root_def = None
+def get_extended_skin_bones_tree(prop: RIObject):
+
+    child_objects: list = RScene.FindChildObjects(prop, EObjectType_Prop | EObjectType_Accessory)
+    objects = [prop]
+    objects.extend(child_objects)
+
     bone_defs = {}
-    for bone in skin_bones:
-        bone_name = bone.GetName()
-        bone_type = SkinBoneType.BONE
-        if bone_name == "_Object_Pivot_Node_":
-            bone_type = SkinBoneType.PIVOT
-        elif bone.GetID() in sub_ids:
-            bone_type = SkinBoneType.MESH
-        bone_def = {
-            "name": bone_name,
-            "id": bone.GetID(),
-            "type": bone_type,
-            "children": [],
-        }
-        if not root_def:
-            root_def = bone_def
-        bone_defs[bone.GetID()] = bone_def
+    defs = []
+    for obj in objects:
+        SC = obj.GetSkeletonComponent()
+        root = SC.GetRootBone()
+        skin_bones = SC.GetSkinBones()
+        if skin_bones:
+            num_bones = 0
+            for bone in skin_bones:
+                if bone.GetName():
+                    num_bones += 1
+            bone: RINode
+            if num_bones > 0:
+                link_id = get_link_id(obj, add_if_missing=True)
+            for bone in skin_bones:
+                if bone.GetID() not in bone_defs:
+                    bone_name = bone.GetName()
+                    if bone_name:
+                        bone_def = {
+                            "bone": bone,
+                            "object": obj,
+                            "root": bone.GetID() == root.GetID(),
+                            "name": bone_name,
+                            "children": [],
+                        }
+                        bone_defs[bone.GetID()] = bone_def
+                        defs.append(bone_def)
+
+    for bone_def in defs:
+        bone = bone_def["bone"]
+        bone_name = bone_def["name"]
         parent = bone.GetParent()
         if parent:
             if parent.GetID() in bone_defs:
                 parent_def = bone_defs[parent.GetID()]
                 parent_def["children"].append(bone_def)
-    return root_def
+
+    if defs:
+        return defs[0]
+    else:
+        return None
+
+
+def extract_mesh_bones_from_tree(bone_def, mesh_bones=None):
+    if mesh_bones is None:
+        mesh_bones = []
+    to_remove = []
+    for child_def in bone_def["children"]:
+        if child_def["children"]:
+            extract_mesh_bones_from_tree(child_def, mesh_bones)
+        else:
+            bone = child_def["bone"]
+            mesh_bones.append(bone)
+            to_remove.append(child_def)
+    for child_def in to_remove:
+        bone_def["children"].remove(child_def)
+    return mesh_bones
+
+
+def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None, mesh_bones=None, extract_mesh=True):
+    if skin_bones is None:
+        skin_bones = []
+    if mesh_bones is None:
+        mesh_bones = []
+    to_remove = []
+    child_bone: RINode = bone_def["bone"]
+    skin_bones.append(child_bone)
+    children = child_bone.GetChildren()
+    # go through bones in the correct order
+    #       very important to recreate bone structure in Blender,
+    #       as it is impossible to match duplicate bone names
+    #       unless the order and hierarchy of the bones matches the
+    #       exported armature *exactly*.
+    done = []
+    for child in children:
+        for child_def in bone_def["children"]:
+            child_bone = child_def["bone"]
+            if child_def not in done and child_bone.GetID() == child.GetID():
+                if extract_mesh and not child_def["children"]:
+                    mesh_bones.append(child_bone)
+                    to_remove.append(child_def)
+                extract_skin_bones_from_tree(child_def, skin_bones)
+                done.append(child_def)
+                break
+        # bones not explicitly children of the node are sub props
+        for child_def in bone_def["children"]:
+            child_bone = child_def["bone"]
+            if child_def not in done:
+                if extract_mesh and not child_def["children"]:
+                    mesh_bones.append(child_bone)
+                    to_remove.append(child_def)
+                extract_skin_bones_from_tree(child_def, skin_bones)
+                done.append(child_def)
+    for child_def in to_remove:
+        bone_def["children"].remove(child_def)
+    return skin_bones, mesh_bones
+
+
+def rl_export_bone_name(bone_name):
+    bone_name = bone_name.replace(' ', '_')
+    bone_name = bone_name.replace('(', '_')
+    bone_name = bone_name.replace(')', '_')
+    bone_name = bone_name.replace('&', '_')
+    return bone_name
+
+
+def extract_root_bones_from_tree(bone_def: dict, root_bones=None, names=None):
+    if root_bones is None:
+        root_bones = []
+    if names is None:
+        names = {}
+    bone: RINode = bone_def["bone"]
+    name: str = bone_def["name"]
+    if name not in names:
+        names[name] = 0
+    count = names[name]
+    names[name] += 1
+    if bone_def["root"]:
+        export_name = rl_export_bone_name(name)
+        blender_name = f"{export_name}.{count:03d}" if count > 0 else export_name
+        obj = bone_def["object"]
+        link_id = get_link_id(obj, add_if_missing=True)
+        root_bones.append({
+            "Name": blender_name,
+            "Original Name": name,
+            "Object": obj.GetName(),
+            "Type": get_object_type(obj),
+            "Link_ID": link_id,
+        })
+    children = bone.GetChildren()
+    # go through bones in the correct order
+    #       very important to recreate bone structure in Blender,
+    #       as it is impossible to match duplicate bone names
+    #       unless the order and hierarchy of the bones matches the
+    #       exported armature *exactly*.
+    done = []
+    for child in children:
+        for child_def in bone_def["children"]:
+            child_bone = child_def["bone"]
+            if child_def not in done and child_bone.GetID() == child.GetID():
+                extract_root_bones_from_tree(child_def, root_bones, names)
+                done.append(child_def)
+                break
+        # bones not explicitly children of the node are sub props
+        for child_def in bone_def["children"]:
+            if child_def not in done:
+                extract_root_bones_from_tree(child_def, root_bones, names)
+                done.append(child_def)
+    return root_bones
+
+
+def get_extended_skin_bones_tree_debug(prop: RIObject):
+
+    child_objects: list = RScene.FindChildObjects(prop, EObjectType_Prop | EObjectType_Accessory)
+    objects = [prop]
+    objects.extend(child_objects)
+
+    bone_defs = {}
+    defs = []
+    for obj in objects:
+        T: RTransform = obj.WorldTransform()
+        t: RVector3 = T.T()
+        r: RQuaternion = T.R()
+        s: RVector3 = T.S()
+        print(obj.GetName())
+        print(f"loc: {[t.x, t.y, t.z]}")
+        print(f"rot: {[r.x, r.y, r.z, r.w]}")
+        print(f"sca: {[s.x, s.y, s.z]}")
+        SC = obj.GetSkeletonComponent()
+        root = SC.GetRootBone()
+        skin_bones = SC.GetSkinBones()
+        if skin_bones:
+            num_bones = 0
+            for bone in skin_bones:
+                if bone.GetName():
+                    num_bones += 1
+            bone: RINode
+            if num_bones > 0:
+                link_id = get_link_id(obj, add_if_missing=True)
+            for bone in skin_bones:
+                if bone.GetID() not in bone_defs:
+                    bone_name = bone.GetName()
+                    T: RTransform = bone.WorldTransform()
+                    t: RVector3 = T.T()
+                    r: RQuaternion = T.R()
+                    s: RVector3 = T.S()
+                    if bone_name:
+                        bone_def = {
+                            "bone": bone,
+                            "object": obj.GetName(),
+                            "root": bone.GetID() == root.GetID(),
+                            "name": bone_name,
+                            "loc": [t.x, t.y, t.z],
+                            "rot": [r.x, r.y, r.z, r.w],
+                            "sca": [s.x, s.y, s.z],
+                            "children": [],
+                        }
+                        bone_defs[bone.GetID()] = bone_def
+                        defs.append(bone_def)
+    for bone_def in defs:
+        bone = bone_def["bone"]
+        bone_name = bone_def["name"]
+        parent = bone.GetParent()
+        if parent:
+            if parent.GetID() in bone_defs:
+                parent_def = bone_defs[parent.GetID()]
+                parent_def["children"].append(bone_def)
+    for bone_def in defs:
+        del(bone_def["bone"])
+    if defs:
+        return defs[0]
+    else:
+        return None
 
 
 def print_nodes(node, level=0):

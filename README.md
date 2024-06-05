@@ -63,13 +63,22 @@ Links
 Known Issues
 ============
 
-- By default the FBX export settings have embed textures switched on, but this makes the export incompatible with re-importing the character back into CC4 as the textures are hidden in the original fbx and are not accessible to the file system.
+- By default the FBX export settings have embed textures switched on, but this makes the export incompatible with re-importing the character back into CC4 as the textures are hidden in the original Fbx and are not accessible to the file system.
 **Always turn off embed textures.**
 
 - Hidden faces information for clothing and accessories is lost upon re-importing into CC4.
 
 Changelog
 =========
+
+### 2.0.8
+- Fix to error messages when importing invalid characters.
+- Send Prop pose and sequence.
+    - Datalink skeleton bone order enforced, for more accurate matching of duplicate bone names.
+    - Adds prop structure data to json export.
+- Send Motion to Blender character/prop (direct motion export/import).
+- More robust & partial name matching for json meshes and materials.
+- iC motion export settings fix.
 
 ### 2.0.7
 - Datalink receives facial expression data for pose and sequence.
