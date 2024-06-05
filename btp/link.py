@@ -675,7 +675,6 @@ def apply_shapes(actor: LinkActor, time: RTime, shape_weights: list):
     MC = actor.get_morph_component()
 
     if FC and actor.expressions:
-        if len(shape_weights) != len(actor.shapes):
         expressions = [expression for expression in actor.expressions]
         strengths = [shape_weights[idx] for idx in actor.expressions.values()]
         #FC.BeginKeyEditing()
