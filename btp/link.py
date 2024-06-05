@@ -92,19 +92,28 @@ VISEME_NAME_MAP = {
 class LinkActor():
     name: str = "Name"
     object: RIObject = None
-    bones: list = []
-    shapes: list = []
-    skin_bones: list = []
-    skin_meshes: list = []
-    expressions: dict = {}
-    visemes: dict = {}
-    morphs: dict = {}
+    bones: list = None
+    shapes: list = None
+    skin_bones: list = None
+    skin_meshes: list = None
+    expressions: dict = None
+    visemes: dict = None
+    morphs: dict = None
     t_pose: dict = None
-    alias: list = []
+    alias: list = None
 
     def __init__(self, object):
         self.name = object.GetName()
         self.object = object
+        self.bones = []
+        self.shapes = []
+        self.skin_bones = []
+        self.skin_meshes = []
+        self.expressions = {}
+        self.visemes = {}
+        self.morphs = {}
+        self.t_pose = None
+        self.alias = []
         self.get_link_id()
 
     def get_avatar(self) -> RIAvatar:
@@ -666,6 +675,7 @@ def apply_shapes(actor: LinkActor, time: RTime, shape_weights: list):
     MC = actor.get_morph_component()
 
     if FC and actor.expressions:
+        if len(shape_weights) != len(actor.shapes):
         expressions = [expression for expression in actor.expressions]
         strengths = [shape_weights[idx] for idx in actor.expressions.values()]
         #FC.BeginKeyEditing()
