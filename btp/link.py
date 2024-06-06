@@ -20,7 +20,7 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os, socket, select, struct, time, json, random, atexit
+import os, socket, select, struct, time, json, random, atexit, traceback
 from . import blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 
@@ -48,6 +48,7 @@ class OpCodes(IntEnum):
     PING = 2
     STOP = 10
     DISCONNECT = 11
+    DEBUG = 15
     NOTIFY = 50
     SAVE = 60
     MORPH = 90
@@ -466,23 +467,15 @@ def apply_pose(actor: LinkActor, time: RTime, pose_data, t_pose_data):
             if len(actor.bones) != len(pose_data):
                 utils.log_error("Bones do not match!")
                 return
-            avatar: RIAvatar = actor.object
             root_bone: RINode = SC.GetRootBone()
             root_rot = RQuaternion(RVector4(0,0,0,1))
             root_tra = RVector3(0,0,0)
             root_sca = RVector3(1,1,1)
-            #root_tra, root_rot, root_sca = fetch_transform_data(t_pose_data, root_bone.GetName())
-
-            #utils.mark_timer("apply_world_fk_pose")
-            apply_world_fk_pose(actor, SC, clip, clip_time, root_bone, pose_data, t_pose_data,
-                            root_rot, root_tra, root_sca)
-            #utils.update_timer("apply_world_fk_pose")
-            #apply_world_ik_pose(SC, clip, current_time, pose_data)
+            apply_world_fk_pose(actor, SC, clip, clip_time,
+                                root_bone, pose_data, t_pose_data,
+                                root_rot, root_tra, root_sca)
             scene_time = clip.ClipTimeToSceneTime(clip_time)
             SC.BakeFkToIk(scene_time, False)
-            #avatar.Update()
-            #RGlobal.ObjectModified(avatar, EObjectModifiedType_Transform)
-
 
 
 def get_pose_local(avatar: RIAvatar):
@@ -519,12 +512,31 @@ def get_pose_world(avatar: RIAvatar):
     return pose
 
 
-def fetch_transform_data(pose_data, bone_index_or_name):
+def fetch_pose_transform(pose_data, bone_index_or_name):
     D = pose_data[bone_index_or_name]
     tra = RVector3(D[0], D[1], D[2])
     rot = RQuaternion(RVector4(D[3], D[4], D[5], D[6]))
     sca = RVector3(D[7], D[8], D[9])
     return tra, rot, sca
+
+
+def fetch_transform(D):
+    tra = RVector3(D[0], D[1], D[2])
+    rot = RQuaternion(RVector4(D[3], D[4], D[5], D[6]))
+    sca = RVector3(D[7], D[8], D[9])
+    return tra, rot, sca
+
+
+def fetch_pose_root_transform(actor: LinkActor, pose_data):
+    SC = actor.get_skeleton_component()
+    root_bone = SC.GetRootBone()
+    source_name = root_bone.GetName()
+    root_bone_name = try_get_pose_bone(source_name, actor.bones)
+    if root_bone_name in actor.bones:
+        bone_index = actor.bones.index(root_bone_name)
+        return fetch_transform(pose_data[bone_index])
+    else:
+        return fetch_transform([0,0,0,0,0,0,1,1,1,1])
 
 
 def log_transform(name, rot, tra, sca):
@@ -545,39 +557,22 @@ def try_get_pose_bone(name, bones: list):
 
 
 def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTime, pose_data):
-    tra, rot, sca = fetch_transform_data(pose_data, 0)
+    tra, rot, sca = fetch_pose_transform(pose_data, 0)
     set_ik_effector(SC, clip, EHikEffector_LeftFoot, time,  rot, tra, sca)
-    tra, rot, sca = fetch_transform_data(pose_data, 0)
+    tra, rot, sca = fetch_pose_transform(pose_data, 0)
     set_ik_effector(SC, clip, EHikEffector_RightFoot, time,  rot, tra, sca)
 
 
 def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, t_pose_data,
-                     parent_world_rot, parent_world_tra, parent_world_sca):
-
+                        parent_world_rot, parent_world_tra, parent_world_sca):
     source_name = bone.GetName()
-
-    #utils.mark_timer("try_get_pose_bone")
     bone_name = try_get_pose_bone(source_name, actor.bones)
-    #utils.update_timer("try_get_pose_bone")
-
-    #utils.log_info(f"Trying: {bone_name}")
     if bone_name in actor.bones:
-        #utils.log_info(f"Found: {bone_name} / {source_name}")
-
-        #utils.mark_timer("fetch_transforms")
         bone_index = actor.bones.index(bone_name)
-        world_tra, world_rot, world_sca = fetch_transform_data(pose_data, bone_index)
-        t_pose_tra, t_pose_rot, t_pose_sca = fetch_transform_data(t_pose_data, source_name)
-        #utils.update_timer("fetch_transforms")
-
+        world_tra, world_rot, world_sca = fetch_pose_transform(pose_data, bone_index)
+        t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
         local_rot, local_tra, local_sca = calc_local(world_rot, world_tra, world_sca,
                                                      parent_world_rot, parent_world_tra, parent_world_sca)
-
-        #if source_name == "RL_BoneRoot":
-        #    log_transform("WORLD", world_rot, world_tra, world_sca)
-        #    log_transform("TPOSE", t_pose_rot, t_pose_tra, t_pose_sca)
-        #    log_transform("LOCAL", local_rot, local_tra, local_sca)
-
         set_bone_control(SC, clip, bone, time,
                          t_pose_rot, t_pose_tra, t_pose_sca,
                          local_rot, local_tra, local_sca)
@@ -586,12 +581,10 @@ def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, t_pose_data,
         for child in children:
             apply_world_fk_pose(actor, SC, clip, time, child, pose_data, t_pose_data,
                              world_rot, world_tra, world_sca)
-    #else:
-    #    utils.log(f"Bone Not Found in pose data: {bone_name}")
 
 
 def calc_world(local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3,
-              parent_world_rot: RQuaternion, parent_world_tra: RVector3, parent_world_sca: RVector3):
+               parent_world_rot: RQuaternion, parent_world_tra: RVector3, parent_world_sca: RVector3):
     world_rot = parent_world_rot.Multiply(local_rot)
     world_tra = parent_world_rot.MultiplyVector(local_tra * parent_world_sca) + parent_world_tra
     world_sca = local_sca
@@ -882,8 +875,8 @@ class LinkService(QObject):
             try:
                 r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
             except Exception as e:
-                utils.log_error("Client socket receive:select failed!", e)
-                self.service_lost()
+                utils.log_error("Client socket recv:select failed!", e)
+                self.client_lost()
                 return
             count = 0
             while r:
@@ -892,11 +885,11 @@ class LinkService(QObject):
                     header = self.client_sock.recv(8)
                     if header == 0:
                         utils.log_warn("Socket closed by client")
-                        self.service_lost()
+                        self.client_lost()
                         return
                 except Exception as e:
-                    utils.log_error("Client socket receive:recv failed!", e)
-                    self.service_lost()
+                    utils.log_error("Client socket recv:recv header failed!", e)
+                    self.client_lost()
                     return
                 if header and len(header) == 8:
                     op_code, size = struct.unpack("!II", header)
@@ -908,8 +901,8 @@ class LinkService(QObject):
                             try:
                                 chunk = self.client_sock.recv(chunk_size)
                             except Exception as e:
-                                utils.log_error("Client socket receive:chunk_recv failed!", e)
-                                self.service_lost()
+                                utils.log_error("Client socket recv:recv chunk failed!", e)
+                                self.client_lost()
                                 return
                             data.extend(chunk)
                             size -= len(chunk)
@@ -929,14 +922,13 @@ class LinkService(QObject):
                 try:
                     r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
                 except Exception as e:
-                    utils.log_error("Client socket receive:re-select failed!", e)
-                    self.service_lost()
+                    utils.log_error("Client socket recv:select (reselect) failed!", e)
+                    self.client_lost()
                     return
                 if r:
                     self.is_data = True
                     if count >= MAX_RECEIVE or op_code == OpCodes.NOTIFY:
                         return
-        return
 
     def accept(self):
         if self.server_sock and self.is_listening:
@@ -983,7 +975,7 @@ class LinkService(QObject):
             self.service_stop()
         elif op_code == OpCodes.DISCONNECT:
             utils.log_info(f"Disconnection Received")
-            self.service_recv_disconnect()
+            self.service_recv_disconnected()
 
     def service_start(self, host, port):
         if not self.is_listening:
@@ -1002,7 +994,7 @@ class LinkService(QObject):
             self.connected.emit()
             self.changed.emit()
 
-    def service_recv_disconnect(self):
+    def service_recv_disconnected(self):
         self.stop_client()
 
     def service_stop(self):
@@ -1017,61 +1009,77 @@ class LinkService(QObject):
         self.stop_client()
         self.stop_server()
 
+    def client_lost(self):
+        self.lost_connection.emit()
+        self.stop_client()
+
     def loop(self):
-        current_time = time.time()
-        delta_time = current_time - self.time
-        self.time = current_time
-        if delta_time > 0:
-            rate = 1.0 / delta_time
-            self.loop_rate = self.loop_rate * 0.75 + rate * 0.25
-            #if self.loop_count % 100 == 0:
-            #    utils.log_info(f"LinkServer loop timer rate: {self.loop_rate}")
-            self.loop_count += 1
+        try:
+            current_time = time.time()
+            delta_time = current_time - self.time
+            self.time = current_time
+            if delta_time > 0:
+                rate = 1.0 / delta_time
+                self.loop_rate = self.loop_rate * 0.75 + rate * 0.25
+                #if self.loop_count % 100 == 0:
+                #    utils.log_info(f"LinkServer loop timer rate: {self.loop_rate}")
+                self.loop_count += 1
 
-        if self.is_connected:
-            self.ping_timer -= delta_time
-            self.keepalive_timer -= delta_time
+            if self.is_connected:
+                self.ping_timer -= delta_time
+                self.keepalive_timer -= delta_time
 
-            if USE_PING and self.ping_timer <= 0:
-                self.send(OpCodes.PING)
+                if USE_PING and self.ping_timer <= 0:
+                    self.send(OpCodes.PING)
 
-            if USE_KEEPALIVE and self.keepalive_timer <= 0:
-                utils.log_info("lost connection!")
-                self.service_stop()
+                if USE_KEEPALIVE and self.keepalive_timer <= 0:
+                    utils.log_info("lost connection!")
+                    self.service_stop()
 
-        elif self.is_listening:
-            self.keepalive_timer -= delta_time
+            elif self.is_listening:
+                self.keepalive_timer -= delta_time
 
-            if USE_KEEPALIVE and self.keepalive_timer <= 0:
-                utils.log_info("no connection within time limit!")
-                self.service_stop()
+                if USE_KEEPALIVE and self.keepalive_timer <= 0:
+                    utils.log_info("no connection within time limit!")
+                    self.service_stop()
 
-        # accept incoming connections
-        self.accept()
+            # accept incoming connections
+            self.accept()
 
-        # receive client data
-        self.recv()
+            # receive client data
+            self.recv()
 
-        # run anything in sequence
-        for i in range(0, self.sequence_send_count):
-            self.sequence.emit()
+            # run anything in sequence
+            for i in range(0, self.sequence_send_count):
+                self.sequence.emit()
+
+        except Exception as e:
+            utils.log_error("LinkService timer loop crash!")
+            traceback.print_exc()
+            return TIMER_INTERVAL
 
 
     def send(self, op_code, binary_data = None):
-        if self.client_sock and (self.is_connected or self.is_connecting):
-            try:
+        try:
+            if self.client_sock and (self.is_connected or self.is_connecting):
                 data_length = len(binary_data) if binary_data else 0
                 header = struct.pack("!II", op_code, data_length)
                 data = bytearray()
                 data.extend(header)
                 if binary_data:
                     data.extend(binary_data)
-                self.client_sock.sendall(data)
+                try:
+                    self.client_sock.sendall(data)
+                except Exception as e:
+                    utils.log_error("Client socket sendall failed!")
+                    self.client_lost()
+                    return
                 self.ping_timer = PING_INTERVAL_S
                 self.sent.emit()
-            except:
-                utils.log_error("Client socket send failed!")
-                self.service_lost()
+
+        except:
+            utils.log_error("LinkService send failed!")
+            traceback.print_exc()
 
     def start_sequence(self, func=None):
         self.is_sequence = True
@@ -1242,6 +1250,9 @@ class DataLink(QObject):
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
 
         if vars.DEV:
+            qt.button(layout, "DEBUG", self.send_debug)
+            qt.button(layout, "TEST", test)
+            #
             #qt.button(layout, "Bone Test", tests.load_motion)
             #qt.button(layout, "IK Effectors", tests.end_effectors)
             qt.button(layout, "Print", tests.bone_tree)
@@ -1536,6 +1547,9 @@ class DataLink(QObject):
 
     def parse(self, op_code, data):
 
+        if op_code == OpCodes.DEBUG:
+            self.receive_debug(data)
+
         if op_code == OpCodes.NOTIFY:
             self.receive_notify(data)
 
@@ -1596,9 +1610,18 @@ class DataLink(QObject):
         notify_json = { "message": message }
         self.send(OpCodes.NOTIFY, encode_from_json(notify_json))
 
+    def send_debug(self):
+        self.send(OpCodes.DEBUG)
+
     def receive_notify(self, data):
         notify_json = decode_to_json(data)
         self.update_link_status(notify_json["message"])
+
+    def receive_debug(self, data):
+        debug_json = None
+        if data:
+            debug_json = decode_to_json(data)
+        debug(debug_json)
 
     def get_remote_folder(self):
         if self.service:
@@ -2229,6 +2252,7 @@ class DataLink(QObject):
             "pivot": [pivot.x, pivot.y, pivot.z],
         }
         self.send(OpCodes.CAMERA_SYNC, encode_from_json(data))
+        self.send_frame_sync()
 
     def decode_camera_sync_data(self, data):
         data = decode_to_json(data)
@@ -2395,7 +2419,6 @@ class DataLink(QObject):
         for i in range(0, count):
             pose = []
             shapes = []
-            transform = []
             offset, name = unpack_string(pose_data, offset)
             offset, character_type = unpack_string(pose_data, offset)
             offset, link_id = unpack_string(pose_data, offset)
@@ -2405,7 +2428,7 @@ class DataLink(QObject):
                 "type": character_type,
                 "link_id": link_id,
                 "actor": actor,
-                "transform": transform,
+                "transform": None,
                 "pose": pose,
                 "shapes": shapes,
             }
@@ -2414,7 +2437,7 @@ class DataLink(QObject):
                 actors_list.append(actor_data)
             tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
             offset += 40
-            transform = [tx,ty,tz,rx,ry,rz,rw,sx,sy,sz]
+            actor_data["transform"] = [tx,ty,tz,rx,ry,rz,rw,sx,sy,sz]
 
             num_bones = struct.unpack_from("!I", pose_data, offset)[0]
             offset += 4
@@ -2492,7 +2515,6 @@ class DataLink(QObject):
         # update all actor poses
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
-            set_transform_control(scene_time, actor.object, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
             actor.begin_editing()
             apply_shapes(actor, scene_time, actor_data["shapes"])
             apply_shapes(actor, scene_time2, actor_data["shapes"])
@@ -2681,3 +2703,15 @@ def get_data_link():
     if not LINK:
         LINK = DataLink()
     return LINK
+
+
+def debug(debug_json):
+    utils.log_always("")
+    utils.log_always("DEBUG")
+    utils.log_always("=====")
+
+
+def test():
+    utils.log_always("")
+    utils.log_always("TEST")
+    utils.log_always("====")
