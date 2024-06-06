@@ -292,9 +292,12 @@ class LinkData():
     sequence_current_frame_time: RTime = 0
     sequence_current_frame: int = 0
     sequence_actors: list = None
+    sequence_active: bool = False
     #
     ack_rate: float = 0.0
     ack_time: float = 0.0
+    #
+    stored_selection: list = None
 
     def __init__(self):
         return
@@ -383,8 +386,15 @@ def next_frame(time):
     current_time = RGlobal.GetTime()
     next_time = fps.GetNextFrameTime(time)
     RGlobal.SetTime(next_time)
-    RGlobal.ForceViewportUpdate()
     return next_time
+
+
+def prev_frame(time):
+    fps: RFps = RGlobal.GetFps()
+    current_time = RGlobal.GetTime()
+    prev_time = fps.GetPreviousFrameTime(time)
+    RGlobal.SetTime(prev_time)
+    return prev_time
 
 
 def set_frame_range(start_frame, end_frame):
@@ -1088,6 +1098,7 @@ class LinkService(QObject):
         else:
             try: self.sequence.disconnect()
             except: pass
+        self.changed.emit()
         self.timer.setInterval(1000/60)
 
     def stop_sequence(self):
@@ -1095,6 +1106,7 @@ class LinkService(QObject):
         self.timer.setInterval(TIMER_INTERVAL)
         try: self.sequence.disconnect()
         except: pass
+        self.changed.emit()
 
     def update_sequence(self, rate, count, delta_frames):
         self.is_sequence = True
@@ -1259,7 +1271,6 @@ class DataLink(QObject):
             #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
-        self.update_ui()
 
     def on_show_hide(self, visible):
         if visible:
@@ -1460,6 +1471,9 @@ class DataLink(QObject):
                        self.button_rigify, self.button_morph, self.button_morph_update)
             self.context_frame.hide()
 
+        if self.is_sequence_running():
+            qt.enable(self.button_sequence)
+
         return
 
     def update_link_status(self, text):
@@ -1491,30 +1505,39 @@ class DataLink(QObject):
         self.host_name = host_name
 
     def show_link_state(self):
+
         if self.is_connected():
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
-            self.button_link.setStyleSheet("background-color: #82be0f; color: black; font: bold")
+            self.button_link.setStyleSheet(qt.STYLE_BUTTON_ACTIVE)
             self.button_link.setText("Linked")
             self.label_header.setText(f"Connected: {self.service.remote_app} ({self.service.remote_version})")
             self.label_folder.setText(f"{self.get_remote_folder()}")
         elif self.is_listening():
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
-            self.button_link.setStyleSheet("background-color: #505050; color: white; font: bold")
+            self.button_link.setStyleSheet(qt.STYLE_BUTTON_WAITING)
             self.button_link.setText("Listening...")
             self.label_header.setText("Waiting for Connection")
             self.label_folder.setText(f"None")
         else:
             self.textbox_host.setEnabled(True)
             self.combo_target.setEnabled(True)
-            self.button_link.setStyleSheet(qt.STYLE_NONE)
+            self.button_link.setStyleSheet(qt.STYLE_BUTTON)
             if SERVER_ONLY:
                 self.button_link.setText("Start Server")
             else:
                 self.button_link.setText("Connect")
             self.label_header.setText(f"Not Connected")
             self.label_folder.setText(f"None")
+
+        if self.is_sequence_running():
+            self.button_sequence.setText("Stop Sequence")
+            self.button_sequence.setStyleSheet(qt.STYLE_BUTTON_BOLD)
+        else:
+            self.button_sequence.setText("Live Sequence")
+            self.button_sequence.setStyleSheet(qt.STYLE_BUTTON)
+
         self.update_ui()
 
     def is_connected(self):
@@ -1594,12 +1617,17 @@ class DataLink(QObject):
         if self.is_connected():
             self.service.send(op_code, data)
 
+    def is_sequence_running(self):
+        return self.data.sequence_active and self.service.is_sequence
+
     def start_sequence(self, func=None):
         if self.is_connected():
+            self.data.sequence_active = True
             self.service.start_sequence(func=func)
 
     def stop_sequence(self):
         if self.is_connected():
+            self.data.sequence_active = False
             self.service.stop_sequence()
 
     def update_sequence(self, rate, count, delta_frames):
@@ -2329,14 +2357,28 @@ class DataLink(QObject):
             self.send(OpCodes.POSE_FRAME, pose_frame_data)
 
     def send_sequence(self):
+
+        # stop the sequence if running...
+        if self.is_sequence_running():
+            # as the next frame was never sent
+            self.data.sequence_current_frame_time = prev_frame(self.data.sequence_current_frame_time)
+            self.data.sequence_current_frame -= 1
+            self.update_link_status(f"Sequence Aborted: {self.data.sequence_current_frame}")
+            self.stop_sequence()
+            self.send_sequence_end()
+            return
+
         # get actors
         actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
+        self.data.stored_selection = RScene.GetSelectedObjects()
         RScene.ClearSelectObjects()
         if actors:
             self.update_link_status(f"Sending Animation Sequence")
             self.send_notify(f"Animation Sequence")
             # reset animation to start
             self.data.sequence_current_frame_time = reset_animation()
+            current_frame = get_current_frame()
+            self.data.sequence_current_frame = current_frame
             # send animation meta data
             sequence_data = self.encode_sequence_data(actors)
             self.send(OpCodes.SEQUENCE, sequence_data)
@@ -2350,13 +2392,19 @@ class DataLink(QObject):
             self.data.ack_time = 0
 
     def send_sequence_frame(self):
+        if not self.data.sequence_active or not self.data.sequence_actors:
+            return
         # set/fetch the current frame in the sequence
         if RGlobal.GetTime() != self.data.sequence_current_frame_time:
             RGlobal.SetTime(self.data.sequence_current_frame_time)
-        RScene.ClearSelectObjects()
+        # clear selected objects will trigger the OnObjectSelectionChanged event every frame
+        # which slows down the sequence, so don't use it unless we have to.
+        if RScene.GetSelectedObjects():
+            RScene.ClearSelectObjects()
         current_frame = get_current_frame()
         self.data.sequence_current_frame = current_frame
         self.update_link_status(f"Sending Sequence Frame: {current_frame}")
+        num_frames = current_frame - self.data.sequence_start_frame
         # send current sequence frame actor poses
         pose_data = self.encode_pose_frame_data(self.data.sequence_actors)
         self.send(OpCodes.SEQUENCE_FRAME, pose_data)
@@ -2374,6 +2422,8 @@ class DataLink(QObject):
             sequence_data = self.encode_sequence_data(actors)
             self.send(OpCodes.SEQUENCE_END, sequence_data)
             self.data.sequence_actors = None
+        if self.data.stored_selection:
+            RScene.SelectObjects(self.data.stored_selection)
 
     def prep_actor_clip(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
         """Creates an empty clip and grabs the t-pose data for the character"""
@@ -2536,8 +2586,8 @@ class DataLink(QObject):
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame + 1
         start_time = get_frame_time(self.data.sequence_start_frame)
         end_time = get_frame_time(self.data.sequence_end_frame)
-        # move to start of timeline
         RScene.ClearSelectObjects()
+        # move to start of timeline
         RGlobal.SetStartTime(start_time)
         RGlobal.SetEndTime(end_time)
         RGlobal.SetTime(RTime.FromValue(0))
@@ -2567,7 +2617,9 @@ class DataLink(QObject):
         sequence_frame_data = self.decode_pose_frame_data(data)
         if not sequence_frame_data:
             return
-        RScene.ClearSelectObjects()
+        # clear selected objects, only if needed as this triggers UI updates
+        if RScene.GetSelectedObjects():
+            RScene.ClearSelectObjects()
         frame = sequence_frame_data["frame"]
         scene_time = get_frame_time(frame)
         if scene_time > RGlobal.GetEndTime():
@@ -2595,6 +2647,8 @@ class DataLink(QObject):
         self.send(OpCodes.SEQUENCE_ACK, data)
 
     def receive_sequence_end(self, data):
+        frame = data["frame"]
+        self.data.sequence_end_frame = frame
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         self.stop_sequence()
         scene_start_time = get_frame_time(self.data.sequence_start_frame)
