@@ -532,33 +532,7 @@ class CCJsonData():
             return None
 
     def find_mesh_name(self, search_mesh_name, search_obj_name = None):
-        try_names = set()
-        try_names.add(search_mesh_name)
-        try_names.add(safe_export_name(search_mesh_name))
-        # accessories can cause mesh renames with _0 _1 _2 suffixes added
-        if search_mesh_name[-1].isdigit() and search_mesh_name[-2] == "_":
-            try_names.add(search_mesh_name[:-2])
-        if search_obj_name:
-            try_names.add(search_obj_name)
-            try_names.add(safe_export_name(search_obj_name))
-        for mesh_name in self.meshes:
-            if mesh_name in try_names:
-                return mesh_name
-        print(try_names)
-        # try a partial match, but only if there is only one result
-        partial_mesh_name = None
-        partial_mesh_count = 0
-        for mesh_name in self.meshes:
-            for try_name in try_names:
-                if try_name in mesh_name:
-                    partial_mesh_count += 1
-                    if not partial_mesh_name:
-                        partial_mesh_name = mesh_name
-                    # only count 1 match per try set
-                    break
-        if partial_mesh_count == 1:
-            return partial_mesh_name
-        return None
+        return find_source_mesh_name(search_mesh_name, search_obj_name, self.meshes)
 
     def find_mesh(self, search_mesh_name, search_obj_name = None):
         mesh_name = self.find_mesh_name(search_mesh_name, search_obj_name)
@@ -993,6 +967,35 @@ def is_cc():
 
 def is_iclone():
     return RApplication.GetProductName() == "iClone"
+
+
+def find_source_mesh_name(imported_mesh_name, imported_obj_name, rl_meshes):
+        try_names = set()
+        try_names.add(imported_mesh_name)
+        try_names.add(safe_export_name(imported_mesh_name))
+        # accessories can cause mesh renames with _0 _1 _2 suffixes added
+        if imported_mesh_name[-1].isdigit() and imported_mesh_name[-2] == "_":
+            try_names.add(imported_mesh_name[:-2])
+        if imported_obj_name:
+            try_names.add(imported_obj_name)
+            try_names.add(safe_export_name(imported_obj_name))
+        for mesh_name in rl_meshes:
+            if mesh_name in try_names:
+                return mesh_name
+        # try a partial match, but only if there is only one result
+        partial_mesh_match = None
+        partial_mesh_count = 0
+        for mesh_name in rl_meshes:
+            for try_name in try_names:
+                if try_name in mesh_name:
+                    partial_mesh_count += 1
+                    if not partial_mesh_match:
+                        partial_mesh_match = mesh_name
+                    # only count 1 match per try set
+                    break
+        if partial_mesh_count == 1:
+            return partial_mesh_match
+        return None
 
 
 def find_child_obj(obj, search):

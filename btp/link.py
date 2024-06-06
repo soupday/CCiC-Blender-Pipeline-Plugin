@@ -53,6 +53,7 @@ class OpCodes(IntEnum):
     SAVE = 60
     MORPH = 90
     MORPH_UPDATE = 91
+    REPLACE_MESH = 95
     CHARACTER = 100
     CHARACTER_UPDATE = 101
     PROP = 102
@@ -1603,6 +1604,9 @@ class DataLink(QObject):
         if op_code == OpCodes.MORPH:
             self.receive_morph(data)
 
+        if op_code == OpCodes.REPLACE_MESH:
+            self.receive_replace_mesh(data)
+
         if op_code == OpCodes.CAMERA_SYNC:
             self.receive_camera_sync(data)
 
@@ -2736,6 +2740,25 @@ class DataLink(QObject):
         if actor:
             avatar: RIAvatar = actor.object
         morph_slider = morph.MorphSlider(obj_path, key_path)
+
+    def receive_replace_mesh(self, data):
+        json_data = decode_to_json(data)
+        obj_file_path = json_data["path"]
+        actor_name = json_data["actor_name"]
+        obj_name = json_data["object_name"]
+        mesh_name = json_data["mesh_name"]
+        character_type = json_data["type"]
+        link_id = json_data["link_id"]
+        actor = LinkActor.find_actor(link_id, search_name=actor_name, search_type=character_type)
+        if actor:
+            avatar: RIAvatar = actor.object
+            mesh_names = avatar.GetMeshNames()
+            cc_mesh_name = cc.find_source_mesh_name(mesh_name, obj_name, mesh_names)
+            if cc_mesh_name:
+                print(f"{obj_name} / {mesh_name} -> {cc_mesh_name}")
+                avatar.ReplaceMesh(cc_mesh_name, obj_file_path)
+                RGlobal.ForceViewportUpdate()
+                self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
 
 
 
