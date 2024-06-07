@@ -33,6 +33,7 @@ EXPORT_MORPH_MATERIALS: bool = True
 DEFAULT_MORPH_SLIDER_PATH: str = "Custom/Blender"
 AUTO_START_SERVICE: bool = False
 MATCH_CLIENT_RATE: bool = True
+DATALINK_FRAME_SYNC: bool = False
 CC_USE_FACIAL_PROFILE: bool = True
 CC_USE_HIK_PROFILE: bool = True
 CC_USE_FACIAL_EXPRESSIONS: bool = True
@@ -56,6 +57,7 @@ class Preferences(QObject):
     checkbox_export_morph_materials: QCheckBox = None
     checkbox_auto_start_service: QCheckBox = None
     checkbox_match_client_rate: QCheckBox = None
+    checkbox_datalink_frame_sync: QCheckBox = None
     checkbox_cc_use_facial_profile: QCheckBox = None
     checkbox_cc_use_hik_profile: QCheckBox = None
     checkbox_cc_use_facial_expressions: QCheckBox = None
@@ -106,8 +108,10 @@ class Preferences(QObject):
 
         qt.spacing(layout, 10)
 
-        self.checkbox_auto_start_service = qt.checkbox(layout, "Auto-start Link Server", AUTO_START_SERVICE, update=self.update_checkbox_auto_start_service)
-        self.checkbox_match_client_rate = qt.checkbox(layout, "Match Client Rate", MATCH_CLIENT_RATE, update=self.update_checkbox_match_client_rate)
+        row = qt.row(layout)
+        self.checkbox_auto_start_service = qt.checkbox(row, "Auto-start Link Server", AUTO_START_SERVICE, update=self.update_checkbox_auto_start_service)
+        self.checkbox_match_client_rate = qt.checkbox(row, "Match Client Rate", MATCH_CLIENT_RATE, update=self.update_checkbox_match_client_rate)
+        self.checkbox_datalink_frame_sync = qt.checkbox(row, "Sequence Frame Sync", DATALINK_FRAME_SYNC, update=self.update_checkbox_datalink_frame_sync)
 
         qt.spacing(layout, 10)
 
@@ -232,6 +236,15 @@ class Preferences(QObject):
             return
         self.no_update = True
         MATCH_CLIENT_RATE = self.checkbox_match_client_rate.isChecked()
+        write_temp_state()
+        self.no_update = False
+
+    def update_checkbox_datalink_frame_sync(self):
+        global DATALINK_FRAME_SYNC
+        if self.no_update:
+            return
+        self.no_update = True
+        DATALINK_FRAME_SYNC = self.checkbox_datalink_frame_sync.isChecked()
         write_temp_state()
         self.no_update = False
 
@@ -416,6 +429,7 @@ def read_temp_state():
     global DEFAULT_MORPH_SLIDER_PATH
     global AUTO_START_SERVICE
     global MATCH_CLIENT_RATE
+    global DATALINK_FRAME_SYNC
     global CC_USE_FACIAL_PROFILE
     global CC_USE_HIK_PROFILE
     global CC_USE_FACIAL_EXPRESSIONS
@@ -440,6 +454,7 @@ def read_temp_state():
             DEFAULT_MORPH_SLIDER_PATH = get_attr(temp_state_json, "default_morph_slider_path", "Custom/Blender")
             AUTO_START_SERVICE = get_attr(temp_state_json, "auto_start_service", False)
             MATCH_CLIENT_RATE = get_attr(temp_state_json, "match_client_rate", True)
+            DATALINK_FRAME_SYNC = get_attr(temp_state_json, "datalink_frame_sync", False)
             CC_USE_FACIAL_PROFILE = get_attr(temp_state_json, "cc_use_facial_profile", True)
             CC_USE_HIK_PROFILE = get_attr(temp_state_json, "cc_use_hik_profile", True)
             CC_USE_FACIAL_EXPRESSIONS = get_attr(temp_state_json, "cc_use_facial_expressions", True)
@@ -461,6 +476,7 @@ def write_temp_state():
     global DEFAULT_MORPH_SLIDER_PATH
     global AUTO_START_SERVICE
     global MATCH_CLIENT_RATE
+    global DATALINK_FRAME_SYNC
     global CC_USE_FACIAL_PROFILE
     global CC_USE_HIK_PROFILE
     global CC_USE_FACIAL_EXPRESSIONS
@@ -483,6 +499,7 @@ def write_temp_state():
         "default_morph_slider_path": DEFAULT_MORPH_SLIDER_PATH,
         "auto_start_service": AUTO_START_SERVICE,
         "match_client_rate": MATCH_CLIENT_RATE,
+        "datalink_frame_sync": DATALINK_FRAME_SYNC,
         "cc_use_facial_profile": CC_USE_FACIAL_PROFILE,
         "cc_use_hik_profile": CC_USE_HIK_PROFILE,
         "cc_use_facial_expressions": CC_USE_FACIAL_EXPRESSIONS,

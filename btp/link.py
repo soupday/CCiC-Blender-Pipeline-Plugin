@@ -15,6 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
+del abs
 import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
@@ -99,6 +100,7 @@ class LinkActor():
     skin_bones: list = None
     skin_meshes: list = None
     expressions: dict = None
+    expression_rotations: dict = None
     visemes: dict = None
     morphs: dict = None
     t_pose: dict = None
@@ -112,6 +114,7 @@ class LinkActor():
         self.skin_bones = []
         self.skin_meshes = []
         self.expressions = {}
+        self.expression_rotations = {}
         self.visemes = {}
         self.morphs = {}
         self.t_pose = None
@@ -167,6 +170,36 @@ class LinkActor():
                 return self.object.GetMorphComponent()
         return None
 
+    def get_expression_bone_rotations(self):
+        FC = self.get_face_component()
+        SC = self.get_skeleton_component()
+        bones = SC.GetSkinBones()
+        expressions = FC.GetExpressionNames("")
+        expression_rotations = {}
+        i = 10
+        for expression in expressions:
+            skip = False
+            for exclude in ["Mouth_", "Jaw_", "Eye_"]:
+                if expression.startswith(exclude):
+                    skip = True
+                    break
+            if skip:
+                continue
+            for bone in bones:
+                bone_name = bone.GetName()
+                M: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                euler_angle_x = euler_angle_y = euler_angle_z = 0
+                result = M.ToEulerAngle(EEulerOrder_XYZ, euler_angle_x, euler_angle_y, euler_angle_z)
+                t = abs(result[0]) + abs(result[1]) + abs(result[2])
+                if t > 0.0001:
+                    #print(f"ER: {expression} {bone_name} {t}")
+                    if expression not in expression_rotations:
+                        expression_rotations[expression] = {}
+                    expression_rotations[expression][bone_name] = M
+        self.expression_rotations = expression_rotations
+        return expression_rotations
+
+
     def set_template(self, actor_data):
         self.bones = actor_data["bones"]
         self.shapes = actor_data["shapes"]
@@ -188,6 +221,7 @@ class LinkActor():
                     self.visemes[viseme_id] = i
         if MC:
             pass
+        self.get_expression_bone_rotations()
 
     def set_t_pose(self, t_pose):
         self.t_pose = t_pose
@@ -469,7 +503,7 @@ def decompose_transform(T: RTransform):
     return t, r, s
 
 
-def apply_pose(actor: LinkActor, time: RTime, pose_data, t_pose_data):
+def apply_pose(actor: LinkActor, time: RTime, pose_data, shape_data, t_pose_data):
     SC = actor.get_skeleton_component()
     if SC:
         clip: RIClip = SC.GetClipByTime(time)
@@ -483,8 +517,8 @@ def apply_pose(actor: LinkActor, time: RTime, pose_data, t_pose_data):
             root_tra = RVector3(0,0,0)
             root_sca = RVector3(1,1,1)
             apply_world_fk_pose(actor, SC, clip, clip_time,
-                                root_bone, pose_data, t_pose_data,
-                                root_rot, root_tra, root_sca)
+                                root_bone, pose_data, shape_data,
+                                t_pose_data, root_rot, root_tra, root_sca)
             scene_time = clip.ClipTimeToSceneTime(clip_time)
             SC.BakeFkToIk(scene_time, False)
 
@@ -567,6 +601,23 @@ def try_get_pose_bone(name, bones: list):
     return name
 
 
+def get_expression_counter_rotation(actor: LinkActor, bone_name, shape_data) -> RQuaternion:
+    """TODO optimize this:
+         store expression_rotation keys as indices not names
+         only need to figure out once which bones are affected and pass that list along"""
+    ER = actor.expression_rotations
+    M = RMatrix3()
+    M.MakeIdentity()
+    for expression_name in ER:
+        ei = actor.expressions[expression_name]
+        if shape_data[ei] > 0.0001:
+            if bone_name in ER[expression_name]:
+                M *= ER[expression_name][bone_name] * shape_data[ei]
+    R = RQuaternion()
+    R.FromRotationMatrix(M.Inverse())
+    return R
+
+
 def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTime, pose_data):
     tra, rot, sca = fetch_pose_transform(pose_data, 0)
     set_ik_effector(SC, clip, EHikEffector_LeftFoot, time,  rot, tra, sca)
@@ -574,7 +625,7 @@ def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTim
     set_ik_effector(SC, clip, EHikEffector_RightFoot, time,  rot, tra, sca)
 
 
-def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, t_pose_data,
+def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, shape_data, t_pose_data,
                         parent_world_rot, parent_world_tra, parent_world_sca):
     source_name = bone.GetName()
     bone_name = try_get_pose_bone(source_name, actor.bones)
@@ -584,14 +635,15 @@ def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, t_pose_data,
         t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
         local_rot, local_tra, local_sca = calc_local(world_rot, world_tra, world_sca,
                                                      parent_world_rot, parent_world_tra, parent_world_sca)
-        set_bone_control(SC, clip, bone, time,
+        ec_rot = get_expression_counter_rotation(actor, bone_name, shape_data)
+        set_bone_control(SC, clip, bone, time, ec_rot,
                          t_pose_rot, t_pose_tra, t_pose_sca,
                          local_rot, local_tra, local_sca)
 
         children = bone.GetChildren()
         for child in children:
-            apply_world_fk_pose(actor, SC, clip, time, child, pose_data, t_pose_data,
-                             world_rot, world_tra, world_sca)
+            apply_world_fk_pose(actor, SC, clip, time, child, pose_data, shape_data,
+                                t_pose_data, world_rot, world_tra, world_sca)
 
 
 def calc_world(local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3,
@@ -624,7 +676,7 @@ def set_bone_transform(clip, bone, time,
         transform_control.SetValue(time, T)
 
 
-def set_bone_control(SC, clip, bone, time,
+def set_bone_control(SC, clip, bone, time, ec_rot: RQuaternion,
                      t_pose_rot: RQuaternion, t_pose_tra: RVector3, t_pose_sca: RVector3,
                      local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3):
     clip_bone_control: RControl = clip.GetControl("Layer", bone)
@@ -633,7 +685,11 @@ def set_bone_control(SC, clip, bone, time,
         # CC/iC doesn't support bone scaling in human animations? so use the t-pose scale
         sca = t_pose_sca #local_sca / t_pose_sca
         tra = local_tra - t_pose_tra
-        rot = local_rot.Multiply(t_pose_rot.Inverse())
+        # counteract expression rotations
+        exp_local_rot = local_rot.Multiply(ec_rot)
+        # get relative to t-pose
+        rot = exp_local_rot.Multiply(t_pose_rot.Inverse())
+        # apply to clip
         clip_data_block: RDataBlock = clip_bone_control.GetDataBlock()
         if clip_data_block:
             set_control_data(SC, clip_data_block, time, rot, tra, sca)
@@ -1061,8 +1117,11 @@ class LinkService(QObject):
             self.recv()
 
             # run anything in sequence
-            for i in range(0, self.sequence_send_count):
+            if prefs.DATALINK_FRAME_SYNC:
                 self.sequence.emit()
+            else:
+                for i in range(0, self.sequence_send_count):
+                    self.sequence.emit()
 
         except Exception as e:
             utils.log_error("LinkService timer loop crash!")
@@ -2120,10 +2179,14 @@ class DataLink(QObject):
         for light in all_lights:
             all_light_id.append(cc.get_link_id(light))
 
+        VSC: RIVisualSettingComponent = RGlobal.GetVisualSettingComponent()
+        ambient_color: RRgb = VSC.GetAmbientColor()
+
         data = {
             "lights": [],
             "count": len(lights),
             "scene_lights": all_light_id,
+            "ambient_color": [ambient_color.R(), ambient_color.G(), ambient_color.B()],
         }
 
         light: RILight
@@ -2145,9 +2208,9 @@ class DataLink(QObject):
 
             light_type = "SPOT" if is_spot else "POINT" if is_point else "DIR"
             angle: float = 0
-            falloff: float = 0
-            attenuation: float = 0
-            light_range: float = 0
+            falloff: float = 100
+            attenuation: float = 100
+            light_range: float = 1000
             transmission: bool = False
             is_tube: bool = False
             tube_length: float = 0
@@ -2156,6 +2219,7 @@ class DataLink(QObject):
             is_rectangle: bool = False
             rect: RVector2 = RVector2(0,0)
             cast_shadow: bool = False
+            inverse_square: bool = False
 
             if is_spot or is_point:
                 light_range = light.GetRange()
@@ -2164,6 +2228,7 @@ class DataLink(QObject):
             if is_spot or is_dir:
                 transmission = light.GetTransmission()
             if is_spot or is_point:
+                inverse_square = light.GetInverseSquare()
                 is_tube = light.IsTubeShape()
                 tube_length = light.GetTubeLength()
                 tube_radius = light.GetTubeRadius()
@@ -2186,6 +2251,7 @@ class DataLink(QObject):
                 "angle": angle,
                 "falloff": falloff,
                 "attenuation": attenuation,
+                "inverse_square": inverse_square,
                 "transmission": transmission,
                 "is_tube": is_tube,
                 "tube_length": tube_length,
@@ -2572,8 +2638,8 @@ class DataLink(QObject):
             actor.begin_editing()
             apply_shapes(actor, scene_time, actor_data["shapes"])
             apply_shapes(actor, scene_time2, actor_data["shapes"])
-            apply_pose(actor, scene_time, actor_data["pose"], actor.t_pose)
-            apply_pose(actor, scene_time2, actor_data["pose"], actor.t_pose)
+            apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
+            apply_pose(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
             actor.end_editing(scene_time)
         # set the scene time to the end of the clip(s)
         RGlobal.SetTime(scene_time2)
@@ -2637,7 +2703,7 @@ class DataLink(QObject):
         for actor_data in sequence_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
             apply_shapes(actor, scene_time, actor_data["shapes"])
-            apply_pose(actor, scene_time, actor_data["pose"], actor.t_pose)
+            apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
         # send sequence frame ack
         self.send_sequence_ack(frame)
 
@@ -2651,7 +2717,8 @@ class DataLink(QObject):
         self.send(OpCodes.SEQUENCE_ACK, data)
 
     def receive_sequence_end(self, data):
-        frame = data["frame"]
+        json_data = decode_to_json(data)
+        frame = json_data["frame"]
         self.data.sequence_end_frame = frame
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         self.stop_sequence()
