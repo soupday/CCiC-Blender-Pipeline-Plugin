@@ -509,6 +509,9 @@ class Exporter:
         utils.log_info(self.fbx_path)
         json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
         root_json = json_data.get_root_json()
+        if json_data is None:
+            utils.log_error("No valid json data could be found for the export...")
+            return
 
         obj = self.avatar if self.avatar else self.prop
         if not obj: return
