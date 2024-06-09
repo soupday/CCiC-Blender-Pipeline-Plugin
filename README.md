@@ -71,6 +71,12 @@ Known Issues
 Changelog
 =========
 
+### 2.0.9
+- Datalink replace mesh function.
+- Datalink material/texture updates.
+- Sequence / Pose transfer takes facial expression bone rotations into account.
+- Sequence stop button.
+
 ### 2.0.8
 - Fix to error messages when importing invalid characters.
 - Send Prop pose and sequence.
