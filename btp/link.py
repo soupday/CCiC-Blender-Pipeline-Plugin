@@ -607,16 +607,20 @@ def get_expression_counter_rotation(actor: LinkActor, bone_name, shape_data) -> 
          store expression_rotation keys as indices not names
          only need to figure out once which bones are affected and pass that list along"""
     ER = actor.expression_rotations
-    M = RMatrix3()
-    M.MakeIdentity()
-    for expression_name in ER:
-        ei = actor.expressions[expression_name]
-        if shape_data[ei] > 0.0001:
-            if bone_name in ER[expression_name]:
-                M *= ER[expression_name][bone_name] * shape_data[ei]
-    R = RQuaternion()
-    R.FromRotationMatrix(M.Inverse())
-    return R
+    R = RQuaternion(RVector4(0,0,0,1))
+    I = RQuaternion(RVector4(0,0,0,1))
+    if True:
+        for expression_name in ER:
+            ei = actor.expressions[expression_name]
+            s = shape_data[ei]
+            if s > 0.0001:
+                if bone_name in ER[expression_name]:
+                    ERM: RMatrix3 = ER[expression_name][bone_name]
+                    ERQ = RQuaternion()
+                    ERQ.FromRotationMatrix(ERM)
+                    ERQS = I + (ERQ - I)*s
+                    R = R.Multiply(ERQS)
+    return R.Inverse()
 
 
 def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTime, pose_data):
