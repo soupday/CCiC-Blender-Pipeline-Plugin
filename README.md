@@ -71,6 +71,14 @@ Known Issues
 Changelog
 =========
 
+### 2.0.9
+- Datalink:
+    - Live Sequence speed improvements.
+    - Receive Replace Mesh function.
+    - Receive Material/Texture updates.
+    - Sequence / Pose transfer takes facial expression bone rotations into account.
+    - Live Sequence stop button.
+
 ### 2.0.8
 - Fix to error messages when importing invalid characters.
 - Send Prop pose and sequence.

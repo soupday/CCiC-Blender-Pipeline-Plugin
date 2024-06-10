@@ -60,10 +60,13 @@ class Importer:
 
     json_data: cc.CCJsonData = None
 
-    def __init__(self, file_path, no_window=False):
+    def __init__(self, file_path, no_window=False, json_only=False):
         utils.log("================================================================")
         file_path = os.path.normpath(file_path)
-        utils.log("New character import, Fbx: " + file_path)
+        if json_only:
+            utils.log("Material update import: " + file_path)
+        else:
+            utils.log("New character import, Fbx: " + file_path)
         self.path = file_path
         self.file = os.path.basename(self.path)
         self.folder = os.path.dirname(self.path)
@@ -84,14 +87,20 @@ class Importer:
         if not self.json_data.valid:
             qt.message_box("Invalid JSON Data", "There is no valid JSON data with this character or this is not a compatible CC3+ character.\n\nThe plugin will be unable to set-up any materials.\n\nPlease use the standard character importer instead (File Menu > Import).")
             error = True
-        if self.character_type == "STANDARD":
+        if not json_only and self.character_type == "STANDARD":
             if not os.path.exists(self.key):
                 qt.message_box("No FBX Key", "There is no Fbx Key with this character!\n\nCC3/4 Standard characters cannot be imported back into Character Creator without a corresponding Fbx Key.\nThe Fbx Key will be generated when the character is exported as Mesh only, or in Calibration Pose, and with no hidden faces.")
                 error = True
 
-        self.option_mesh = True
-        self.option_textures = True
-        self.option_parameters = True
+        if json_only:
+            self.option_mesh = False
+            self.option_textures = True
+            self.option_parameters = True
+        else:
+            self.option_mesh = True
+            self.option_textures = True
+            self.option_parameters = True
+
         self.option_import_hik = False
         self.option_import_profile = False
         self.option_import_expressions = False
@@ -240,7 +249,10 @@ class Importer:
                 if self.character_type == "PROP":
                     stored_props = RLPy.RScene.GetProps()
 
-                RLPy.RFileIO.LoadFbxFile(self.path, args)
+                if os.path.exists(self.key):
+                    RLPy.RFileIO.LoadFbxFile(self.path, args, self.key, "", True)
+                else:
+                    RLPy.RFileIO.LoadFbxFile(self.path, args)
 
                 # any prop not in the stored list is newly imported.
                 if self.character_type == "PROP":
@@ -283,6 +295,21 @@ class Importer:
                         link_id = cc.get_link_id(obj, add_if_missing=True)
                         utils.log_info(f"New Link-ID: {obj.GetName()} {link_id}")
         return objects
+
+    def update_materials(self, obj):
+        if type(obj) is RLPy.RIAvatar:
+            self.avatar = obj
+            self.rebuild_materials()
+        elif type(obj) is RLPy.RIProp:
+            objects = set()
+            objects.add(obj)
+            child_objects = RLPy.RGlobal.FindChildObjects(obj, RLPy.EObjectType_Prop)
+            for obj in child_objects:
+                if type(obj) is RLPy.RIProp:
+                    objects.add(obj)
+            for obj in objects:
+                self.avatar = obj
+                self.rebuild_materials()
 
     def rebuild_materials(self):
         """Material reconstruction process.
@@ -492,12 +519,13 @@ class Importer:
         for M in mesh_materials:
 
             pid = M.mesh_name + " / " + M.mat_name
-            utils.log(f"Mesh: {M.mesh_name}, Material: {M.mat_name}")
             self.update_progress(0, pid, True)
 
             if not M.has_json():
                 self.update_progress(1, pid, True)
                 continue
+
+            utils.log(f"Mesh: {M.mesh_name}, Material: {M.mat_name}")
 
             if self.option_textures:
 
