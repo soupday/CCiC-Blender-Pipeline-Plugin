@@ -188,15 +188,17 @@ class LinkActor():
                 continue
             for bone in bones:
                 bone_name = bone.GetName()
-                M: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                ERQ = RQuaternion()
+                ERQ.FromRotationMatrix(ERM)
                 euler_angle_x = euler_angle_y = euler_angle_z = 0
-                result = M.ToEulerAngle(EEulerOrder_XYZ, euler_angle_x, euler_angle_y, euler_angle_z)
+                result = ERM.ToEulerAngle(EEulerOrder_XYZ, euler_angle_x, euler_angle_y, euler_angle_z)
                 t = abs(result[0]) + abs(result[1]) + abs(result[2])
                 if t > 0.0001:
                     #print(f"ER: {expression} {bone_name} {t}")
                     if expression not in expression_rotations:
                         expression_rotations[expression] = {}
-                    expression_rotations[expression][bone_name] = M
+                    expression_rotations[expression][bone_name] = ERQ
         self.expression_rotations = expression_rotations
         return expression_rotations
 
@@ -602,24 +604,22 @@ def try_get_pose_bone(name, bones: list):
     return name
 
 
-def get_expression_counter_rotation(actor: LinkActor, bone_name, shape_data) -> RQuaternion:
+def get_expression_counter_rotation(actor: LinkActor, bone_name, expression_weights) -> RQuaternion:
     """TODO optimize this:
          store expression_rotation keys as indices not names
          only need to figure out once which bones are affected and pass that list along"""
-    ER = actor.expression_rotations
+    exp_rotations = actor.expression_rotations
     R = RQuaternion(RVector4(0,0,0,1))
     I = RQuaternion(RVector4(0,0,0,1))
     if True:
-        for expression_name in ER:
-            ei = actor.expressions[expression_name]
-            s = shape_data[ei]
-            if s > 0.0001:
-                if bone_name in ER[expression_name]:
-                    ERM: RMatrix3 = ER[expression_name][bone_name]
-                    ERQ = RQuaternion()
-                    ERQ.FromRotationMatrix(ERM)
-                    ERQS = I + (ERQ - I)*s
-                    R = R.Multiply(ERQS)
+        for exp_name in exp_rotations:
+            exp_index = actor.expressions[exp_name]
+            w = expression_weights[exp_index]
+            if w > 0.001:
+                if bone_name in exp_rotations[exp_name]:
+                    ERQ: RQuaternion = exp_rotations[exp_name][bone_name]
+                    ERQW = I + (ERQ - I)*w
+                    R = R.Multiply(ERQW)
     return R.Inverse()
 
 
