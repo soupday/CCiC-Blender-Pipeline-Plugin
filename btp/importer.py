@@ -249,7 +249,10 @@ class Importer:
                 if self.character_type == "PROP":
                     stored_props = RLPy.RScene.GetProps()
 
-                RLPy.RFileIO.LoadFbxFile(self.path, args)
+                if os.path.exists(self.key):
+                    RLPy.RFileIO.LoadFbxFile(self.path, args, self.key, "", True)
+                else:
+                    RLPy.RFileIO.LoadFbxFile(self.path, args)
 
                 # any prop not in the stored list is newly imported.
                 if self.character_type == "PROP":
