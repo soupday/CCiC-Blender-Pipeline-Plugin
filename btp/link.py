@@ -2653,7 +2653,7 @@ class DataLink(QObject):
             apply_pose(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
             actor.end_editing(scene_time)
         # set the scene time to the end of the clip(s)
-        RGlobal.SetTime(scene_time2)
+        RGlobal.SetTime(scene_time)
         RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
