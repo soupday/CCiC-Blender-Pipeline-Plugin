@@ -72,10 +72,12 @@ Changelog
 =========
 
 ### 2.0.9
-- Datalink replace mesh function.
-- Datalink material/texture updates.
-- Sequence / Pose transfer takes facial expression bone rotations into account.
-- Sequence stop button.
+- Datalink:
+    - Live Sequence speed improvements.
+    - Receive Replace Mesh function.
+    - Receive Material/Texture updates.
+    - Sequence / Pose transfer takes facial expression bone rotations into account.
+    - Live Sequence stop button.
 
 ### 2.0.8
 - Fix to error messages when importing invalid characters.
