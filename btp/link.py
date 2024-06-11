@@ -188,7 +188,12 @@ class LinkActor():
                 continue
             for bone in bones:
                 bone_name = bone.GetName()
-                ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                try:
+                    ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                except:
+                    ERM = RMatrix3(1, 0, 0,
+                                   0, 1, 0,
+                                   0, 0, 1)
                 ERQ = RQuaternion()
                 ERQ.FromRotationMatrix(ERM)
                 euler_angle_x = euler_angle_y = euler_angle_z = 0
