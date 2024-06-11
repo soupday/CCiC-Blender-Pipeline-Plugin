@@ -2191,7 +2191,7 @@ class DataLink(QObject):
         try:
             ambient_color: RRgb = VSC.GetAmbientColor()
         except:
-            ambient_color = RRgb(1,1,1)
+            ambient_color = RRgb(0.2,0.2,0.2)
 
         data = {
             "lights": [],
