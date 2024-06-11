@@ -2188,7 +2188,10 @@ class DataLink(QObject):
             all_light_id.append(cc.get_link_id(light))
 
         VSC: RIVisualSettingComponent = RGlobal.GetVisualSettingComponent()
-        ambient_color: RRgb = VSC.GetAmbientColor()
+        try:
+            ambient_color: RRgb = VSC.GetAmbientColor()
+        except:
+            ambient_color = RRgb(1,1,1)
 
         data = {
             "lights": [],
