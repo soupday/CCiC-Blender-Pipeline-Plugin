@@ -1236,6 +1236,7 @@ class DataLink(QObject):
     button_pose: QPushButton = None
     button_sequence: QPushButton = None
     button_animation: QPushButton = None
+    button_update_replace: QPushButton = None
     button_morph: QPushButton = None
     button_morph_update: QPushButton = None
     button_sync_lights: QPushButton = None
@@ -1340,8 +1341,8 @@ class DataLink(QObject):
                                          row=2, col=0, icon="Motion.png",
                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                          icon_size=48)
-        if cc.is_cc():
-            self.button_update_replace = qt.button(grid, "Send Update", self.send_update_replace, row=2, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        #if cc.is_cc():
+        #    self.button_update_replace = qt.button(grid, "Send Update", self.send_update_replace, row=2, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         if cc.is_cc():
             qt.spacing(layout, 20)
@@ -1609,43 +1610,7 @@ class DataLink(QObject):
             utils.log_info(f"{self.host_name} ({self.host_ip})")
 
     def update_action_name_prefix(self):
-        if self.textbox_action_name_prefix == "":
-            avatar: RIAvatar = None
-            prop: RIProp = None
-            light: RILight = None
-            camera: RICamera = None
-
-            selected = RScene.GetSelectedObjects()
-            cc.get_selected_actor_objects()
-            if selected:
-                first = selected[0]
-                prop_or_avatar = cc.find_parent_avatar_or_prop(first)
-                T = type(first)
-                if prop_or_avatar:
-                    T = type(prop_or_avatar)
-                if T is RIAvatar:
-                    avatar = prop_or_avatar
-                elif T is RIProp:
-                    prop = prop_or_avatar
-                elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
-                    light = first
-                elif T is RICamera:
-                    camera = first
-                else:
-                    first = None
-
-            if avatar:
-                self.textbox_action_name_prefix.setText(avatar.GetName())
-            elif prop:
-                self.textbox_action_name_prefix.setText(prop.GetName())
-            elif light:
-                self.textbox_action_name_prefix.setText(light.GetName())
-            elif camera:
-                self.textbox_action_name_prefix.setText(camera.GetName())
-            else:
-                ...
-        else:
-            self.action_name_prefix = self.textbox_action_name_prefix.text()
+        self.action_name_prefix = self.textbox_action_name_prefix.text()
 
     def update_toggle_use_fake_user(self):
         if self.toggle_use_fake_user.isChecked():
@@ -1911,6 +1876,8 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.CHARACTER, export_data)
 
@@ -1927,6 +1894,8 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.PROP, export_data)
 
@@ -2000,8 +1969,6 @@ class DataLink(QObject):
             end_frame = fps.GetFrameIndex(end_time)
             current_time: RTime = RGlobal.GetTime()
             current_frame = fps.GetFrameIndex(current_time)
-            action_name_prefix = self.action_name_prefix
-            use_fake_user = self.use_fake_user
             export_data = encode_from_json({
                 "path": export_path,
                 "name": actor.name,
@@ -2014,8 +1981,8 @@ class DataLink(QObject):
                 "end_frame": end_frame,
                 "time": current_time.ToFloat(),
                 "frame": current_frame,
-                "action_name_prefix": action_name_prefix,
-                "use_fake_user": use_fake_user,
+                "action_name_prefix": self.action_name_prefix,
+                "use_fake_user": self.use_fake_user,
             })
             self.send(OpCodes.MOTION, export_data)
 
@@ -2084,6 +2051,8 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.CHARACTER, export_data)
 
@@ -2170,8 +2139,6 @@ class DataLink(QObject):
         end_frame = fps.GetFrameIndex(end_time)
         current_time: RTime = RGlobal.GetTime()
         current_frame = fps.GetFrameIndex(current_time)
-        action_name_prefix = self.action_name_prefix
-        use_fake_user = self.use_fake_user
         actors_data = []
         data = {
             "fps": fps.ToFloat(),
@@ -2181,8 +2148,8 @@ class DataLink(QObject):
             "end_frame": end_frame,
             "time": current_time.ToFloat(),
             "frame": current_frame,
-            "action_name_prefix": action_name_prefix,
-            "use_fake_user": use_fake_user,
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
             "actors": actors_data,
         }
         actor: LinkActor
@@ -2272,8 +2239,6 @@ class DataLink(QObject):
         end_frame = fps.GetFrameIndex(end_time)
         current_time: RTime = RGlobal.GetTime()
         current_frame = fps.GetFrameIndex(current_time)
-        action_name_prefix = self.action_name_prefix
-        use_fake_user = self.use_fake_user
         actors_data = []
         data = {
             "fps": fps.ToFloat(),
@@ -2283,8 +2248,8 @@ class DataLink(QObject):
             "end_frame": end_frame,
             "time": current_time.ToFloat(),
             "frame": current_frame,
-            "action_name_prefix": action_name_prefix,
-            "use_fake_user": use_fake_user,
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
             "actors": actors_data,
         }
         actor: LinkActor
@@ -2508,8 +2473,6 @@ class DataLink(QObject):
         start_frame = fps.GetFrameIndex(start_time)
         end_frame = fps.GetFrameIndex(end_time)
         current_frame = fps.GetFrameIndex(current_time)
-        action_name_prefix = self.action_name_prefix
-        use_fake_user = self.use_fake_user
         frame_data = {
             "fps": fps.ToFloat(),
             "start_time": start_time.ToFloat(),
@@ -2518,8 +2481,8 @@ class DataLink(QObject):
             "start_frame": start_frame,
             "end_frame": end_frame,
             "current_frame": current_frame,
-            "action_name_prefix": action_name_prefix,
-            "use_fake_user": use_fake_user,
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         }
         self.send(OpCodes.FRAME_SYNC, encode_from_json(frame_data))
 
