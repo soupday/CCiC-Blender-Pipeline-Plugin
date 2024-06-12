@@ -614,11 +614,9 @@ class Importer:
                 saturation = M.mat_json.get_base_var("Diffuse Saturation", 1.0)
                 brightness = M.mat_json.get_base_var("Diffuse Brightness", 1.0)
                 if hue != 0.5 or saturation != 1.0 or brightness != 1.0:
-                    hue = 200*hue - 100
-                    saturation = 100*saturation - 100
-                    brightness = 10*brightness - 10
-                    if brightness < 0:
-                        brightness *= 10
+                    hue = 200 * hue - 100
+                    saturation = 100 * saturation - 100
+                    brightness = 100 * brightness - 100
                     M.set_channel_image_color(cc.TextureChannel.DIFFUSE, 0.0, hue, saturation, brightness, 0, 0,0,0)
 
             self.update_progress(1, pid, True)
