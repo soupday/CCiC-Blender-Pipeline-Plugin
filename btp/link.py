@@ -1236,16 +1236,20 @@ class DataLink(QObject):
     button_pose: QPushButton = None
     button_sequence: QPushButton = None
     button_animation: QPushButton = None
+    button_update_replace: QPushButton = None
     button_morph: QPushButton = None
     button_morph_update: QPushButton = None
     button_sync_lights: QPushButton = None
     button_sync_camera: QPushButton = None
+    toggle_use_fake_user: QPushButton = None
     #
     icon_avatar: QIcon = None
     icon_prop: QIcon = None
     icon_light: QIcon = None
     icon_camera: QIcon = None
     icon_all: QIcon = None
+    icon_fake_user_off: QIcon = None
+    icon_fake_user_on: QIcon = None
     # Service
     service: LinkService = None
     # Data
@@ -1275,25 +1279,33 @@ class DataLink(QObject):
         self.icon_light = qt.get_icon("Light.png")
         self.icon_camera = qt.get_icon("Camera.png")
         self.icon_all = qt.get_icon("Actor.png")
+        self.icon_fake_user_off = qt.get_icon("BlenderFakeUserOff.png")
+        self.icon_fake_user_on = qt.get_icon("BlenderFakeUserOn.png")
 
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 3)
         qt.label(grid, f"Data Link ({vars.VERSION}):", row=0, col=0, style=qt.STYLE_TITLE)
-        self.label_header = qt.label(grid, f"Not Connected", row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
+        self.label_header = qt.label(grid, f"Not Connected",
+                                     row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
         qt.label(grid, f"Working Folder:", row=1, col=0, style=qt.STYLE_TITLE)
-        self.label_folder = qt.label(grid, f"{self.get_remote_folder()}", row=1, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
+        self.label_folder = qt.label(grid, f"{self.get_remote_folder()}",
+                                     row=1, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
 
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
         self.combo_target = qt.combobox(row, "", options=["Blender", "Unity"], update=self.update_target)
 
-        qt.spacing(layout, 10)
+        #qt.spacing(layout, 10)
 
         grid = qt.grid(layout)
         grid.setColumnStretch(2, 0)
         qt.label(grid, f"Action Name Prefix:", row=0, col=0, style=qt.STYLE_TITLE)
-        self.textbox_action_name_prefix = qt.textbox(grid, self.action_name_prefix, row=0, col=1, update=self.update_action_name_prefix)
-        self.checkbox_use_fake_user = qt.checkbox(grid, "Use Fake User", self.use_fake_user, update=self.update_checkbox_use_fake_user, row=1, col=0)
+        self.textbox_action_name_prefix = qt.textbox(grid, self.action_name_prefix,
+                                                     row=0, col=1, update=self.update_action_name_prefix)
+        self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
+                                              icon=self.icon_fake_user_off, toggle=True, value=self.use_fake_user,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=2)
 
         qt.spacing(layout, 10)
 
@@ -1309,24 +1321,53 @@ class DataLink(QObject):
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        self.button_send = qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon=self.icon_avatar, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_pose = qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_animation = qt.button(grid, "Send Motion", self.send_motion_export, row=1, col=1, icon="Animation.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence, row=2, col=0, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_send = qt.button(grid, "Send Character", self.send_actor,
+                                     row=0, col=0, icon=self.icon_avatar,
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48)
+        self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request,
+                                       row=0, col=1, icon="PostEffect.png",
+                                       width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                       icon_size=48)
+        self.button_pose = qt.button(grid, "Send Pose", self.send_pose,
+                                     row=1, col=0, icon="Pose.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48)
+        self.button_animation = qt.button(grid, "Send Motion", self.send_motion_export,
+                                          row=1, col=1, icon="Animation.png",
+                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                          icon_size=48)
+        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence,
+                                         row=2, col=0, icon="Motion.png",
+                                         width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                         icon_size=48)
+        #if cc.is_cc():
+        #    self.button_update_replace = qt.button(grid, "Send Update", self.send_update_replace, row=2, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         if cc.is_cc():
             qt.spacing(layout, 20)
 
             grid = qt.grid(layout)
-            self.button_morph = qt.button(grid, "Send Morph", self.send_morph, row=0, col=0, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-            self.button_morph_update = qt.button(grid, "Update Morph", self.send_morph_update, row=0, col=1, icon="Morph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+            self.button_morph = qt.button(grid, "Send Morph", self.send_morph,
+                                          row=0, col=0, icon="FullBodyMorph.png",
+                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                          icon_size=48)
+            self.button_morph_update = qt.button(grid, "Update Morph", self.send_morph_update,
+                                                 row=0, col=1, icon="Morph.png",
+                                                 width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                 icon_size=48)
 
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        self.button_sync_lights = qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon=self.icon_light, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_sync_camera = qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon=self.icon_camera, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_sync_lights = qt.button(grid, "Sync Lights", self.sync_lights,
+                                            row=0, col=0, icon=self.icon_light,
+                                            width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                            icon_size=48)
+        self.button_sync_camera = qt.button(grid, "Sync Camera", self.send_camera_sync,
+                                            row=0, col=1, icon=self.icon_camera,
+                                            width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                            icon_size=48)
 
         qt.stretch(layout, 20)
 
@@ -1485,7 +1526,8 @@ class DataLink(QObject):
         # button enable
 
         qt.disable(self.button_send, self.button_rigify,
-                   self.button_pose, self.button_sequence, self.button_animation,
+                   self.button_pose, self.button_sequence,
+                   self.button_animation, self.button_update_replace,
                    self.button_morph, self.button_morph_update,
                    self.button_sync_lights, self.button_sync_camera)
 
@@ -1493,7 +1535,7 @@ class DataLink(QObject):
             if num_posable > 0:
                 qt.enable(self.button_pose, self.button_sequence, self.button_animation)
             if num_sendable > 0:
-                qt.enable(self.button_send)
+                qt.enable(self.button_send, self.button_update_replace)
             if num_standard > 0:
                 qt.enable(self.button_morph, self.button_morph_update)
             if num_rigable > 0:
@@ -1547,8 +1589,6 @@ class DataLink(QObject):
             else:
                 self.info_label_link_id.setStyleSheet(qt.STYLE_NONE)
         else:
-            qt.disable(self.button_send, self.button_pose, self.button_sequence, self.button_animation,
-                       self.button_rigify, self.button_morph, self.button_morph_update)
             self.context_frame.hide()
 
         if self.is_sequence_running():
@@ -1570,46 +1610,14 @@ class DataLink(QObject):
             utils.log_info(f"{self.host_name} ({self.host_ip})")
 
     def update_action_name_prefix(self):
-        if self.textbox_action_name_prefix == "":
-            avatar: RIAvatar = None
-            prop: RIProp = None
-            light: RILight = None
-            camera: RICamera = None
+        self.action_name_prefix = self.textbox_action_name_prefix.text()
 
-            selected = RScene.GetSelectedObjects()
-            cc.get_selected_actor_objects()
-            if selected:
-                first = selected[0]
-                prop_or_avatar = cc.find_parent_avatar_or_prop(first)
-                T = type(first)
-                if prop_or_avatar:
-                    T = type(prop_or_avatar)
-                if T is RIAvatar:
-                    avatar = prop_or_avatar
-                elif T is RIProp:
-                    prop = prop_or_avatar
-                elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
-                    light = first
-                elif T is RICamera:
-                    camera = first
-                else:
-                    first = None
-
-            if avatar:
-                self.textbox_action_name_prefix.setText(avatar.GetName())
-            elif prop:
-                self.textbox_action_name_prefix.setText(prop.GetName())
-            elif light:
-                self.textbox_action_name_prefix.setText(light.GetName())
-            elif camera:
-                self.textbox_action_name_prefix.setText(camera.GetName())
-            else:
-                ...
+    def update_toggle_use_fake_user(self):
+        if self.toggle_use_fake_user.isChecked():
+            self.toggle_use_fake_user.setIcon(self.icon_fake_user_on)
         else:
-            self.action_name_prefix = self.textbox_action_name_prefix.text()
-
-    def update_checkbox_use_fake_user(self):
-        self.use_fake_user = self.checkbox_use_fake_user.isChecked()
+            self.toggle_use_fake_user.setIcon(self.icon_fake_user_off)
+        self.use_fake_user = self.toggle_use_fake_user.isChecked()
 
 
     def update_target(self):
@@ -1868,6 +1876,8 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.CHARACTER, export_data)
 
@@ -1884,6 +1894,8 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.PROP, export_data)
 
@@ -1932,6 +1944,9 @@ class DataLink(QObject):
             elif actor.is_camera():
                 self.send_camera()
 
+    def send_update_replace(self):
+        return
+
     def send_motion_export(self):
         actors = self.get_selected_actors()
         actor: LinkActor
@@ -1954,8 +1969,6 @@ class DataLink(QObject):
             end_frame = fps.GetFrameIndex(end_time)
             current_time: RTime = RGlobal.GetTime()
             current_frame = fps.GetFrameIndex(current_time)
-            action_name_prefix = self.action_name_prefix
-            use_fake_user = self.use_fake_user
             export_data = encode_from_json({
                 "path": export_path,
                 "name": actor.name,
@@ -1968,8 +1981,8 @@ class DataLink(QObject):
                 "end_frame": end_frame,
                 "time": current_time.ToFloat(),
                 "frame": current_frame,
-                "action_name_prefix": action_name_prefix,
-                "use_fake_user": use_fake_user,
+                "action_name_prefix": self.action_name_prefix,
+                "use_fake_user": self.use_fake_user,
             })
             self.send(OpCodes.MOTION, export_data)
 
@@ -2038,6 +2051,8 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.CHARACTER, export_data)
 
@@ -2124,8 +2139,6 @@ class DataLink(QObject):
         end_frame = fps.GetFrameIndex(end_time)
         current_time: RTime = RGlobal.GetTime()
         current_frame = fps.GetFrameIndex(current_time)
-        action_name_prefix = self.action_name_prefix
-        use_fake_user = self.use_fake_user
         actors_data = []
         data = {
             "fps": fps.ToFloat(),
@@ -2135,8 +2148,8 @@ class DataLink(QObject):
             "end_frame": end_frame,
             "time": current_time.ToFloat(),
             "frame": current_frame,
-            "action_name_prefix": action_name_prefix,
-            "use_fake_user": use_fake_user,
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
             "actors": actors_data,
         }
         actor: LinkActor
@@ -2226,8 +2239,6 @@ class DataLink(QObject):
         end_frame = fps.GetFrameIndex(end_time)
         current_time: RTime = RGlobal.GetTime()
         current_frame = fps.GetFrameIndex(current_time)
-        action_name_prefix = self.action_name_prefix
-        use_fake_user = self.use_fake_user
         actors_data = []
         data = {
             "fps": fps.ToFloat(),
@@ -2237,8 +2248,8 @@ class DataLink(QObject):
             "end_frame": end_frame,
             "time": current_time.ToFloat(),
             "frame": current_frame,
-            "action_name_prefix": action_name_prefix,
-            "use_fake_user": use_fake_user,
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
             "actors": actors_data,
         }
         actor: LinkActor
@@ -2462,8 +2473,6 @@ class DataLink(QObject):
         start_frame = fps.GetFrameIndex(start_time)
         end_frame = fps.GetFrameIndex(end_time)
         current_frame = fps.GetFrameIndex(current_time)
-        action_name_prefix = self.action_name_prefix
-        use_fake_user = self.use_fake_user
         frame_data = {
             "fps": fps.ToFloat(),
             "start_time": start_time.ToFloat(),
@@ -2472,8 +2481,8 @@ class DataLink(QObject):
             "start_frame": start_frame,
             "end_frame": end_frame,
             "current_frame": current_frame,
-            "action_name_prefix": action_name_prefix,
-            "use_fake_user": use_fake_user,
+            "action_name_prefix": self.action_name_prefix,
+            "use_fake_user": self.use_fake_user,
         }
         self.send(OpCodes.FRAME_SYNC, encode_from_json(frame_data))
 

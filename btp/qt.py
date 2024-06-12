@@ -28,6 +28,11 @@ STYLE_TITLE = "color: white; font: bold"
 STYLE_BOLD = "font: bold"
 STYLE_RL_BOLD = "color: #d2ff7b; font: bold"
 STYLE_BUTTON = ""
+STYLE_BLENDER_TOGGLE = """QPushButton { border: 1px solid #505050; }
+                          QPushButton:hover { border: 1px solid 505050; background-color: #505050; }
+                          QPushButton:pressed { border: 1px solid 505050; background-color: #4772b3; }
+                          QPushButton:checked { border: 1px solid 505050; background-color: #4772b3; }
+                          """
 STYLE_BUTTON_WAITING = "background-color: #505050; color: white; font: bold"
 STYLE_BUTTON_ACTIVE = "background-color: #82be0f; color: black; font: bold"
 STYLE_BUTTON_BOLD = "color: white; font: bold 14px"
