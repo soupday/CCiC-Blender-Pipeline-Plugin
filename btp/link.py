@@ -1240,12 +1240,15 @@ class DataLink(QObject):
     button_morph_update: QPushButton = None
     button_sync_lights: QPushButton = None
     button_sync_camera: QPushButton = None
+    toggle_use_fake_user: QPushButton = None
     #
     icon_avatar: QIcon = None
     icon_prop: QIcon = None
     icon_light: QIcon = None
     icon_camera: QIcon = None
     icon_all: QIcon = None
+    icon_fake_user_off: QIcon = None
+    icon_fake_user_on: QIcon = None
     # Service
     service: LinkService = None
     # Data
