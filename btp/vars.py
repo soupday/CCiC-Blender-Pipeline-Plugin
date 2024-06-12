@@ -16,7 +16,7 @@
 
 from RLPy import *
 
-VERSION = "2.0.9"
+VERSION = "2.0.10"
 DEV = False
 
 AVATAR_TYPES = {

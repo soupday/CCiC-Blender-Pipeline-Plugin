@@ -1275,6 +1275,8 @@ class DataLink(QObject):
         self.icon_light = qt.get_icon("Light.png")
         self.icon_camera = qt.get_icon("Camera.png")
         self.icon_all = qt.get_icon("Actor.png")
+        self.icon_fake_user_off = qt.get_icon("BlenderFakeUserOff.png")
+        self.icon_fake_user_on = qt.get_icon("BlenderFakeUserOn.png")
 
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 3)
@@ -1287,13 +1289,16 @@ class DataLink(QObject):
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
         self.combo_target = qt.combobox(row, "", options=["Blender", "Unity"], update=self.update_target)
 
-        qt.spacing(layout, 10)
+        #qt.spacing(layout, 10)
 
         grid = qt.grid(layout)
         grid.setColumnStretch(2, 0)
         qt.label(grid, f"Action Name Prefix:", row=0, col=0, style=qt.STYLE_TITLE)
         self.textbox_action_name_prefix = qt.textbox(grid, self.action_name_prefix, row=0, col=1, update=self.update_action_name_prefix)
-        self.checkbox_use_fake_user = qt.checkbox(grid, "Use Fake User", self.use_fake_user, update=self.update_checkbox_use_fake_user, row=1, col=0)
+        self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
+                                                icon=self.icon_fake_user_off, toggle=True, value=self.use_fake_user,
+                                                style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                                row=0, col=2)
 
         qt.spacing(layout, 10)
 
@@ -1608,8 +1613,12 @@ class DataLink(QObject):
         else:
             self.action_name_prefix = self.textbox_action_name_prefix.text()
 
-    def update_checkbox_use_fake_user(self):
-        self.use_fake_user = self.checkbox_use_fake_user.isChecked()
+    def update_toggle_use_fake_user(self):
+        if self.toggle_use_fake_user.isChecked():
+            self.toggle_use_fake_user.setIcon(self.icon_fake_user_on)
+        else:
+            self.toggle_use_fake_user.setIcon(self.icon_fake_user_off)
+        self.use_fake_user = self.toggle_use_fake_user.isChecked()
 
 
     def update_target(self):
