@@ -1284,9 +1284,11 @@ class DataLink(QObject):
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 3)
         qt.label(grid, f"Data Link ({vars.VERSION}):", row=0, col=0, style=qt.STYLE_TITLE)
-        self.label_header = qt.label(grid, f"Not Connected", row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
+        self.label_header = qt.label(grid, f"Not Connected",
+                                     row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
         qt.label(grid, f"Working Folder:", row=1, col=0, style=qt.STYLE_TITLE)
-        self.label_folder = qt.label(grid, f"{self.get_remote_folder()}", row=1, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
+        self.label_folder = qt.label(grid, f"{self.get_remote_folder()}",
+                                     row=1, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
 
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
@@ -1297,11 +1299,12 @@ class DataLink(QObject):
         grid = qt.grid(layout)
         grid.setColumnStretch(2, 0)
         qt.label(grid, f"Action Name Prefix:", row=0, col=0, style=qt.STYLE_TITLE)
-        self.textbox_action_name_prefix = qt.textbox(grid, self.action_name_prefix, row=0, col=1, update=self.update_action_name_prefix)
+        self.textbox_action_name_prefix = qt.textbox(grid, self.action_name_prefix,
+                                                     row=0, col=1, update=self.update_action_name_prefix)
         self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
-                                                icon=self.icon_fake_user_off, toggle=True, value=self.use_fake_user,
-                                                style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                                row=0, col=2)
+                                              icon=self.icon_fake_user_off, toggle=True, value=self.use_fake_user,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=2)
 
         qt.spacing(layout, 10)
 
@@ -1317,24 +1320,53 @@ class DataLink(QObject):
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        self.button_send = qt.button(grid, "Send Character", self.send_actor, row=0, col=0, icon=self.icon_avatar, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request, row=0, col=1, icon="PostEffect.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_pose = qt.button(grid, "Send Pose", self.send_pose, row=1, col=0, icon="Pose.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_animation = qt.button(grid, "Send Motion", self.send_motion_export, row=1, col=1, icon="Animation.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence, row=2, col=0, icon="Motion.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_send = qt.button(grid, "Send Character", self.send_actor,
+                                     row=0, col=0, icon=self.icon_avatar,
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48)
+        self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request,
+                                       row=0, col=1, icon="PostEffect.png",
+                                       width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                       icon_size=48)
+        self.button_pose = qt.button(grid, "Send Pose", self.send_pose,
+                                     row=1, col=0, icon="Pose.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48)
+        self.button_animation = qt.button(grid, "Send Motion", self.send_motion_export,
+                                          row=1, col=1, icon="Animation.png",
+                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                          icon_size=48)
+        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence,
+                                         row=2, col=0, icon="Motion.png",
+                                         width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                         icon_size=48)
+        if cc.is_cc():
+            self.button_update_replace = qt.button(grid, "Send Update", self.send_update_replace, row=2, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
 
         if cc.is_cc():
             qt.spacing(layout, 20)
 
             grid = qt.grid(layout)
-            self.button_morph = qt.button(grid, "Send Morph", self.send_morph, row=0, col=0, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-            self.button_morph_update = qt.button(grid, "Update Morph", self.send_morph_update, row=0, col=1, icon="Morph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+            self.button_morph = qt.button(grid, "Send Morph", self.send_morph,
+                                          row=0, col=0, icon="FullBodyMorph.png",
+                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                          icon_size=48)
+            self.button_morph_update = qt.button(grid, "Update Morph", self.send_morph_update,
+                                                 row=0, col=1, icon="Morph.png",
+                                                 width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                 icon_size=48)
 
         qt.spacing(layout, 20)
 
         grid = qt.grid(layout)
-        self.button_sync_lights = qt.button(grid, "Sync Lights", self.sync_lights, row=0, col=0, icon=self.icon_light, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
-        self.button_sync_camera = qt.button(grid, "Sync Camera", self.send_camera_sync, row=0, col=1, icon=self.icon_camera, width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+        self.button_sync_lights = qt.button(grid, "Sync Lights", self.sync_lights,
+                                            row=0, col=0, icon=self.icon_light,
+                                            width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                            icon_size=48)
+        self.button_sync_camera = qt.button(grid, "Sync Camera", self.send_camera_sync,
+                                            row=0, col=1, icon=self.icon_camera,
+                                            width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                            icon_size=48)
 
         qt.stretch(layout, 20)
 
@@ -1493,7 +1525,8 @@ class DataLink(QObject):
         # button enable
 
         qt.disable(self.button_send, self.button_rigify,
-                   self.button_pose, self.button_sequence, self.button_animation,
+                   self.button_pose, self.button_sequence,
+                   self.button_animation, self.button_update_replace,
                    self.button_morph, self.button_morph_update,
                    self.button_sync_lights, self.button_sync_camera)
 
@@ -1501,7 +1534,7 @@ class DataLink(QObject):
             if num_posable > 0:
                 qt.enable(self.button_pose, self.button_sequence, self.button_animation)
             if num_sendable > 0:
-                qt.enable(self.button_send)
+                qt.enable(self.button_send, self.button_update_replace)
             if num_standard > 0:
                 qt.enable(self.button_morph, self.button_morph_update)
             if num_rigable > 0:
@@ -1555,8 +1588,6 @@ class DataLink(QObject):
             else:
                 self.info_label_link_id.setStyleSheet(qt.STYLE_NONE)
         else:
-            qt.disable(self.button_send, self.button_pose, self.button_sequence, self.button_animation,
-                       self.button_rigify, self.button_morph, self.button_morph_update)
             self.context_frame.hide()
 
         if self.is_sequence_running():
@@ -1943,6 +1974,9 @@ class DataLink(QObject):
                 self.send_light()
             elif actor.is_camera():
                 self.send_camera()
+
+    def send_update_replace(self):
+        return
 
     def send_motion_export(self):
         actors = self.get_selected_actors()
