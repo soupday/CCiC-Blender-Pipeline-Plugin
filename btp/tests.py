@@ -39,16 +39,15 @@ def bone_test():
                 pos.y + 100
                 SC.SetBoneTPosePosition(bone, pos)
 
-def prop_clip_test():
+def clip_test():
     for obj in RScene.GetSelectedObjects():
-        RGlobal.RemoveAllAnimations(obj)
         SC: RISkeletonComponent = obj.GetSkeletonComponent()
         clip_count = SC.GetClipCount()
         clip = SC.GetClip(0)
         print(clip_count)
         print(clip)
-        clip = SC.AddClip(RGlobal.GetTime())
-        print(clip)
+        print(dir(clip))
+        print(clip.GetName())
 
 
 

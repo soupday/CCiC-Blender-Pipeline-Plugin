@@ -21,7 +21,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, time, shutil
-from . import blender, cc, qt, prefs, utils, vars
+from . import blender, morph, cc, qt, prefs, utils, vars
 
 
 FBX_IMPORTER = None
@@ -271,8 +271,7 @@ class Importer:
                 if avatar:
                     utils.log_info(f"Setting Character Name: {self.name}")
                     avatar.SetName(self.name)
-                    #utils.log_info(f"Adjusting foot height: {self.name}")
-                    #avatar.AutoAdjustFootHeight()
+                    morph.poke_morph_zero(avatar)
                     objects = [avatar]
 
             if len(objects) > 0:
@@ -294,6 +293,7 @@ class Importer:
                     for obj in objects:
                         link_id = cc.get_link_id(obj, add_if_missing=True)
                         utils.log_info(f"New Link-ID: {obj.GetName()} {link_id}")
+
         return objects
 
     def update_materials(self, obj):
