@@ -924,6 +924,7 @@ class LinkService(QObject):
             "Application": self.local_app,
             "Version": self.local_version,
             "Path": self.local_path,
+            "Plugin": vars.VERSION,
             "Exe": RApplication.GetProgramPath()
         }
         self.send(OpCodes.HELLO, encode_from_json(json_data))
