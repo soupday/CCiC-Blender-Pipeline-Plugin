@@ -635,7 +635,7 @@ def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTim
     set_ik_effector(SC, clip, EHikEffector_RightFoot, time,  rot, tra, sca)
 
 
-def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, shape_data, t_pose_data,
+def apply_world_fk_pose(actor, SC, clip, time, bone: RINode, pose_data, shape_data, t_pose_data,
                         parent_world_rot, parent_world_tra, parent_world_sca):
     source_name = bone.GetName()
     bone_name = try_get_pose_bone(source_name, actor.bones)
@@ -645,6 +645,9 @@ def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, shape_data, t_po
         t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
         local_rot, local_tra, local_sca = calc_local(world_rot, world_tra, world_sca,
                                                      parent_world_rot, parent_world_tra, parent_world_sca)
+        # don't apply any translation to twist or share bones
+        if "Twist" in bone_name or "Share" in bone_name:
+            local_tra = t_pose_tra
         ec_rot = get_expression_counter_rotation(actor, bone_name, shape_data)
         set_bone_control(SC, clip, bone, time, ec_rot,
                          t_pose_rot, t_pose_tra, t_pose_sca,
@@ -654,6 +657,8 @@ def apply_world_fk_pose(actor, SC, clip, time, bone, pose_data, shape_data, t_po
         for child in children:
             apply_world_fk_pose(actor, SC, clip, time, child, pose_data, shape_data,
                                 t_pose_data, world_rot, world_tra, world_sca)
+    else:
+        utils.log_warn(f"Bone-name: {bone_name} not found!")
 
 
 def calc_world(local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3,
@@ -1213,8 +1218,8 @@ class LinkEventCallback(REventCallback):
 class DataLink(QObject):
     window: RIDockWidget = None
     host_name: str = "localhost"
-    action_name_prefix: str = ""
-    use_fake_user: bool = False
+    motion_prefix: str = ""
+    use_fake_user: bool = True
     host_ip: str = "127.0.0.1"
     host_port: int = BLENDER_PORT
     target: str = "Blender"
@@ -1300,10 +1305,11 @@ class DataLink(QObject):
         grid = qt.grid(layout)
         grid.setColumnStretch(2, 0)
         qt.label(grid, f"Action Name Prefix:", row=0, col=0, style=qt.STYLE_TITLE)
-        self.textbox_action_name_prefix = qt.textbox(grid, self.action_name_prefix,
-                                                     row=0, col=1, update=self.update_action_name_prefix)
+        self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
+                                                     row=0, col=1, update=self.update_motion_prefix)
         self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
-                                              icon=self.icon_fake_user_off, toggle=True, value=self.use_fake_user,
+                                              icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
+                                              toggle=True, value=self.use_fake_user,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
                                               row=0, col=2)
 
@@ -1389,6 +1395,7 @@ class DataLink(QObject):
             #qt.button(layout, "Bone Test", tests.load_motion)
             #qt.button(layout, "IK Effectors", tests.end_effectors)
             qt.button(layout, "Print", tests.bone_tree)
+            qt.button(layout, "Clip Name", tests.clip_test)
             #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
@@ -1609,8 +1616,8 @@ class DataLink(QObject):
                 self.host_ip = "127.0.0.1"
             utils.log_info(f"{self.host_name} ({self.host_ip})")
 
-    def update_action_name_prefix(self):
-        self.action_name_prefix = self.textbox_action_name_prefix.text()
+    def update_motion_prefix(self):
+        self.motion_prefix = self.textbox_motion_prefix.text()
 
     def update_toggle_use_fake_user(self):
         if self.toggle_use_fake_user.isChecked():
@@ -1876,7 +1883,7 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
-            "action_name_prefix": self.action_name_prefix,
+            "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.CHARACTER, export_data)
@@ -1894,7 +1901,7 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
-            "action_name_prefix": self.action_name_prefix,
+            "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.PROP, export_data)
@@ -1981,7 +1988,7 @@ class DataLink(QObject):
                 "end_frame": end_frame,
                 "time": current_time.ToFloat(),
                 "frame": current_frame,
-                "action_name_prefix": self.action_name_prefix,
+                "motion_prefix": self.motion_prefix,
                 "use_fake_user": self.use_fake_user,
             })
             self.send(OpCodes.MOTION, export_data)
@@ -2051,7 +2058,7 @@ class DataLink(QObject):
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
-            "action_name_prefix": self.action_name_prefix,
+            "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
         })
         self.send(OpCodes.CHARACTER, export_data)
@@ -2148,7 +2155,7 @@ class DataLink(QObject):
             "end_frame": end_frame,
             "time": current_time.ToFloat(),
             "frame": current_frame,
-            "action_name_prefix": self.action_name_prefix,
+            "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
             "actors": actors_data,
         }
@@ -2248,7 +2255,7 @@ class DataLink(QObject):
             "end_frame": end_frame,
             "time": current_time.ToFloat(),
             "frame": current_frame,
-            "action_name_prefix": self.action_name_prefix,
+            "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
             "actors": actors_data,
         }
@@ -2481,7 +2488,7 @@ class DataLink(QObject):
             "start_frame": start_frame,
             "end_frame": end_frame,
             "current_frame": current_frame,
-            "action_name_prefix": self.action_name_prefix,
+            "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
         }
         self.send(OpCodes.FRAME_SYNC, encode_from_json(frame_data))
