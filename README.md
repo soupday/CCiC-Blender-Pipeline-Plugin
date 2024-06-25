@@ -72,7 +72,8 @@ Changelog
 =========
 
 ### 2.1.0
-- Stuff
+- Motion set prefix and use fake user option for datalink animation transfer.
+- Datalink pose/sequence twist bone translation fix.
 
 ### 2.0.9
 - Datalink:
