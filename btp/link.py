@@ -1219,7 +1219,7 @@ class DataLink(QObject):
     window: RIDockWidget = None
     host_name: str = "localhost"
     motion_prefix: str = ""
-    use_fake_user: bool = False
+    use_fake_user: bool = True
     host_ip: str = "127.0.0.1"
     host_port: int = BLENDER_PORT
     target: str = "Blender"
@@ -1308,7 +1308,8 @@ class DataLink(QObject):
         self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
                                                      row=0, col=1, update=self.update_motion_prefix)
         self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
-                                              icon=self.icon_fake_user_off, toggle=True, value=self.use_fake_user,
+                                              icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
+                                              toggle=True, value=self.use_fake_user,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
                                               row=0, col=2)
 
