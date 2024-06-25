@@ -931,7 +931,7 @@ class LinkService(QObject):
 
     def stop_client(self):
         if self.client_sock:
-            utils.log_info(f"Closing Client Socket!")
+            utils.log_info(f"Closing Client Socket")
             try:
                 self.client_sock.shutdown()
                 self.client_sock.close()
