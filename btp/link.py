@@ -1393,10 +1393,10 @@ class DataLink(QObject):
             qt.button(layout, "DEBUG", self.send_debug)
             qt.button(layout, "TEST", test)
             #
-            #qt.button(layout, "Bone Test", tests.load_motion)
+            #qt.button(layout, "Load Test", tests.load_test)
             #qt.button(layout, "IK Effectors", tests.end_effectors)
-            qt.button(layout, "Print", tests.bone_tree)
-            qt.button(layout, "Clip Name", tests.clip_test)
+            #qt.button(layout, "Print", tests.bone_tree)
+            #qt.button(layout, "Clip Name", tests.clip_test)
             #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
