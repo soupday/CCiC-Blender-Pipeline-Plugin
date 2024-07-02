@@ -71,6 +71,10 @@ Known Issues
 Changelog
 =========
 
+### 2.1.2
+- Replace mesh searches sub-object names as well as mesh names for object / mesh name matching.
+    - Note: Replace mesh does not currently work for conformed facial hair meshes (Beard / Brows).
+
 ### 2.1.0
 - Motion set prefix and use fake user option for datalink animation transfer.
 - Datalink pose/sequence twist bone translation fix.
