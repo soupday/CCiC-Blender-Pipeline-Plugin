@@ -531,8 +531,36 @@ class CCJsonData():
             utils.log("Could not find character json: " + self.character_id)
             return None
 
+    def find_source_mesh_name(self, imported_mesh_name, imported_obj_name, rl_meshes):
+        try_names = set()
+        try_names.add(imported_mesh_name)
+        try_names.add(safe_export_name(imported_mesh_name))
+        # accessories can cause mesh renames with _0 _1 _2 suffixes added
+        if imported_mesh_name[-1].isdigit() and imported_mesh_name[-2] == "_":
+            try_names.add(imported_mesh_name[:-2])
+        if imported_obj_name:
+            try_names.add(imported_obj_name)
+            try_names.add(safe_export_name(imported_obj_name))
+        for mesh_name in rl_meshes:
+            if mesh_name in try_names:
+                return mesh_name
+        # try a partial match, but only if there is only one result
+        partial_mesh_match = None
+        partial_mesh_count = 0
+        for mesh_name in rl_meshes:
+            for try_name in try_names:
+                if try_name in mesh_name:
+                    partial_mesh_count += 1
+                    if not partial_mesh_match:
+                        partial_mesh_match = mesh_name
+                    # only count 1 match per try set
+                    break
+        if partial_mesh_count == 1:
+            return partial_mesh_match
+        return None
+
     def find_mesh_name(self, search_mesh_name, search_obj_name = None):
-        return find_source_mesh_name(search_mesh_name, search_obj_name, self.meshes)
+        return self.find_source_mesh_name(search_mesh_name, search_obj_name, self.meshes)
 
     def find_mesh(self, search_mesh_name, search_obj_name = None):
         mesh_name = self.find_mesh_name(search_mesh_name, search_obj_name)
@@ -969,33 +997,70 @@ def is_iclone():
     return RApplication.GetProductName() == "iClone"
 
 
-def find_source_mesh_name(imported_mesh_name, imported_obj_name, rl_meshes):
+def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAvatar):
+        objects = get_actor_objects(actor)
         try_names = set()
         try_names.add(imported_mesh_name)
         try_names.add(safe_export_name(imported_mesh_name))
+
         # accessories can cause mesh renames with _0 _1 _2 suffixes added
         if imported_mesh_name[-1].isdigit() and imported_mesh_name[-2] == "_":
             try_names.add(imported_mesh_name[:-2])
+        safe_imported_obj_name = imported_obj_name
         if imported_obj_name:
+            safe_imported_obj_name = safe_export_name(imported_obj_name)
             try_names.add(imported_obj_name)
-            try_names.add(safe_export_name(imported_obj_name))
-        for mesh_name in rl_meshes:
-            if mesh_name in try_names:
-                return mesh_name
+            try_names.add(safe_imported_obj_name)
+
+        #utils.log_info(f"Try Names: {try_names}")
+
+        # first try to match mesh names directly
+        for obj in objects:
+            obj_name = obj.GetName()
+            rl_meshes = obj.GetMeshNames()
+            if rl_meshes:
+                #utils.log_info(f"Object: {obj.GetName()}, Mesh Names: {rl_meshes}")
+                for mesh_name in rl_meshes:
+                    if mesh_name in try_names:
+                        return [mesh_name]
+
+        # then try to match object names
+        if imported_obj_name:
+            for obj in objects:
+                obj_name = obj.GetName()
+                if obj_name == imported_obj_name or obj_name == safe_imported_obj_name:
+                    return obj.GetMeshNames()
+
         # try a partial match, but only if there is only one result
         partial_mesh_match = None
         partial_mesh_count = 0
-        for mesh_name in rl_meshes:
-            for try_name in try_names:
-                if try_name in mesh_name:
-                    partial_mesh_count += 1
-                    if not partial_mesh_match:
-                        partial_mesh_match = mesh_name
-                    # only count 1 match per try set
-                    break
+        for obj in objects:
+            obj_name = obj.GetName()
+            rl_meshes = obj.GetMeshNames()
+            for mesh_name in rl_meshes:
+                for try_name in try_names:
+                    if try_name in mesh_name:
+                        partial_mesh_count += 1
+                        if not partial_mesh_match:
+                            partial_mesh_match = mesh_name
+                        # only count 1 match per try set
+                        break
         if partial_mesh_count == 1:
-            return partial_mesh_match
-        return None
+            return [partial_mesh_match]
+
+        # try a partial match on the object names
+        partial_obj_match = None
+        partial_obj_count = 0
+        for obj in objects:
+            obj_name = obj.GetName()
+            for imported_obj_name in obj_name or safe_imported_obj_name in obj_name:
+                partial_obj_count += 1
+                if not partial_obj_match:
+                    partial_obj_match = obj
+        if partial_obj_count == 1:
+            return partial_obj_match.GetMeshNames()
+
+        return []
 
 
 def find_child_obj(obj, search):
@@ -1800,3 +1865,18 @@ def get_hik_path(fbx_path):
     return hik_path
 
 
+def find_morph_id(avatar: RIAvatar, morph_name):
+        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
+        ids = ASC.GetShapingMorphIDs("")
+        names = ASC.GetShapingMorphDisplayNames("")
+        for i, name in enumerate(names):
+            if name == morph_name:
+                return ids[i]
+        return None
+
+
+def set_morph_slider(avatar: RIAvatar, slider_name, weight):
+    morph_id = find_morph_id(avatar, slider_name)
+    if morph_id:
+        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
+        ASC.SetShapingMorphWeight(morph_id, weight)

@@ -239,15 +239,6 @@ class MorphSlider(QObject):
             index += 1
         return name
 
-    def find_morph_id(self, avatar, morph_name):
-        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
-        ids = ASC.GetShapingMorphIDs("")
-        names = ASC.GetShapingMorphDisplayNames("")
-        for i, name in enumerate(names):
-            if name == morph_name:
-                return ids[i]
-        return None
-
     def create_slider(self):
         self.window.Close()
 
@@ -272,13 +263,15 @@ class MorphSlider(QObject):
             ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
             ASC.CreateSlider(slider_setting, "")
             if self.auto_apply:
-                morph_id = self.find_morph_id(avatar, unique_morph_name)
+                morph_id = cc.find_morph_id(avatar, unique_morph_name)
                 utils.log_info(f"Created Morph ID: {morph_id}")
                 min_max = ASC.GetShapingMorphMinMax(morph_id)
                 utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
                 if morph_id:
                     ASC.SetShapingMorphWeight(morph_id, min_max[1])
                     avatar.Update()
+
+
 
 
 def poke_morph_zero(avatar: RIAvatar):
