@@ -1393,10 +1393,10 @@ class DataLink(QObject):
             qt.button(layout, "DEBUG", self.send_debug)
             qt.button(layout, "TEST", test)
             #
-            #qt.button(layout, "Bone Test", tests.load_motion)
+            #qt.button(layout, "Load Test", tests.load_test)
             #qt.button(layout, "IK Effectors", tests.end_effectors)
-            qt.button(layout, "Print", tests.bone_tree)
-            qt.button(layout, "Clip Name", tests.clip_test)
+            #qt.button(layout, "Print", tests.bone_tree)
+            #qt.button(layout, "Clip Name", tests.clip_test)
             #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
@@ -2924,13 +2924,23 @@ class DataLink(QObject):
         actor = LinkActor.find_actor(link_id, search_name=actor_name, search_type=character_type)
         if actor:
             avatar: RIAvatar = actor.object
-            mesh_names = avatar.GetMeshNames()
-            cc_mesh_name = cc.find_source_mesh_name(mesh_name, obj_name, mesh_names)
-            if cc_mesh_name:
-                print(f"{obj_name} / {mesh_name} -> {cc_mesh_name}")
-                avatar.ReplaceMesh(cc_mesh_name, obj_file_path)
-                RGlobal.ForceViewportUpdate()
-                self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
+            results = cc.find_actor_source_meshes(mesh_name, obj_name, avatar)
+            if results:
+                for cc_mesh_name in results:
+                    utils.log_info(f"Replace Mesh: {obj_name} / {mesh_name} -> {cc_mesh_name}")
+                    try:
+                        status: RStatus = avatar.ReplaceMesh(cc_mesh_name, obj_file_path)
+                    except:
+                        qt.message_box("Error", "Replace Mesh failed! Make sure you are using CC4 version 4.42.3004.1 or above!")
+                        return
+                    if status == RStatus.Success:
+                        RGlobal.ForceViewportUpdate()
+                        self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
+                        return
+            qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
+            return
+        qt.message_box("Error", f"Unable to find actor: {actor_name} / {character_type}")
+        return
 
     def receive_material_update(self, data):
         json_data = decode_to_json(data)
