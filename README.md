@@ -14,9 +14,6 @@ It is possible to include additional objects with the character exports from Ble
 Installation
 ============
 
-### Installer
-- Download and run the installer (__Install-CCiCBlenderPipelinePlugin-X.X.X.exe __) from the [release page](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin/releases)
-
 ### Manual Installation
 - Download the Zip file (__CCiC-Blender-Pipeline-Plugin-main.zip__) from the [**Code** button](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin/archive/refs/heads/main.zip).
 - Unzip the zip file. There should be a folder: **CCiC-Blender-Pipeline-Plugin-main**
@@ -36,10 +33,7 @@ If after installing this plugin the plugin menu does not appear in Character Cre
 - Make sure you are using the correct version of the plugin for your version of Character Creator:
     - Character Creator 3: [CC3 Blender Tools Plugin](https://github.com/soupday/CC3-Blender-Tools-Plugin)
     - Character Creator 4 / iClone 8: [CC/iC Blender Pipeline Plugin](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin)
-- Make sure your version of Character Creator is up to date (at the time of writing):
-    - Character Creator 3: Version **3.44.4709.1**
-    - Character Creator 4: Version **4.33.2315.1**
-    - iClone 8: Version **8.33.2315.1**
+- Make sure your version of Character Creator / iClone is up to date.
 - If the plugin still does not appear it may be that the Python API did not installed correctly and you may need to re-install Character Creator from the Reallusion Hub.
 
 Links
