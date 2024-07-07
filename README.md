@@ -65,6 +65,9 @@ Known Issues
 Changelog
 =========
 
+### 2.1.3
+- Expression rotation corrections check for existance of expression, as sometimes (ActorCore) they aren't really there.
+
 ### 2.1.2
 - Replace mesh searches sub-object names as well as mesh names for object / mesh name matching.
     - Note: Replace mesh does not currently work for conformed facial hair meshes (Beard / Brows).

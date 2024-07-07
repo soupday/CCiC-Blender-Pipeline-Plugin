@@ -658,8 +658,6 @@ def apply_world_fk_pose(actor, SC, clip, time, bone: RINode, pose_data, shape_da
         for child in children:
             apply_world_fk_pose(actor, SC, clip, time, child, pose_data, shape_data,
                                 t_pose_data, world_rot, world_tra, world_sca)
-    #else:
-    #    utils.log_warn(f"Bone-name: {bone_name} not found!")
 
 
 def calc_world(local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3,
@@ -722,7 +720,7 @@ def set_ik_effector(SC: RISkeletonComponent, clip: RIClip, effector_type, time: 
 
 def set_control_data(SC: RISkeletonComponent, data_block: RDataBlock, time: RTime,
                      rot: RQuaternion, tra: RVector3, sca: RVector3):
-    rot_matrix = rot.ToRotationMatrix()
+    rot_matrix: RMatrix3 = rot.ToRotationMatrix()
     x = y = z = 0
     euler = rot_matrix.ToEulerAngle(EEulerOrder_XYZ, x, y, z)
     data_block.GetControl("Rotation/RotationX").SetValue(time, euler[0])
