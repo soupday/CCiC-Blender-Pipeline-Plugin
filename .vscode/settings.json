@@ -7,4 +7,5 @@
         "C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64",
         "C:\\Program Files\\Reallusion\\Character Creator 4\\Bin64\\Lib\\site-packages",
     ],
+    "python.analysis.typeCheckingMode": "off",
 }
