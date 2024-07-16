@@ -86,25 +86,27 @@ class Preferences(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", 600, show_hide=self.on_show_hide)
+        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", width=600, show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
 
-        qt.label(layout, "Data-Link Settings:", style=qt.STYLE_RL_BOLD)
+        # title
+        grid = qt.grid(layout)
+        qt.label(grid, "Data-Link Settings:", style=qt.STYLE_RL_BOLD, row=0, col=0, col_span=2)
+        qt.button(grid, "Detect", func=self.detect_settings, height=26, width=64, row=0, col=2)
 
         # Data-Link folder
-        grid = qt.grid(layout)
-        qt.label(grid, "Datalink Folder", row=0, col=0)
+        qt.label(grid, "Datalink Folder", row=1, col=0)
         self.textbox_go_b_path = qt.textbox(grid, DATALINK_FOLDER, update=self.update_textbox_datalink_folder,
-                                            row=0, col=1)
-        qt.button(grid, "Find", func=self.browse_datalink_folder, height=26, width=64, row=0, col=2)
+                                            row=1, col=1)
+        qt.button(grid, "Find", func=self.browse_datalink_folder, height=26, width=64, row=1, col=2)
 
         # Blender exe
-        qt.label(grid, "Blender Executable", row=1, col=0)
+        qt.label(grid, "Blender Executable", row=2, col=0)
         self.textbox_blender_path = qt.textbox(grid, BLENDER_PATH, update=self.update_textbox_blender_path,
-                                               row=1, col=1)
-        qt.button(grid, "Find", func=self.browse_blender_exe, height=26, width=64, row=1, col=2)
+                                               row=2, col=1)
+        qt.button(grid, "Find", func=self.browse_blender_exe, height=26, width=64, row=2, col=2)
 
         qt.spacing(layout, 10)
 
@@ -185,6 +187,12 @@ class Preferences(QObject):
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", True)
         else:
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", False)
+
+    def detect_settings(self):
+        detect_paths()
+        self.textbox_blender_path.setText(BLENDER_PATH)
+        self.textbox_go_b_path.setText(DATALINK_FOLDER)
+        return
 
     def update_textbox_datalink_folder(self):
         global DATALINK_FOLDER

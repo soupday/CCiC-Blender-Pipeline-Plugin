@@ -81,7 +81,7 @@ class MorphSlider(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window("Import Character Morph", 400, show_hide=self.on_show_hide)
+        self.window, layout = qt.window("Import Character Morph", width=400, show_hide=self.on_show_hide)
 
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 2)

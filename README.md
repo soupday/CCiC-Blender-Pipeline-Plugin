@@ -65,8 +65,13 @@ Known Issues
 Changelog
 =========
 
+### 2.1.4
+- Send Update / Replace function, for sending additions or replacements to selected meshes or whole characters.
+- Settings detect and find button.
+- Scrollable datalink window.
+
 ### 2.1.3
-- Expression rotation corrections check for existance of expression, as sometimes (ActorCore) they aren't really there.
+- Expression rotation corrections check for existence of expression, as sometimes (ActorCore) they aren't really there.
 
 ### 2.1.2
 - Replace mesh searches sub-object names as well as mesh names for object / mesh name matching.

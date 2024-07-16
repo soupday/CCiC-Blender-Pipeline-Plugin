@@ -125,11 +125,11 @@ class Exporter:
 
     def create_options_window(self):
         title = f"Blender Auto-setup Character Export ({vars.VERSION}) - Options"
-        self.window_options, layout = qt.window(title, 500)
+        self.window_options, layout = qt.window(title, width=500)
 
         row = qt.row(layout)
-        self.preset_button_1 = qt.button(row, "Mesh Only", self.preset_mesh_only, height=24, toggle=True, value=True)
-        self.preset_button_2 = qt.button(row, "Pose/Animation", self.preset_current_pose, height=24, toggle=True, value=False)
+        self.preset_button_1 = qt.button(row, "Character Only", self.preset_mesh_only, height=24, toggle=True, value=True)
+        self.preset_button_2 = qt.button(row, "Animated Character", self.preset_current_pose, height=24, toggle=True, value=False)
         self.preset_button_3 = qt.button(row, "Blender > Unity", self.preset_unity, height=24, toggle=True, value=False)
         self.label_desc = qt.label(layout, "", "color: #d2ff7b; font: italic 13px", wrap=True)
 
@@ -167,7 +167,7 @@ class Exporter:
 
     def create_progress_window(self):
         title = "Blender Character Export - Progress"
-        self.window_progress, layout = qt.window(title, 500)
+        self.window_progress, layout = qt.window(title, width=500)
         qt.label(layout, f"Export Progress: {self.avatar.GetName()}" )
         self.progress_bar = qt.progress(layout, 0, 0, 0, "Intializing...")
         self.progress_count = 0
@@ -344,6 +344,19 @@ class Exporter:
                 self.option_current_pose = False
             self.option_hik_data = prefs.IC_USE_HIK_PROFILE
             self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+        self.set_paths(file_path)
+
+    def set_update_replace_export(self, file_path, full_avatar=False):
+        self.option_t_pose = False
+        self.option_bakehair = prefs.CC_BAKE_TEXTURES
+        self.option_bakeskin = prefs.CC_BAKE_TEXTURES
+        self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES if full_avatar else False
+        self.option_current_animation = False
+        self.option_current_pose = False
+        self.option_hik_data = prefs.CC_USE_HIK_PROFILE if full_avatar else False
+        self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE if full_avatar else False
+        if full_avatar:
+            self.check_non_standard_export()
         self.set_paths(file_path)
 
     def set_datalink_motion_export(self, file_path):

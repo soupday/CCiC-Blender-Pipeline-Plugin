@@ -49,7 +49,7 @@ ICON_BUTTON_HEIGHT = 64
 STYLE_ICON_BUTTON = ""
 
 
-def window(title, width = 400, show_hide=None):
+def window(title, width=400, height=0, show_hide=None):
     window: RLPy.RIDockWidget
     dock: QDockWidget
 
@@ -58,8 +58,10 @@ def window(title, width = 400, show_hide=None):
     window.SetAllowedAreas(RLPy.EDockWidgetAreas_AllFeatures)
     window.SetFeatures(RLPy.EDockWidgetFeatures_AllFeatures)
     dock = wrapInstance(int(window.GetWindow()), QDockWidget)
-    #dock.setFixedWidth(width)
     dock.setMinimumWidth(width)
+    if height > 0:
+        dock.setMinimumHeight(height)
+
     widget = QWidget()
     dock.setWidget(widget)
     layout = QVBoxLayout()
@@ -199,17 +201,17 @@ def label(layout: QLayout, text, style = STYLE_NONE,
     return w
 
 
-def spacing(layout, size):
+def spacing(layout: QLayout, size):
     w = layout.addSpacing(size)
     return w
 
 
-def stretch(layout, size):
+def stretch(layout: QLayout, size):
     w = layout.addStretch(size)
     return w
 
 
-def frame(layout, style = "", line_width = 1):
+def frame(layout: QLayout, style = "", line_width = 1):
     f = QFrame()
     f.setFrameShape(QFrame.StyledPanel)
     f.setFrameShadow(QFrame.Plain)
@@ -217,6 +219,20 @@ def frame(layout, style = "", line_width = 1):
     l = QVBoxLayout(f)
     layout.addWidget(f)
     return f, l
+
+
+def scroll_area(layout: QLayout, vertical=True, horizontal=False):
+    s = QScrollArea()
+    w = QWidget()
+    l = QVBoxLayout()
+    w.setLayout(l)
+    s.setWidget(w)
+    s.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if vertical else Qt.ScrollBarAlwaysOff)
+    s.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded if horizontal else Qt.ScrollBarAlwaysOff)
+    s.setWidgetResizable(True)
+    s.setFrameStyle(QFrame.NoFrame)
+    layout.addWidget(s)
+    return s, l
 
 
 def grid(layout):
@@ -237,7 +253,7 @@ def column(layout):
     return l
 
 
-def checkbox(layout, label, checked, style = STYLE_NONE,
+def checkbox(layout: QLayout, label, checked, style = STYLE_NONE,
              row=-1, col=-1, row_span=1, col_span=1,
              align=None, update=None):
 
@@ -256,7 +272,7 @@ def checkbox(layout, label, checked, style = STYLE_NONE,
     return w
 
 
-def radio_button(layout, label, down, style = STYLE_NONE,
+def radio_button(layout: QLayout, label, down, style = STYLE_NONE,
                  row=-1, col=-1, row_span=1, col_span=1,
                  align=None, update=None):
     w = QRadioButton()
@@ -275,7 +291,7 @@ def radio_button(layout, label, down, style = STYLE_NONE,
     return w
 
 
-def container(layout, style = STYLE_NONE,
+def container(layout: QLayout, style = STYLE_NONE,
               row=-1, col=-1, row_span=1, col_span=1, align=None):
     w = QWidget()
     w.setStyleSheet(style)
@@ -288,7 +304,7 @@ def container(layout, style = STYLE_NONE,
     return w
 
 
-def textbox(layout, text, style = STYLE_NONE, read_only = False,
+def textbox(layout: QLayout, text, style = STYLE_NONE, read_only = False,
             width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
             align=None, update=None):
 
@@ -310,7 +326,7 @@ def textbox(layout, text, style = STYLE_NONE, read_only = False,
     return w
 
 
-def combobox(layout, text, style = STYLE_NONE, options=None,
+def combobox(layout: QLayout, text, style = STYLE_NONE, options=None,
              width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
              align=None, update=None):
 
@@ -336,7 +352,7 @@ def combobox(layout, text, style = STYLE_NONE, options=None,
     return w
 
 
-def spinbox(layout, min, max, step, value, style = STYLE_NONE, read_only = False,
+def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_only = False,
             width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
             align=None, update=None):
 
@@ -360,7 +376,7 @@ def spinbox(layout, min, max, step, value, style = STYLE_NONE, read_only = False
     return w
 
 
-def button(layout, text, func=None, icon = None, style="",
+def button(layout: QLayout, text, func=None, icon = None, style="",
            width=0, height=BUTTON_HEIGHT, row=-1, col=-1, row_span=1, col_span=1, icon_size=0,
            align=None, toggle=False, value=False, fixed=False):
 
@@ -394,7 +410,7 @@ def button(layout, text, func=None, icon = None, style="",
     return w
 
 
-def slider(layout, min, max, step, value, style = STYLE_NONE,
+def slider(layout: QLayout, min, max, step, value, style = STYLE_NONE,
            row = -1, col = -1, row_span=1, col_span=1,
            align=None, update=None):
 
