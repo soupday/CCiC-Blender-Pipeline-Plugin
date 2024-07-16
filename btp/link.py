@@ -60,6 +60,7 @@ class OpCodes(IntEnum):
     CHARACTER_UPDATE = 101
     PROP = 102
     PROP_UPDATE = 103
+    UPDATE_REPLACE = 108
     RIGIFY = 110
     TEMPLATE = 200
     POSE = 210
@@ -1224,7 +1225,7 @@ class DataLink(QObject):
     host_port: int = BLENDER_PORT
     target: str = "Blender"
     # Callback
-    callback: LinkEventCallback = None
+    callback: LinkEventCallback = None # type: ignore
     callback_id = None
     # UI
     label_header: QLabel = None
@@ -1255,6 +1256,8 @@ class DataLink(QObject):
     icon_all: QIcon = None
     icon_fake_user_off: QIcon = None
     icon_fake_user_on: QIcon = None
+    icon_replace_avatar: QIcon = None
+    icon_replace_clothing: QIcon = None
     # Service
     service: LinkService = None
     # Data
@@ -1277,7 +1280,9 @@ class DataLink(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window("Data Link (WIP)", 400, show_hide=self.on_show_hide)
+        self.window, window_layout = qt.window("Data Link (WIP)", width=336, height=524, show_hide=self.on_show_hide)
+
+        scroll, layout = qt.scroll_area(window_layout, vertical=True, horizontal=False)
 
         self.icon_avatar = qt.get_icon("Character.png")
         self.icon_prop = qt.get_icon("Prop.png")
@@ -1286,6 +1291,8 @@ class DataLink(QObject):
         self.icon_all = qt.get_icon("Actor.png")
         self.icon_fake_user_off = qt.get_icon("BlenderFakeUserOff.png")
         self.icon_fake_user_on = qt.get_icon("BlenderFakeUserOn.png")
+        self.icon_replace_avatar = qt.get_icon("FullBodyMorphSkin.png")
+        self.icon_replace_clothing = qt.get_icon("Clothing.png")
 
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 3)
@@ -1347,8 +1354,12 @@ class DataLink(QObject):
                                          row=2, col=0, icon="Motion.png",
                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                          icon_size=48)
-        #if cc.is_cc():
-        #    self.button_update_replace = qt.button(grid, "Send Update", self.send_update_replace, row=2, col=1, icon="FullBodyMorph.png", width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT, icon_size=48)
+
+        if cc.is_cc():
+            self.button_update_replace = qt.button(grid, "Update / Replace", self.send_update_replace,
+                                                   row=2, col=1, icon=self.icon_replace_avatar,
+                                                   width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                   icon_size=48)
 
         if cc.is_cc():
             qt.spacing(layout, 20)
@@ -1455,6 +1466,8 @@ class DataLink(QObject):
                 first = None
 
         props_and_avatars = []
+        avatars = []
+        props = []
         for obj in selected:
             T = type(obj)
             prop_or_avatar = cc.find_parent_avatar_or_prop(obj)
@@ -1463,6 +1476,7 @@ class DataLink(QObject):
             if T is RIAvatar and prop_or_avatar not in props_and_avatars:
                 num_avatars += 1
                 props_and_avatars.append(prop_or_avatar)
+                avatars.append(prop_or_avatar)
                 if (prop_or_avatar.GetAvatarType() == EAvatarType_Standard or
                     prop_or_avatar.GetAvatarType() == EAvatarType_StandardSeries):
                     num_standard += 1
@@ -1482,6 +1496,7 @@ class DataLink(QObject):
 
             elif T is RIProp and prop_or_avatar not in props_and_avatars:
                 props_and_avatars.append(prop_or_avatar)
+                props.append(prop_or_avatar)
                 num_props += 1
             elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
                 num_lights += 1
@@ -1529,6 +1544,15 @@ class DataLink(QObject):
             self.button_pose.setText(f"Send Poses")
         else:
             self.button_pose.setText(f"Send Pose")
+
+        if selected and avatars:
+            icon = self.icon_replace_clothing
+            for obj in selected:
+                print(obj.GetName())
+                if obj in avatars:
+                    print("obj is avatar")
+                    icon = self.icon_replace_avatar
+            self.button_update_replace.setIcon(icon)
 
         # button enable
 
@@ -1826,6 +1850,7 @@ class DataLink(QObject):
         selected = RScene.GetSelectedObjects()
         avatars = RScene.GetAvatars()
         actors = []
+        selected_actor_objects = []
         # if nothing selected and only 1 avatar, use this actor
         # otherwise return a list of all selected actors
         if not selected and len(avatars) == 1:
@@ -1838,14 +1863,15 @@ class DataLink(QObject):
         else:
             for obj in selected:
                 actor_object = cc.find_parent_avatar_or_prop(obj)
-                if actor_object:
+                if actor_object and actor_object not in selected_actor_objects:
                     SC: RISkeletonComponent = actor_object.GetSkeletonComponent()
                     actor = LinkActor(actor_object)
-                    if actor and actor not in actors:
+                    if actor:
                         if (not of_types or
                             (type(of_types) is list and actor.get_type() in of_types) or
                             (actor.get_type() == of_types)):
                             actors.append(actor)
+                            selected_actor_objects.append(actor_object)
         return actors
 
     def get_active_actor(self):
@@ -1952,7 +1978,40 @@ class DataLink(QObject):
                 self.send_camera()
 
     def send_update_replace(self):
-        return
+        avatars = {}
+        selected = RScene.GetSelectedObjects()
+        for obj in selected:
+            prop_or_avatar: RIAvatar = cc.find_parent_avatar_or_prop(obj)
+            id = prop_or_avatar.GetID()
+            if type(prop_or_avatar) is RIAvatar:
+                if id not in avatars:
+                    avatars[id] = {
+                            "avatar": prop_or_avatar,
+                            "replace": False,
+                            "objects": []
+                        }
+                if obj == prop_or_avatar:
+                    avatars[id]["replace"] = True
+                else:
+                    avatars[id]["objects"].append(obj)
+        for id in avatars:
+            avatar = avatars[id]["avatar"]
+            actor = LinkActor(avatar)
+            objects = [ cc.safe_export_name(o.GetName()) for o in avatars[id]["objects"] ]
+            export_path = self.get_export_path(actor.name + "_Update", actor.name + "_Update.fbx")
+            export = exporter.Exporter(actor.object, no_window=True)
+            export.set_update_replace_export(export_path, full_avatar=not objects)
+            export.export_fbx()
+            self.send_notify(f"Update / Replace Import: {actor.name}")
+            update_data = encode_from_json({
+                "path": export_path,
+                "name": actor.name,
+                "type": actor.get_type(),
+                "link_id": actor.get_link_id(),
+                "replace": avatars[id]["replace"],
+                "objects": objects,
+            })
+            self.send(OpCodes.UPDATE_REPLACE, update_data)
 
     def send_motion_export(self):
         actors = self.get_selected_actors()
@@ -2047,7 +2106,7 @@ class DataLink(QObject):
         })
         self.send(OpCodes.MORPH, export_data)
 
-    def send_actor_exported(self, avatar=None, fbx_path=None):
+    def send_actor_exported(self, avatar=None, fbx_path=None, save_after_import=False):
         """Send a pre-exported avatar/actor through the DataLink"""
 
         actor = LinkActor(avatar)
@@ -2060,6 +2119,7 @@ class DataLink(QObject):
             "link_id": actor.get_link_id(),
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "save_after_import": save_after_import,
         })
         self.send(OpCodes.CHARACTER, export_data)
 

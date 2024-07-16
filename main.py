@@ -33,7 +33,7 @@ def initialize_plugin():
     # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
     qt.clear_menu(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Settings", menu_link)
+    qt.add_menu_action(plugin_menu, "Settings", menu_settings)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Export Character to Blender", menu_export)
     if cc.is_cc():

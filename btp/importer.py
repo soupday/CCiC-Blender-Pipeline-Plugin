@@ -162,7 +162,7 @@ class Importer:
 
     def create_options_window(self):
         title = f"Blender Auto-setup Character Import ({vars.VERSION}) - Options"
-        self.window_options, layout = qt.window(title, 500)
+        self.window_options, layout = qt.window(title, width=500)
 
         qt.label(layout, f"Character Name: {self.name}", style=qt.STYLE_TITLE)
         qt.label(layout, f"Character Path: {self.path}", style=qt.STYLE_TITLE)
@@ -188,7 +188,7 @@ class Importer:
 
     def create_progress_window(self):
         title = "Blender Auto-setup Character Import - Progress"
-        self.window_progress, layout = qt.window(title, 500)
+        self.window_progress, layout = qt.window(title, width=500)
 
         col = qt.column(layout)
         qt.label(col, f"Character Name: {self.name}")
