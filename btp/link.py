@@ -1552,7 +1552,8 @@ class DataLink(QObject):
                 if obj in avatars:
                     print("obj is avatar")
                     icon = self.icon_replace_avatar
-            self.button_update_replace.setIcon(icon)
+            if self.button_update_replace:
+                self.button_update_replace.setIcon(icon)
 
         # button enable
 
