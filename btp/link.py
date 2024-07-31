@@ -1548,9 +1548,7 @@ class DataLink(QObject):
         if selected and avatars:
             icon = self.icon_replace_clothing
             for obj in selected:
-                print(obj.GetName())
                 if obj in avatars:
-                    print("obj is avatar")
                     icon = self.icon_replace_avatar
             if self.button_update_replace:
                 self.button_update_replace.setIcon(icon)
