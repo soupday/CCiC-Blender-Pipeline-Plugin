@@ -134,10 +134,14 @@ def menu_go_b():
 
 
 def menu_go_morph():
-    if prefs.check_paths():
-        gob.go_morph()
+    data_link = link.get_data_link()
+    if data_link.is_connected():
+        data_link.send_morph()
     else:
-        show_settings()
+        if prefs.check_paths():
+            gob.go_morph()
+        else:
+            show_settings()
 
 
 def run_script():

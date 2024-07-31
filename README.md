@@ -65,6 +65,11 @@ Known Issues
 Changelog
 =========
 
+### 2.1.5
+- Go-B Morph will use existing connection if there is one.
+- Re-importing GameBase/ActorCore/AccuRig morph crash fix.
+- GameBase and AccuRig characters will always export from CC4 with facial expression profile and data.
+
 ### 2.1.4
 - Send Update / Replace function, for sending additions or replacements to selected meshes or whole characters.
 - Settings detect and find button.

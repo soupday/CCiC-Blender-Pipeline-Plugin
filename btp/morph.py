@@ -277,7 +277,8 @@ class MorphSlider(QObject):
 def poke_morph_zero(avatar: RIAvatar):
     ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
     ids = ASC.GetShapingMorphIDs("")
-    morph_0 = ids[0]
-    w = ASC.GetShapingMorphWeight(morph_0)
-    ASC.SetShapingMorphWeight(morph_0, w + 1)
-    ASC.SetShapingMorphWeight(morph_0, w)
+    if len(ids) > 0:
+        morph_0 = ids[0]
+        w = ASC.GetShapingMorphWeight(morph_0)
+        ASC.SetShapingMorphWeight(morph_0, w + 1)
+        ASC.SetShapingMorphWeight(morph_0, w)
