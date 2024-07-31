@@ -256,7 +256,6 @@ class Exporter:
             self.option_bakehair = prefs.CC_BAKE_TEXTURES
             self.option_bakeskin = prefs.CC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-
             self.check_non_standard_export()
         else:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
@@ -304,10 +303,17 @@ class Exporter:
     def check_non_standard_export(self):
         # non standard characters, especially actorbuild and actorscan
         # need the facial and HIK profile to come back into CC4
-        if (type(self.avatar) is RIAvatar and
+        if cc.is_cc() and (type(self.avatar) is RIAvatar and
                 (self.avatar.GetGeneration() == EAvatarGeneration_ActorBuild or
-                self.avatar.GetGeneration() == EAvatarGeneration_ActorScan or
-                self.avatar.GetAvatarType() == EAvatarType_NonStandard)):
+                 self.avatar.GetGeneration() == EAvatarGeneration_ActorScan or
+                 self.avatar.GetGeneration() == EAvatarGeneration_CC_Game_Base_Multi or
+                 self.avatar.GetGeneration() == EAvatarGeneration_CC_Game_Base_One or
+                 self.avatar.GetGeneration() == EAvatarGeneration_AccuRig or
+                 self.avatar.GetAvatarType() == EAvatarType_NonStandard or
+                 (self.avatar.GetGeneration() == EAvatarGeneration__None and
+                  self.avatar.GetAvatarType() == EAvatarType_StandardSeries) or
+                 (self.avatar.GetGeneration() == EAvatarGeneration__None and
+                  self.avatar.GetAvatarType() == EAvatarType_Standard))):
             self.option_hik_data = True
             self.option_profile_data = True
 
@@ -569,17 +575,20 @@ class Exporter:
                     utils.log(f"Exporting Facial Expression profile ({self.profile_type_string}): {self.profile_path}")
 
                     facial_profile = self.avatar.GetFacialProfileComponent()
-                    facial_profile.SaveProfile(self.profile_path)
-                    root_json["Facial_Profile"] = {}
-                    root_json["Facial_Profile"]["Profile_Path"] = os.path.relpath(self.profile_path, self.folder)
-                    root_json["Facial_Profile"]["Type"] = self.profile_type_string
-                    categories = facial_profile.GetExpressionCategoryNames()
-                    root_json["Facial_Profile"]["Categories"] = {}
-                    for category in categories:
-                        slider_names = facial_profile.GetExpressionSliderNames(category)
-                        root_json["Facial_Profile"]["Categories"][category] = slider_names
+                    if facial_profile:
+                        facial_profile.SaveProfile(self.profile_path)
+                        root_json["Facial_Profile"] = {}
+                        root_json["Facial_Profile"]["Profile_Path"] = os.path.relpath(self.profile_path, self.folder)
+                        root_json["Facial_Profile"]["Type"] = self.profile_type_string
+                        categories = facial_profile.GetExpressionCategoryNames()
+                        root_json["Facial_Profile"]["Categories"] = {}
+                        for category in categories:
+                            slider_names = facial_profile.GetExpressionSliderNames(category)
+                            root_json["Facial_Profile"]["Categories"][category] = slider_names
 
-                    self.update_progress(2, "Exported Facial Profile.", True)
+                        self.update_progress(2, "Exported Facial Profile.", True)
+                    else:
+                        self.update_progress(2, "No Facial Profile!", True)
 
             self.update_progress(0, "Exporting Additional Physics...", True)
 

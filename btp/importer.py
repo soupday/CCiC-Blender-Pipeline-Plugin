@@ -331,7 +331,14 @@ class Importer:
             self.import_custom_textures(cc_mesh_materials)
             self.import_physics(cc_mesh_materials)
 
-        if self.character_type == "HUMANOID" and self.option_import_hik:
+        if self.character_type == "HUMANOID":
+            self.option_import_hik = True
+            self.option_import_profile = True
+            # user optional for importing custom facial expressions as the import profile will load the old ones.
+            # and it's slow...
+            #self.option_import_expressions = True
+
+        if self.option_import_hik:
             self.import_hik_profile()
 
         if self.character_type == "STANDARD" or self.character_type == "HUMANOID":
@@ -374,6 +381,7 @@ class Importer:
                 current_shader = M.get_shader()
                 wanted_shader = M.mat_json.get_shader()
                 # SSS skin on gamebase does not re-import correctly, use Pbr instead
+                # TODO Testing if this is fixed - It isn't.
                 if wanted_shader == "RLSSS" and M.mat_name.startswith("Ga_Skin_"):
                     wanted_shader = "Pbr"
                 if current_shader != wanted_shader:
@@ -674,6 +682,8 @@ class Importer:
                 if os.path.exists(self.profile_path):
                     utils.log(f"Restoring Facial Profile: {self.profile_path}")
                     facial_profile.LoadProfile(self.profile_path)
+                else:
+                    utils.log_warn(f"No facial profile at: {self.profile_path}")
 
                 self.update_progress(2, "Importing Facial Profile", True)
 

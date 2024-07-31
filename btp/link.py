@@ -3047,3 +3047,4 @@ def test():
     utils.log_always("")
     utils.log_always("TEST")
     utils.log_always("====")
+    tests.test()

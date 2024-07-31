@@ -16,7 +16,7 @@
 
 from RLPy import *
 
-VERSION = "2.1.4"
+VERSION = "2.1.5"
 DEV = False
 
 AVATAR_TYPES = {
@@ -25,7 +25,16 @@ AVATAR_TYPES = {
     EAvatarType_NonHuman: "NonHuman",
     EAvatarType_NonStandard: "NonStandard",
     EAvatarType_StandardSeries: "StandardSeries",
+    EAvatarType_LightAvatarStandard: "LightAvatarStandard",
+    # composite flags
     EAvatarType_All: "All",
+    EAvatarType_AllEditable: "AllEditAble",
+    EAvatarType_AllNonEditable: "AllNonEditable",
+    EAvatarType_AllWithLight: "AllWithLight",
+    EAvatarType_LightAvatar: "LightAvatar",
+    EAvatarType_LightAvatarNonHuman: "LightAvatarNonHuman",
+    EAvatarType_LightAvatarNonStandard: "LightAvatarNonStandard",
+    EAvatarType_LightAvatarStandardSeries: "LightAvatarStandardSeries",
 }
 
 AVATAR_GENERATIONS = {

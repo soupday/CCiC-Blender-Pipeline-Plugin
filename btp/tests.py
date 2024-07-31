@@ -16,7 +16,7 @@
 
 import os, json, RLPy
 from RLPy import *
-from . import cc, utils
+from . import cc, utils, vars
 
 
 BONES = []
@@ -234,17 +234,10 @@ def test_data_block_bad_get():
 
 def test():
     avatar = cc.get_first_avatar()
-    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
-    skin_bones: list = SC.GetSkinBones()
-    root_bone: RIObject = SC.GetRootBone()
-    bone_data = {}
-    pairs: RINodeTransformPairs = SC.ConvertToOriginalBoneAxis()
-    for pair in pairs:
-        node = pair[0]
-        T = pair[1]
-        r = T.R()
-        print(f"{node.GetName()} : {r.x},{r.y},{r.z},{r.w}")
-
+    print(avatar.GetGeneration())
+    print(avatar.GetAvatarType())
+    for at, s in vars.AVATAR_TYPES.items():
+        print(f"{at}:{s}")
 
 # Compares the bone transforms (local and world) with the animation clip transform control transforms
 # animation clip transforms are relative to the T-pose
