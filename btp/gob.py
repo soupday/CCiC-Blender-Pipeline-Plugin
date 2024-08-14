@@ -73,8 +73,8 @@ def go_b():
         fbx_path = os.path.join(object_folder, name + ".fbx")
         gob_data["path"] = fbx_path
         export = exporter.Exporter(obj, no_window=True)
-        export.set_datalink_export(fbx_path)
-        export.export_fbx()
+        export.set_datalink_export()
+        export.do_export(file_path=fbx_path)
         GOB_QUEUE.append(gob_data)
         go_b_send()
 
@@ -233,5 +233,5 @@ bpy.ops.ccic.datalink(param="START")
 
 def launch_blender(script_path):
     global BLENDER_PROCESS
-    utils.log_info(f"Launching Blender...")
+    utils.log_info(f"Launching Blender ...")
     BLENDER_PROCESS = subprocess.Popen([f"{prefs.BLENDER_PATH}", "-P", f"{script_path}"])

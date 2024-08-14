@@ -26,6 +26,7 @@ from shiboken2 import wrapInstance
 import os, json
 from . import qt, utils, vars
 
+# Datalink prefs
 BLENDER_PATH: str = None
 DATALINK_FOLDER: str = None
 DATALINK_OVERWRITE: bool = False
@@ -46,6 +47,19 @@ IC_USE_FACIAL_EXPRESSIONS: bool = False
 IC_DELETE_HIDDEN_FACES: bool = True
 IC_BAKE_TEXTURES: bool = True
 IC_EXPORT_MODE: str = "Animation"
+# Export prefs
+EXPORT_PRESET: int = 0
+EXPORT_BAKE_HAIR: bool = False
+EXPORT_BAKE_SKIN: bool = False
+EXPORT_T_POSE: bool = False
+EXPORT_CURRENT_POSE: bool = False
+EXPORT_CURRENT_ANIMATION: bool = False
+EXPORT_MOTION_ONLY: bool = False
+EXPORT_HIK: bool = False
+EXPORT_FACIAL_PROFILE: bool = False
+EXPORT_REMOVE_HIDDEN: bool = False
+
+
 
 
 class Preferences(QObject):
@@ -450,6 +464,17 @@ def read_temp_state():
     global IC_BAKE_TEXTURES
     global CC_EXPORT_MODE
     global IC_EXPORT_MODE
+    global EXPORT_PRESET
+    global EXPORT_BAKE_HAIR
+    global EXPORT_BAKE_SKIN
+    global EXPORT_T_POSE
+    global EXPORT_CURRENT_POSE
+    global EXPORT_CURRENT_ANIMATION
+    global EXPORT_MOTION_ONLY
+    global EXPORT_HIK
+    global EXPORT_FACIAL_PROFILE
+    global EXPORT_REMOVE_HIDDEN
+
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -475,6 +500,16 @@ def read_temp_state():
             IC_BAKE_TEXTURES = get_attr(temp_state_json, "ic_bake_textures", True)
             CC_EXPORT_MODE = get_attr(temp_state_json, "cc_export_mode", "Animation")
             IC_EXPORT_MODE = get_attr(temp_state_json, "ic_export_mode", "Animation")
+            EXPORT_PRESET = get_attr(temp_state_json, "export_preset", -1)
+            EXPORT_BAKE_HAIR = get_attr(temp_state_json, "export_bake_hair", False)
+            EXPORT_BAKE_SKIN = get_attr(temp_state_json, "export_bake_skin", False)
+            EXPORT_T_POSE = get_attr(temp_state_json, "export_t_pose", False)
+            EXPORT_CURRENT_POSE = get_attr(temp_state_json, "export_current_pose", False)
+            EXPORT_CURRENT_ANIMATION = get_attr(temp_state_json, "export_current_animation", True)
+            EXPORT_MOTION_ONLY = get_attr(temp_state_json, "export_motion_only", False)
+            EXPORT_HIK = get_attr(temp_state_json, "export_hik", False)
+            EXPORT_FACIAL_PROFILE = get_attr(temp_state_json, "export_facial_profile", False)
+            EXPORT_REMOVE_HIDDEN = get_attr(temp_state_json, "export_remove_hidden", False)
 
 
 def write_temp_state():
@@ -497,6 +532,17 @@ def write_temp_state():
     global IC_BAKE_TEXTURES
     global CC_EXPORT_MODE
     global IC_EXPORT_MODE
+    global EXPORT_PRESET
+    global EXPORT_BAKE_HAIR
+    global EXPORT_BAKE_SKIN
+    global EXPORT_T_POSE
+    global EXPORT_CURRENT_POSE
+    global EXPORT_CURRENT_ANIMATION
+    global EXPORT_MOTION_ONLY
+    global EXPORT_HIK
+    global EXPORT_FACIAL_PROFILE
+    global EXPORT_REMOVE_HIDDEN
+
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
@@ -520,6 +566,16 @@ def write_temp_state():
         "ic_bake_textures": IC_BAKE_TEXTURES,
         "cc_export_mode": CC_EXPORT_MODE,
         "ic_export_mode": IC_EXPORT_MODE,
+        "export_preset": EXPORT_PRESET,
+        "export_bake_hair": EXPORT_BAKE_HAIR,
+        "export_bake_skin": EXPORT_BAKE_SKIN,
+        "export_t_pose": EXPORT_T_POSE,
+        "export_current_pose": EXPORT_CURRENT_POSE,
+        "export_current_animation": EXPORT_CURRENT_ANIMATION,
+        "export_motion_only": EXPORT_MOTION_ONLY,
+        "export_hik": EXPORT_HIK,
+        "export_facial_profile": EXPORT_FACIAL_PROFILE,
+        "export_remove_hidden": EXPORT_REMOVE_HIDDEN,
     }
     write_json(temp_state_json, temp_state_path)
 

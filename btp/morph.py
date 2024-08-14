@@ -261,13 +261,21 @@ class MorphSlider(QObject):
 
             avatar = cc.get_first_avatar()
             ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
-            ASC.CreateSlider(slider_setting, "")
+
+            slider_folder = os.path.normpath(RApplication.GetCustomContentFolder(ETemplateRootFolder_AvatarControl))
+            ext = ".ccCustomSlider"
+            slider_path = os.path.join(slider_folder, unique_morph_name + ext)
+            ASC.CreateSlider(slider_setting, self.slider_path)
+            morph_id = cc.find_morph_id(avatar, unique_morph_name)
+            if morph_id is None:
+                utils.log_error(f"Failed to create morph: {unique_morph_name} from {self.target_path}")
+                qt.message_box("Error", f"Failed to create morph: {unique_morph_name} from {self.target_path}")
+                return
             if self.auto_apply:
-                morph_id = cc.find_morph_id(avatar, unique_morph_name)
-                utils.log_info(f"Created Morph ID: {morph_id}")
-                min_max = ASC.GetShapingMorphMinMax(morph_id)
-                utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
                 if morph_id:
+                    utils.log_info(f"Created Morph ID: {morph_id}")
+                    min_max = ASC.GetShapingMorphMinMax(morph_id)
+                    utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
                     ASC.SetShapingMorphWeight(morph_id, min_max[1])
                     avatar.Update()
 

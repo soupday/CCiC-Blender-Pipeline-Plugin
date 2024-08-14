@@ -1320,6 +1320,52 @@ def find_object_by_name_and_type(search_name, search_type=None):
                 return obj
 
 
+def get_avatar_type_name(avatar: RIAvatar):
+    avatar_type = avatar.GetAvatarType()
+    avatar_type_string = "None"
+    if avatar_type in vars.AVATAR_TYPES.keys():
+        avatar_type_string = vars.AVATAR_TYPES[avatar_type]
+    return avatar_type_string
+
+
+def get_avatar_profile_name(avatar: RIAvatar):
+    avatar_type = avatar.GetAvatarType()
+    profile_type = EFacialProfile__None
+    profile_type_string = "None"
+    if (avatar_type == EAvatarType_NonStandard or
+        avatar_type == EAvatarType_Standard or
+        avatar_type == EAvatarType_StandardSeries):
+        facial_profile = avatar.GetFacialProfileComponent()
+        profile_type = facial_profile.GetProfileType()
+        if profile_type in vars.FACIAL_PROFILES.keys():
+            profile_type_string = vars.FACIAL_PROFILES[profile_type]
+    return profile_type_string
+
+
+def is_avatar_non_standard(avatar: RIAvatar):
+    avatar_generation = avatar.GetGeneration()
+    avatar_type = avatar.GetAvatarType()
+    if (avatar_generation == EAvatarGeneration_ActorBuild or
+        avatar_generation == EAvatarGeneration_ActorScan or
+        avatar_generation == EAvatarGeneration_CC_Game_Base_Multi or
+        avatar_generation == EAvatarGeneration_CC_Game_Base_One or
+        avatar_generation == EAvatarGeneration_AccuRig or
+        avatar_generation == EAvatarType_NonStandard or
+        (avatar_generation == EAvatarGeneration__None and
+         avatar_type == EAvatarType_StandardSeries) or
+        (avatar_generation == EAvatarGeneration__None and
+         avatar_type == EAvatarType_Standard)):
+            return True
+    return False
+
+
+def is_avatar_standard(avatar: RIAvatar):
+    avatar_type = avatar.GetAvatarType()
+    if (avatar_type == EAvatarType_Standard or
+        avatar_type == EAvatarType_StandardSeries):
+        return True
+
+
 def get_object_type(obj):
     T = type(obj)
     if T is RIAvatar:
@@ -1866,13 +1912,13 @@ def get_hik_path(fbx_path):
 
 
 def find_morph_id(avatar: RIAvatar, morph_name):
-        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
-        ids = ASC.GetShapingMorphIDs("")
-        names = ASC.GetShapingMorphDisplayNames("")
-        for i, name in enumerate(names):
-            if name == morph_name:
-                return ids[i]
-        return None
+    ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
+    ids = ASC.GetShapingMorphIDs("")
+    names = ASC.GetShapingMorphDisplayNames("")
+    for i, name in enumerate(names):
+        if name == morph_name:
+            return ids[i]
+    return None
 
 
 def set_morph_slider(avatar: RIAvatar, slider_name, weight):

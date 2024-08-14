@@ -26,6 +26,8 @@ from shiboken2 import wrapInstance
 STYLE_NONE = ""
 STYLE_TITLE = "color: white; font: bold"
 STYLE_BOLD = "font: bold"
+STYLE_ITALIC = "font: italic 13px"
+STYLE_ITALIC_SMALL = "font: italic 10px"
 STYLE_RL_BOLD = "color: #d2ff7b; font: bold"
 STYLE_BUTTON = ""
 STYLE_BLENDER_TOGGLE = """QPushButton { border: 1px solid #505050; }
@@ -179,7 +181,8 @@ class QLabelClickable(QLabel):
 
 def label(layout: QLayout, text, style = STYLE_NONE,
           row=-1, col=-1, row_span=1, col_span=1,
-          align=None, wrap=False, dblclick = None, no_size=False):
+          align=None, wrap=False, dblclick = None, no_size=False,
+          width=-1):
 
     w = QLabelClickable()
     w.setText(text)
@@ -196,6 +199,8 @@ def label(layout: QLayout, text, style = STYLE_NONE,
         w.setAlignment(align)
     if wrap:
         w.setWordWrap(True)
+    if width >= 0:
+        w.setFixedWidth(width)
     if dblclick:
         w.clicked.connect(dblclick)
     return w

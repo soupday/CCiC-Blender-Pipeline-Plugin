@@ -231,13 +231,40 @@ def test_data_block_bad_get():
             print(value.ToString())
 
 
+def test_control(obj, control_name):
+    control = obj.GetControl(control_name)
+    if control:
+        print(f"Control: {control_name} - {control.GetKeyCount()} keys")
+    else:
+        print(f"No control: {control_name}")
+
+
 
 def test():
-    avatar = cc.get_first_avatar()
-    print(avatar.GetGeneration())
-    print(avatar.GetAvatarType())
-    for at, s in vars.AVATAR_TYPES.items():
-        print(f"{at}:{s}")
+    thing: RILight = RScene.GetSelectedObjects()[0]
+    print(dir(thing))
+    test_control(thing, "Transform")
+    test_control(thing, "Active")
+    test_control(thing, "Enabled")
+    test_control(thing, "On")
+    test_control(thing, "Color")
+    test_control(thing, "LightColor")
+    test_control(thing, "Multiplier")
+    test_control(thing, "ShadowColor")
+    test_control(thing, "Shadow Color")
+    test_control(thing, "DarkenStrength")
+    test_control(thing, "Darken Strength")
+    test_control(thing, "VolumetricLight")
+    test_control(thing, "Volumetric Light")
+    test_control(thing, "Parameter")
+    test_control(thing, "LookAt")
+    test_control(thing, "PathPosition")
+    test_control(thing, "PathOffsets")
+    test_control(thing, "Path Offsets")
+    test_control(thing, "PathOffset")
+    test_control(thing, "Path Offset")
+    test_control(thing, "Link")
+
 
 # Compares the bone transforms (local and world) with the animation clip transform control transforms
 # animation clip transforms are relative to the T-pose
