@@ -202,7 +202,6 @@ class LinkActor():
                 t = abs(result[0]) + abs(result[1]) + abs(result[2])
                 if t > 0.0001:
                     if expression in actor_expressions:
-                        #print(f"ER: {expression} {bone_name} {t} {(expression in actor_expressions)}")
                         if expression not in expression_rotations:
                             expression_rotations[expression] = {}
                         expression_rotations[expression][bone_name] = ERQ
