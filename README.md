@@ -65,6 +65,11 @@ Known Issues
 Changelog
 =========
 
+### 2.1.6
+- Export supports selection of multiple objects.
+    - When exporting multiple objects, the exporter will create a folder and export each individual object to that folder.
+    - When importing into Blender, all the FBX objects should be selected and imported all at once.
+
 ### 2.1.5
 - Go-B Morph will use existing connection if there is one.
 - Re-importing GameBase/ActorCore/AccuRig morph crash fix.
