@@ -197,7 +197,7 @@ class Importer:
         qt.spacing(layout, 10)
 
         qt.label(layout, "Import Progress")
-        self.progress_bar = qt.progress(layout, 0, 0, 0, "Intializing...")
+        self.progress_bar = qt.progress(layout, 0, 0, 0, "Intializing ...")
 
         self.window_progress.Show()
 
@@ -520,7 +520,7 @@ class Importer:
            texture settings, custom shader textures and parameters from the json data.
         """
 
-        utils.log("Beginning custom shader import...")
+        utils.log("Beginning custom shader import ...")
         utils.log_indent()
 
         M: cc.CCMeshMaterial = None

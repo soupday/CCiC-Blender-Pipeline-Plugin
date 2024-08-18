@@ -202,7 +202,6 @@ class LinkActor():
                 t = abs(result[0]) + abs(result[1]) + abs(result[2])
                 if t > 0.0001:
                     if expression in actor_expressions:
-                        #print(f"ER: {expression} {bone_name} {t} {(expression in actor_expressions)}")
                         if expression not in expression_rotations:
                             expression_rotations[expression] = {}
                         expression_rotations[expression][bone_name] = ERQ
@@ -1678,7 +1677,7 @@ class DataLink(QObject):
             self.textbox_host.setEnabled(False)
             self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet(qt.STYLE_BUTTON_WAITING)
-            self.button_link.setText("Listening...")
+            self.button_link.setText("Listening ...")
             self.label_header.setText("Waiting for Connection")
             self.label_folder.setText(f"None")
         else:
@@ -1899,8 +1898,8 @@ class DataLink(QObject):
         utils.log_info(f"Exporting Character: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         export = exporter.Exporter(actor.object, no_window=True)
-        export.set_datalink_export(export_path)
-        export.export_fbx()
+        export.set_datalink_export()
+        export.do_export(file_path=export_path)
         time.sleep(0.5)
         self.send_notify(f"Avatar Import: {actor.name}")
         export_data = encode_from_json({
@@ -1918,8 +1917,8 @@ class DataLink(QObject):
         self.send_notify(f"Exporting: {actor.name}")
         export_path = self.get_export_path(actor.name, actor.name + ".fbx")
         export = exporter.Exporter(actor.object, no_window=True)
-        export.set_datalink_export(export_path)
-        export.export_fbx()
+        export.set_datalink_export()
+        export.do_export(file_path=export_path)
         self.send_notify(f"Prop Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
@@ -1999,8 +1998,8 @@ class DataLink(QObject):
             objects = [ cc.safe_export_name(o.GetName()) for o in avatars[id]["objects"] ]
             export_path = self.get_export_path(actor.name + "_Update", actor.name + "_Update.fbx")
             export = exporter.Exporter(actor.object, no_window=True)
-            export.set_update_replace_export(export_path, full_avatar=not objects)
-            export.export_fbx()
+            export.set_update_replace_export(full_avatar=not objects)
+            export.do_export(file_path=export_path)
             self.send_notify(f"Update / Replace Import: {actor.name}")
             update_data = encode_from_json({
                 "path": export_path,
@@ -2023,8 +2022,8 @@ class DataLink(QObject):
             utils.log_info(f"Exporting Character: {export_path}")
             #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
             export = exporter.Exporter(actor.object, no_window=True)
-            export.set_datalink_motion_export(export_path)
-            export.export_motion_fbx()
+            export.set_datalink_motion_export()
+            export.do_export(export_path)
             time.sleep(0.5)
             self.send_notify(f"Motion Import: {motion_name}")
             fps: RFps = RGlobal.GetFps()
@@ -2754,7 +2753,7 @@ class DataLink(QObject):
                 utils.log_error(f"Unable to find actor: {name} ({link_id})")
 
     def receive_pose(self, data):
-        self.update_link_status(f"Receiving Pose...")
+        self.update_link_status(f"Receiving Pose ...")
         json_data = decode_to_json(data)
         frame = json_data["frame"]
         start_frame = json_data["start_frame"]
@@ -2809,7 +2808,7 @@ class DataLink(QObject):
         RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
-        self.update_link_status(f"Receiving Live Sequence...")
+        self.update_link_status(f"Receiving Live Sequence ...")
         json_data = decode_to_json(data)
         # sequence frame range
         start_frame = json_data["start_frame"]

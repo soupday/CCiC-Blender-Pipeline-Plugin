@@ -90,9 +90,11 @@ def menu_import():
 def menu_export():
     global FBX_EXPORTER
     FBX_EXPORTER = None
-    avatar_list = RLPy.RScene.GetAvatars()
-    if len(avatar_list) > 0:
-        FBX_EXPORTER = exporter.Exporter(avatar_list[0])
+    selected = cc.get_selected_actor_objects()
+    if cc.is_cc() and not selected:
+        selected = cc.get_first_avatar()
+    if selected:
+        FBX_EXPORTER = exporter.Exporter(selected)
 
 
 def menu_export_iclone():
