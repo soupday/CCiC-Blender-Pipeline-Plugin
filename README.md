@@ -65,6 +65,10 @@ Known Issues
 Changelog
 =========
 
+### 2.1.7
+- Normal maps imported separately from batch substance import as it does not correctly assign to Normal channel under certain circumstances.
+- Sync lights includes scene IBL from visual settings.
+
 ### 2.1.6
 - Export supports selection of multiple objects.
     - When exporting multiple objects, the exporter will create a folder and export each individual object to that folder.
