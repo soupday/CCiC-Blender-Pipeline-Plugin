@@ -74,8 +74,8 @@ TEXTURE_MAPS = { # { "json_channel_name": [RL_Texture_Channel, is_Substance_Pain
     "Refraction": [EMaterialTextureChannel_Refraction, False, ""],
     "Cube": [EMaterialTextureChannel_Cube, False, ""],
     "AO": [EMaterialTextureChannel_AmbientOcclusion, True, "ao"],
-    "Bump": [EMaterialTextureChannel_Bump, True, "bump"],
-    "Normal": [EMaterialTextureChannel_Normal, True, "normal"],
+    "Bump": [EMaterialTextureChannel_Bump, False, "bump"],
+    "Normal": [EMaterialTextureChannel_Normal, False, "normal"],
 }
 
 
@@ -715,7 +715,9 @@ class CCMeshMaterial():
         if material_component:
             if shader in SHADER_MAPS:
                 shader_full_name = SHADER_MAPS[shader]
-                material_component.SetShader(self.mesh_name, self.mat_name, shader_full_name)
+                result = material_component.SetShader(self.mesh_name, self.mat_name, shader_full_name)
+                return (result == RStatus.Success)
+        return False
 
     def load_channel_image(self, channel, file):
         material_component = self.material_component()

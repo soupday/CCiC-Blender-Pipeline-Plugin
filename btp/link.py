@@ -1040,7 +1040,6 @@ class LinkService(QObject):
         self.keepalive_timer = KEEPALIVE_TIMEOUT_S
         if op_code == OpCodes.HELLO:
             utils.log_info(f"Hello Received")
-            self.service_initialize()
             if data:
                 json_data = decode_to_json(data)
                 self.remote_app = json_data["Application"]
@@ -1048,6 +1047,8 @@ class LinkService(QObject):
                 self.remote_path = json_data["Path"]
                 utils.log_info(f"Connected to: {self.remote_app} {self.remote_version}")
                 utils.log_info(f"Using file path: {self.remote_path}")
+            self.service_initialize()
+            if data:
                 self.changed.emit()
         elif op_code == OpCodes.PING:
             utils.log_info(f"Ping Received")
@@ -1829,14 +1830,19 @@ class DataLink(QObject):
         else:
             return "None"
 
-    def get_export_path(self, character_name, file_name):
+    def get_export_path(self, folder_name, file_name, unique=True):
         if self.service:
             if self.service.remote_path:
                 export_folder = utils.make_sub_folder(self.service.remote_path, "imports")
             else:
                 export_folder = utils.make_sub_folder(self.service.local_path, "imports")
 
-            character_export_folder = utils.get_unique_folder_path(export_folder, character_name, create=True)
+            if unique:
+                character_export_folder = utils.get_unique_folder_path(export_folder, folder_name, create=True)
+            else:
+                character_export_folder = os.path.join(export_folder, folder_name)
+                if not os.path.exists(character_export_folder):
+                    os.makedirs(character_export_folder, exist_ok=True)
             export_path = os.path.join(character_export_folder, file_name)
             return export_path
         return "None"
@@ -2423,20 +2429,69 @@ class DataLink(QObject):
 
         return data
 
-    def encode_lights_data(self, lights):
-        data = self.get_lights_data(lights)
-        return encode_from_json(data)
-
     def get_all_lights(self):
         lights = RScene.FindObjects(EObjectType_Light)
         return lights
+
+    def export_hdri(self, lights_data):
+        VSC: RIVisualSettingComponent = RGlobal.GetVisualSettingComponent()
+        use_ibl = VSC.IsIBLEnable() and VSC.IsValid()
+        lights_data["use_ibl"] = use_ibl
+        try:
+            ambient_color: RRgb = VSC.GetAmbientColor()
+        except:
+            ambient_color = RRgb(0.2,0.2,0.2)
+        if use_ibl:
+            export_path = self.get_export_path("Lighting Settings", "RL_Scene_HDRI.hdr", unique=False)
+            if os.path.exists(export_path):
+                try:
+                    os.remove(export_path)
+                except:
+                    pass
+            utils.log_info(f"Export HDRI: {export_path}")
+            VSC.SaveIBLImage(export_path)
+            lights_data["ibl_path"] = export_path
+            # TODO need API to get IBl strength (and blur)
+            # ibl_strength = VSC.GetIBLStrength()
+            # for now set to ambient color average
+            ambient_strength = (ambient_color.R() + ambient_color.G() + ambient_color.B()) / 3
+            ibl_strength = (0.5 + ambient_strength) / 2
+            lights_data["ibl_strength"] = ibl_strength
+            # TODO need API to get IBL transform
+            # ibl_transform = VSC.GetIBLTransform()
+            # or...
+            # ibl_location = VSC.GetIBLTranslation()
+            # ibl_rotation = VSC.GetIBLRotation()
+            # ibl_scale = VSC.GetIBLScale()
+            # for now get from the sky (which is not updated by the IBL settings, but better than nothing)
+            ibl_location = RVector3(0,0,0)
+            ibl_rotation = [ 0.0, 0.0, 0.0 ]
+            ibl_scale = RVector3(1,1,1)
+            if True: #VSC.IsIBLSyncSkyOrientation():
+                sky: RISky = RScene.FindObject(EObjectType_Sky, "Sky")
+                T: RTransform = sky.WorldTransform()
+                t: RVector3 = T.T()
+                r: RQuaternion = T.R()
+                s: RVector3 = T.S()
+                rot_matrix: RMatrix3 = r.ToRotationMatrix()
+                x = y = z = 0
+                euler = rot_matrix.ToEulerAngle(EEulerOrder_XYZ, x, y, z)
+                ibl_location = t
+                ibl_rotation = [ euler[0], euler[1], euler[2] - 96.5*0.01745329 ]
+                ibl_scale = s
+            lights_data["ibl_location"] = [ ibl_location.x,
+                                            ibl_location.y,
+                                            ibl_location.z - 96.5*0.01745329 ]
+            lights_data["ibl_rotation"] = ibl_rotation
+            lights_data["ibl_scale"] = ibl_scale.x
 
     def sync_lights(self):
         self.update_link_status(f"Synchronizing Lights")
         self.send_notify(f"Sync Lights")
         lights = self.get_all_lights()
-        lights_data = self.encode_lights_data(lights)
-        self.send(OpCodes.LIGHTS, lights_data)
+        lights_data = self.get_lights_data(lights)
+        self.export_hdri(lights_data)
+        self.send(OpCodes.LIGHTS, encode_from_json(lights_data))
 
     def get_camera_data(self, camera: RICamera):
         link_id = cc.get_link_id(camera, add_if_missing=True)
