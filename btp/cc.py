@@ -74,8 +74,8 @@ TEXTURE_MAPS = { # { "json_channel_name": [RL_Texture_Channel, is_Substance_Pain
     "Refraction": [EMaterialTextureChannel_Refraction, False, ""],
     "Cube": [EMaterialTextureChannel_Cube, False, ""],
     "AO": [EMaterialTextureChannel_AmbientOcclusion, True, "ao"],
-    "Bump": [EMaterialTextureChannel_Bump, False, "bump"],
-    "Normal": [EMaterialTextureChannel_Normal, False, "normal"],
+    "Bump": [EMaterialTextureChannel_Bump, True, "bump"],
+    "Normal": [EMaterialTextureChannel_Normal, True, "normal"],
 }
 
 

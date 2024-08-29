@@ -66,7 +66,7 @@ Changelog
 =========
 
 ### 2.1.7
-- Normal maps imported separately from batch substance import as it does not correctly assign to Normal channel under certain circumstances.
+- Normal map fix for imported characters.
 - Sync lights includes scene IBL from visual settings.
 
 ### 2.1.6

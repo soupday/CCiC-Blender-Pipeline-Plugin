@@ -470,6 +470,17 @@ class Importer:
             if not M.has_json():
                 continue
 
+            # The FbxKey will attempt to restore old textures,
+            # but it wrongly restores the Normals into the Bump channel,
+            # and the LoadSubstancePainterTextures() does not overrule this.
+            # This causes major problems with texture channel loading later on,
+            # so we need to remove all the existing normals and bump maps now:
+            if True:
+                if M.channel_has_image(RLPy.EMaterialTextureChannel_Bump):
+                    M.remove_channel_image(RLPy.EMaterialTextureChannel_Bump)
+                if M.channel_has_image(RLPy.EMaterialTextureChannel_Normal):
+                    M.remove_channel_image(RLPy.EMaterialTextureChannel_Normal)
+
             if not F or F.mesh_name != M.mesh_name or M.mesh_name != "CC_Base_Body":
                 F = M
 
