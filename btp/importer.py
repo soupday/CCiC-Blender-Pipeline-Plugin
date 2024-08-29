@@ -385,7 +385,9 @@ class Importer:
                 if wanted_shader == "RLSSS" and M.mat_name.startswith("Ga_Skin_"):
                     wanted_shader = "Pbr"
                 if current_shader != wanted_shader:
-                    M.set_shader(wanted_shader)
+                    utils.log_info(f"Changing shader ({M.obj_name} / {M.mat_name}): {current_shader} to {wanted_shader}")
+                    if not M.set_shader(wanted_shader):
+                        utils.log_info(f" - Failed to set shader!")
 
                 # Calculate stats
                 num_materials += 1
@@ -456,6 +458,9 @@ class Importer:
         # make a new temporary folder
         if not os.path.exists(temp_folder):
             os.mkdir(temp_folder)
+
+        if vars.DEV:
+            os.startfile(temp_folder)
 
         F: cc.CCMeshMaterial = None
         M: cc.CCMeshMaterial = None
