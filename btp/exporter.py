@@ -27,6 +27,20 @@ from . import blender, cc, qt, prefs, utils, vars
 FBX_EXPORTER = None
 
 
+class ExporterEventCallback(REventCallback):
+
+    target = None
+
+    def __init__(self, target):
+       REventCallback.__init__(self)
+       self.target = target
+
+    def OnObjectSelectionChanged(self):
+        REventCallback.OnObjectSelectionChanged(self)
+        if self.target and self.target.is_shown():
+            self.target.on_selection_change()
+
+
 class Exporter:
     base_path = ""
     fbx_path = "C:/folder/dummy.fbx"
@@ -42,19 +56,25 @@ class Exporter:
     prop: RIProp = None # type: ignore
     avatars = None
     props = None
-    window_options = None
+    window_options: RIDockWidget = None
     window_progress = None
     progress_count = 0
     progress_bar = None
-    check_bakehair = None
-    check_bakeskin = None
-    check_t_pose = None
-    check_current_pose = None
-    check_current_animation = None
-    check_animation_only = None
-    check_hik_data = None
-    check_profile_data = None
-    check_remove_hidden = None
+    group_export_range: QGroupBox = None
+    combo_export_mode: QComboBox = None
+    label_selected: QLabel = None
+    button_export: QPushButton = None
+    check_bakehair: QCheckBox = None
+    check_bakeskin: QCheckBox = None
+    check_t_pose: QCheckBox = None
+    check_current_pose: QCheckBox = None
+    check_current_animation: QCheckBox = None
+    check_animation_only: QCheckBox = None
+    check_hik_data: QCheckBox = None
+    check_profile_data: QCheckBox = None
+    check_remove_hidden: QCheckBox = None
+    radio_export_pose: QRadioButton = None
+    radio_export_anim: QRadioButton = None
     option_preset = 0
     option_bakehair = False
     option_bakeskin = False
@@ -65,18 +85,17 @@ class Exporter:
     option_hik_data = False
     option_profile_data = False
     option_remove_hidden = False
-    preset_button_1 = None
-    preset_button_2 = None
-    preset_button_3 = None
     label_desc = None
     no_options = False
+    # Callback
+    callback: ExporterEventCallback = None # type: ignore
+    callback_id = None
 
 
     def __init__(self, objects, no_window=False):
         if type(objects) is not list:
             objects = [ objects ]
-        self.avatars = [ o for o in objects if type(o) is RIAvatar ]
-        self.props = [ o for o in objects if type(o) is RIProp ]
+        self.collect_objects(objects)
 
         self.option_preset = prefs.EXPORT_PRESET
         self.option_bakehair = prefs.EXPORT_BAKE_HAIR
@@ -105,6 +124,19 @@ class Exporter:
         if not no_window:
             self.create_options_window()
 
+    def collect_objects(self, objects):
+        self.avatars = [ o for o in objects if (type(o) is RIAvatar or type(o) is RILightAvatar) ]
+        self.props = [ o for o in objects if type(o) is RIProp ]
+
+    def show(self):
+        self.window_options.Show()
+
+    def hide(self):
+        self.window_options.Hide()
+
+    def is_shown(self):
+        return self.window_options.IsVisible()
+
     def clean_up_globals(self):
         global FBX_EXPORTER
         FBX_EXPORTER = None
@@ -132,7 +164,8 @@ class Exporter:
     def set_multi_paths(self, object, motion_only=False):
         base_path = self.base_path
         ext = ".iCCX"
-        if type(object) is RIAvatar or type(object) is RIProp:
+        T = type(object)
+        if T is RIAvatar or T is RILightAvatar or T is RIProp:
             ext = ".Fbx"
         name = object.GetName()
         if motion_only:
@@ -166,115 +199,98 @@ class Exporter:
 
     def create_options_window(self):
         title = f"Blender Export ({vars.VERSION})"
-        self.window_options, layout = qt.window(title, width=500)
+        self.window_options, layout = qt.window(title, width=400, height=0, fixed=True, show_hide=self.on_show_hide)
         self.window_options.SetFeatures(EDockWidgetFeatures_Closable)
-
-        # TODO Remember the preset and remember the settings (only reset settings if preset pressed)
 
         qt.label(layout, "Presets:", style=qt.STYLE_TITLE)
 
+        export_options = [ "Selected Models", "Selected Models with Motions", "Blender > Unity"]
+        self.combo_export_mode = qt.combobox(layout, "Selected Model", options=export_options, update=self.update_combo_export_mode)
+        qt.spacing(layout, 8)
+        self.label_desc = qt.label(layout, "", "color: #d2ff7b; font: italic 13px", wrap=False)
+
         row = qt.row(layout)
-        self.preset_button_1 = qt.button(row, "Character Only", self.preset_mesh_only, height=32, toggle=True, value=True)
-        self.preset_button_2 = qt.button(row, "Animated Character", self.preset_current_pose, height=32, toggle=True, value=False)
-        self.preset_button_3 = qt.button(row, "Blender > Unity", self.preset_unity, height=32, toggle=True, value=False)
-        self.label_desc = qt.label(layout, "", "color: #d2ff7b; font: italic 13px", wrap=True)
+        qt.label(row, f"Selected:", style=qt.STYLE_TITLE, width=60)
+        self.label_selected = qt.label(row, "None", style=qt.STYLE_ITALIC, no_size=True)
 
-        qt.spacing(layout, 10)
+        qt.spacing(layout, 8)
 
-        # Avatars
+        self.group_export_range, box = qt.group(layout, title="Export Range")
+        box.setSpacing(0)
+        self.radio_export_pose = qt.radio_button(box, "Current Frame", False)
+        self.radio_export_anim = qt.radio_button(box, "All", True)
 
-        if self.avatars:
+        qt.spacing(layout, 8)
 
-            avatar_list = ""
-            for avatar in self.avatars:
-                if avatar_list:
-                    avatar_list += ", "
-                avatar_list += avatar.GetName()
+        col = qt.column(layout)
+        col.setSpacing(0)
+        self.check_remove_hidden = qt.checkbox(col, "Delete Hidden Faces", False)
+        self.check_t_pose = qt.checkbox(col, "Bindpose as T-Pose", False)
+        self.check_hik_data = qt.checkbox(col, "Export HIK Profile", False)
+        self.check_profile_data = qt.checkbox(col, "Export Facial Expression Profile", False)
+        self.check_bakehair = qt.checkbox(col, "Bake Hair Diffuse and Specular", False)
+        self.check_bakeskin = qt.checkbox(col, "Bake Skin Diffuse", False)
+        self.check_animation_only = qt.checkbox(col, "Motion Only", False)
 
-            row = qt.row(layout)
-            col_1 = qt.column(row)
-            col_2 = qt.column(row)
-            qt.label(col_1, f"Avatars:  ({len(self.avatars)}) ", style=qt.STYLE_TITLE, width=80)
-            qt.label(col_2, avatar_list, style=qt.STYLE_ITALIC_SMALL, no_size=True)
+        qt.spacing(layout, 8)
+        qt.stretch(layout, 1)
 
-            qt.spacing(layout, 4)
-
-            row = qt.row(layout)
-            col_1 = qt.column(row)
-            col_2 = qt.column(row)
-            qt.label(col_1, "", width=16)
-
-            needs_hik_option = True
-            needs_profile_option = False
-            self.check_hik_data = None
-            self.check_profile_data = None
-            for avatar in self.avatars:
-                if cc.is_avatar_non_standard(avatar):
-                    needs_hik_profile = True
-                    needs_profile_option = True
-                elif cc.is_avatar_standard(avatar):
-                    needs_profile_option = True
-
-            grid = qt.grid(col_2)
-            if needs_hik_option or needs_profile_option:
-                if needs_hik_option:
-                    self.check_hik_data = qt.checkbox(grid, "Export HIK Profile", False, row=0, col=0)
-                if needs_profile_option:
-                    self.check_profile_data = qt.checkbox(grid, "Export Facial Expression Profile", False, row=0, col=1)
-
-            self.check_bakehair = qt.checkbox(grid, "Bake Hair Diffuse and Specular", False, row=1, col=0)
-            self.check_bakeskin = qt.checkbox(grid, "Bake Skin Diffuse", False, row=1, col=1)
-            self.check_remove_hidden = qt.checkbox(grid, "Delete Hidden Faces", False, row=2, col=0)
-            self.check_t_pose = qt.checkbox(grid, "Bindpose as T-Pose", False, row=2, col=1)
-
-            qt.spacing(col_2, 10)
-
-        # Props
-
-        if self.props:
-
-            prop_list = ""
-            for prop in self.props:
-                if prop_list:
-                    prop_list += ", "
-                prop_list += prop.GetName()
-
-            row = qt.row(layout)
-            col_1 = qt.column(row)
-            col_2 = qt.column(row)
-            qt.label(col_1, f"Props:  ({len(self.props)}) ", style=qt.STYLE_TITLE, width=80)
-            qt.label(col_2, prop_list, style=qt.STYLE_ITALIC_SMALL, no_size=True)
-
-            qt.spacing(layout, 4)
-
-        # Motion
-
-        if True:
-
-            qt.label(layout, f"Motion Options:", style=qt.STYLE_TITLE, width=100)
-
-            qt.spacing(layout, 4)
-
-            row = qt.row(layout)
-            col_1 = qt.column(row)
-            col_2 = qt.column(row)
-            qt.label(col_1, "", width=16)
-
-            grid = qt.grid(col_2)
-            self.check_current_pose = qt.checkbox(grid, "Mesh with Pose", False, row=0, col=0,
-                                                  update=lambda: self.check_mex("POSE"))
-            self.check_current_animation = qt.checkbox(grid, "Mesh and Motion", False, row=0, col=1,
-                                                       update=lambda: self.check_mex("ANIM"))
-            self.check_animation_only = qt.checkbox(grid, "Motion Only", False, row=0, col=2,
-                                                    update=lambda: self.check_mex("MOTION"))
-
-        qt.button(layout, "Export", self.do_export, height=64)
+        self.button_export = qt.button(layout, "Export", self.do_export, height=40)
 
         if self.option_preset == -1:
             self.preset_current_pose()
         else:
             self.update_options()
+
+        self.on_selection_change()
+
         self.window_options.Show()
+
+    def on_show_hide(self, visible):
+        if visible:
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Export", True)
+            if not self.callback_id:
+                self.callback = ExporterEventCallback(self)
+                self.callback_id = REventHandler.RegisterCallback(self.callback)
+        else:
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Export", False)
+            if self.callback_id:
+                REventHandler.UnregisterCallback(self.callback_id)
+                self.callback = None
+                self.callback_id = None
+
+    def on_selection_change(self):
+        selected = RScene.GetSelectedObjects()
+        self.collect_objects(selected)
+        if self.label_selected:
+            selected_text = ""
+            if not self.avatars and not self.props:
+                selected_text = "Nothing Selected!"
+            if len(self.avatars) == 1:
+                selected_text += f"{len(self.avatars)} Avatar"
+            elif len(self.avatars) > 1:
+                selected_text += f"{len(self.avatars)} Avatars"
+            if self.props and selected_text:
+                selected_text += ", "
+            if len(self.props) == 1:
+                selected_text += f"{len(self.props)} Prop"
+            elif len(self.props) > 1:
+                selected_text += f"{len(self.props)} Props"
+            self.label_selected.setText(selected_text)
+        if self.button_export:
+            if self.avatars or self.props:
+                qt.enable(self.button_export)
+            else:
+                qt.disable(self.button_export)
+
+    def update_combo_export_mode(self):
+        index = self.combo_export_mode.currentIndex()
+        if index == 0:
+            self.preset_mesh_only()
+        elif index == 1:
+            self.preset_current_pose()
+        elif index == 2:
+            self.preset_unity()
 
     def create_progress_window(self):
         title = "Blender Export"
@@ -308,45 +324,30 @@ class Exporter:
         if self.window_progress:
             self.window_progress.Close()
 
-    def check_mex(self, id):
-        if id == "ANIM":
-            if self.check_current_animation.isChecked():
-                self.check_current_pose.setChecked(False)
-                self.check_animation_only.setChecked(False)
-        elif id == "POSE":
-            if self.check_current_pose.isChecked():
-                self.check_current_animation.setChecked(False)
-                self.check_animation_only.setChecked(False)
-        elif id == "MOTION":
-            if self.check_animation_only.isChecked():
-                self.check_current_animation.setChecked(False)
-                self.check_current_pose.setChecked(False)
-
     def update_options(self):
-        self.preset_button_1.setChecked(self.option_preset == 0)
-        self.preset_button_2.setChecked(self.option_preset == 1)
-        self.preset_button_3.setChecked(self.option_preset == 2)
-        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB_SELECTED if self.option_preset == 0 else qt.STYLE_RL_TAB)
-        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB_SELECTED if self.option_preset == 1 else qt.STYLE_RL_TAB)
-        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB_SELECTED if self.option_preset == 2 else qt.STYLE_RL_TAB)
+        self.combo_export_mode.setCurrentIndex(self.option_preset)
         self.label_desc.setText(self.preset_description(self.option_preset))
         if self.check_hik_data: self.check_hik_data.setChecked(self.option_hik_data)
         if self.check_profile_data: self.check_profile_data.setChecked(self.option_profile_data)
         if self.check_bakehair: self.check_bakehair.setChecked(self.option_bakehair)
         if self.check_bakeskin: self.check_bakeskin.setChecked(self.option_bakeskin)
         if self.check_t_pose: self.check_t_pose.setChecked(self.option_t_pose)
-        if self.check_current_pose: self.check_current_pose.setChecked(self.option_current_pose)
-        if self.check_current_animation: self.check_current_animation.setChecked(self.option_current_animation)
+        if self.radio_export_pose: self.radio_export_pose.setChecked(self.option_current_pose)
+        if self.radio_export_anim: self.radio_export_anim.setChecked(self.option_current_animation)
         if self.check_animation_only: self.check_animation_only.setChecked(self.option_animation_only)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
+        if self.option_preset == 0:
+            qt.disable(self.group_export_range, self.check_t_pose, self.check_animation_only)
+            qt.enable(self.check_hik_data, self.check_profile_data)
+        elif self.option_preset == 1:
+            qt.disable(self.check_t_pose)
+            qt.enable(self.group_export_range, self.check_animation_only, self.check_hik_data, self.check_profile_data)
+        elif self.option_preset == 2:
+            qt.disable(self.group_export_range, self.check_hik_data, self.check_profile_data, self.check_animation_only)
+            qt.enable(self.check_t_pose)
 
     def fetch_options(self):
-        if self.preset_button_1.isChecked():
-            self.option_preset = 0
-        elif self.preset_button_2.isChecked():
-            self.option_preset = 1
-        elif self.preset_button_3.isChecked():
-            self.option_preset = 2
+        self.option_preset = self.combo_export_mode.currentIndex()
         prefs.EXPORT_PRESET = self.option_preset
         if self.check_bakehair:
             self.option_bakehair = self.check_bakehair.isChecked()
@@ -354,11 +355,11 @@ class Exporter:
         if self.check_bakeskin:
             self.option_bakeskin = self.check_bakeskin.isChecked()
             prefs.EXPORT_BAKE_SKIN = self.option_bakeskin
-        if self.check_current_pose:
-            self.option_current_pose = self.check_current_pose.isChecked()
+        if self.radio_export_pose:
+            self.option_current_pose = self.radio_export_pose.isChecked() if self.option_preset == 1 else False
             prefs.EXPORT_CURRENT_POSE = self.option_current_pose
-        if self.check_current_animation:
-            self.option_current_animation = self.check_current_animation.isChecked()
+        if self.radio_export_anim:
+            self.option_current_animation = self.radio_export_anim.isChecked() if self.option_preset == 1 else False
             prefs.EXPORT_CURRENT_ANIMATION = self.option_current_animation
         if self.check_animation_only:
             self.option_animation_only = self.check_animation_only.isChecked()
@@ -379,29 +380,16 @@ class Exporter:
 
     def preset_description(self, preset):
         if preset == 0:
-            return ("Round Trip Editing:\n\n" +
-                    "Export the character as mesh only in the bind pose without animation, " +
-                    "with full facial expression data and human IK profile (non-standard), " +
-                    "for complete round trip character editing.")
+            return "For exporting full models and props, without animations"
         elif preset == 1:
-            return ("Accessory Creation / Replace Mesh:\n\n" +
-                    "Export the full character in the current pose, " +
-                    "for accessory creation or replacement mesh editing.\n")
+            return "Selected character models and props with their animations"
         elif preset == 2:
-            return ("Blender to Unity Pipeline:\n\n" +
-                    "Export the character with hidden faces removed, skin & hair textures baked and " +
-                    "with T-pose bind pose, for editing in Blender before exporting from Blender to Unity.")
-        return "No preset selected!\n\n\n\n"
+            return "For editing in Blender before sending on to Unity"
+        return "No preset selected!"
 
 
     def preset_mesh_only(self):
         self.option_preset = 0
-        self.preset_button_1.setChecked(True)
-        self.preset_button_2.setChecked(False)
-        self.preset_button_3.setChecked(False)
-        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB_SELECTED)
-        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB)
-        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB)
         self.label_desc.setText(self.preset_description(self.option_preset))
         self.option_bakehair = False
         self.option_bakeskin = False
@@ -421,12 +409,6 @@ class Exporter:
 
     def preset_current_pose(self):
         self.option_preset = 1
-        self.preset_button_1.setChecked(False)
-        self.preset_button_2.setChecked(True)
-        self.preset_button_3.setChecked(False)
-        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB)
-        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB_SELECTED)
-        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB)
         self.label_desc.setText(self.preset_description(self.option_preset))
         self.option_t_pose = False
         self.option_current_pose = prefs.CC_EXPORT_MODE != "Animation"
@@ -447,12 +429,6 @@ class Exporter:
 
     def preset_unity(self):
         self.option_preset = 2
-        self.preset_button_1.setChecked(False)
-        self.preset_button_2.setChecked(False)
-        self.preset_button_3.setChecked(True)
-        self.preset_button_1.setStyleSheet(qt.STYLE_RL_TAB)
-        self.preset_button_2.setStyleSheet(qt.STYLE_RL_TAB)
-        self.preset_button_3.setStyleSheet(qt.STYLE_RL_TAB_SELECTED)
         self.label_desc.setText(self.preset_description(self.option_preset))
         self.option_hik_data = False
         self.option_profile_data = False
@@ -475,8 +451,9 @@ class Exporter:
         self.window_options = None
         self.check_bakehair = None
         self.check_bakeskin = None
-        self.check_current_pose = None
-        self.check_current_animation = None
+        self.radio_export_pose = None
+        self.radio_export_anim = None
+        self.check_animation_only = None
         self.check_hik_data = None
         self.check_profile_data = None
         self.check_t_pose = None
@@ -665,16 +642,29 @@ class Exporter:
         end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
         num_frames = end_frame - start_frame
 
-        if self.option_current_animation and num_frames > 0:
+        if (self.option_current_animation or self.option_current_pose) and num_frames == 0:
+            export = "EMPTY_POSE"
+        elif self.option_current_animation and num_frames > 0:
+            export = "ANIMATION"
+        elif self.option_current_animation and num_frames > 0:
+            export = "CURRENT_POSE"
+        else:
+            export = "BIND"
+
+        if export == "ANIMATION":
             export_fbx_setting.EnableExportMotion(True)
             export_fbx_setting.SetExportMotionFps(RFps.Fps60)
             export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
             utils.log_info(f"Exporting with current animation: {num_frames}")
-        elif self.option_current_pose and num_frames > 0:
+        elif export == "CURRENT_POSE":
             export_fbx_setting.EnableExportMotion(True)
             frame = fps.GetFrameIndex(RGlobal.GetTime())
             export_fbx_setting.SetExportMotionRange(RRangePair(frame, frame))
             utils.log_info(f"Exporting with current frame pose: {frame}")
+        elif export == "EMPTY_POSE":
+            export_fbx_setting.EnableExportMotion(True)
+            export_fbx_setting.SetExportMotionRange(RRangePair(0, 0))
+            utils.log_info(f"Exporting with current frame (empty) pose: 0")
         else:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
@@ -753,6 +743,7 @@ class Exporter:
 
         obj = self.avatar if self.avatar else self.prop
         if not obj: return
+        if type(obj) is RILightAvatar: return
 
         if self.avatar:
 

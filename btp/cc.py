@@ -1370,7 +1370,7 @@ def is_avatar_standard(avatar: RIAvatar):
 
 def get_object_type(obj):
     T = type(obj)
-    if T is RIAvatar:
+    if T is RIAvatar or T is RILightAvatar:
         return "AVATAR"
     elif T is RIProp:
         return "PROP"
@@ -1738,7 +1738,8 @@ IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
 
 def get_actor_objects(actor):
     objects = []
-    if actor and type(actor) is RIAvatar:
+    T = type(actor)
+    if actor and (T is RIAvatar or T is RILightAvatar):
         avatar: RIAvatar = actor
         objects.extend(avatar.GetClothes())
         objects.extend(avatar.GetAccessories())
@@ -1777,7 +1778,8 @@ def get_actor_physics_object(actor, mesh_name, mat_name):
     for obj in objects:
         if (type(obj) == RIAccessory or
             type(obj) == RIHair or
-            type(obj) == RIAvatar):
+            type(obj) == RIAvatar or
+            type(obj) == RILightAvatar):
             physics_component = obj.GetPhysicsComponent()
             if physics_component:
                 if mesh_name in physics_component.GetSoftPhysicsMeshNameList():

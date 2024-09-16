@@ -150,25 +150,29 @@ class LinkActor():
 
     def get_skeleton_component(self) -> RISkeletonComponent:
         if self.object:
-            if type(self.object) is RIAvatar or type(self.object) is RIProp:
+            T = type(self.object)
+            if T is RIAvatar or T is RILightAvatar or T is RIProp:
                 return self.object.GetSkeletonComponent()
         return None
 
     def get_face_component(self) -> RIFaceComponent:
         if self.object:
-            if type(self.object) is RIAvatar:
+            T = type(self.object)
+            if T is RIAvatar or T is RILightAvatar:
                 return self.object.GetFaceComponent()
         return None
 
     def get_viseme_component(self) -> RIVisemeComponent:
         if self.object:
-            if type(self.object) is RIAvatar:
+            T = type(self.object)
+            if T is RIAvatar or T is RILightAvatar:
                 return self.object.GetVisemeComponent()
         return None
 
     def get_morph_component(self) -> RIMorphComponent:
         if self.object:
-            if type(self.object) is RIAvatar or type(self.object) is RIProp:
+            T = type(self.object)
+            if T is RIAvatar or T is RILightAvatar or T is RIProp:
                 return self.object.GetMorphComponent()
         return None
 
@@ -283,7 +287,7 @@ class LinkActor():
     @staticmethod
     def get_actor_type(obj):
         T = type(obj)
-        if T is RIAvatar:
+        if T is RIAvatar or T is RILightAvatar:
             return "AVATAR"
         elif T is RIProp:
             return "PROP"
@@ -298,7 +302,7 @@ class LinkActor():
         return self.get_actor_type(self.object)
 
     def is_avatar(self):
-        return type(self.object) is RIAvatar
+        return type(self.object) is RIAvatar or type(self.object) is RILightAvatar
 
     def is_prop(self):
         return type(self.object) is RIProp
@@ -389,8 +393,8 @@ def reset_animation():
     return start_time
 
 
-def prep_timeline(SC: RISkeletonComponent, start_frame, end_frame):
-    fps: RFps = RGlobal.GetFps()
+def prep_timeline_old(SC: RISkeletonComponent, start_frame, end_frame):
+    fps = get_fps()
     start_time = fps.IndexedFrameTime(start_frame)
     end_time: fps.IndexedFrameTime(end_frame)
     RGlobal.SetStartTime(start_time)
@@ -411,22 +415,26 @@ def prep_timeline(SC: RISkeletonComponent, start_frame, end_frame):
     return
 
 
+def get_fps() -> RFps:
+    return RGlobal.GetFps()
+
+
 def get_current_frame():
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     current_time = RGlobal.GetTime()
     current_frame = fps.GetFrameIndex(current_time)
     return current_frame
 
 
 def get_end_frame():
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     end_time: RTime = RGlobal.GetEndTime()
     end_frame = fps.GetFrameIndex(end_time)
     return end_frame
 
 
 def next_frame(time):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     current_time = RGlobal.GetTime()
     next_time = fps.GetNextFrameTime(time)
     RGlobal.SetTime(next_time)
@@ -434,7 +442,7 @@ def next_frame(time):
 
 
 def prev_frame(time):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     current_time = RGlobal.GetTime()
     prev_time = fps.GetPreviousFrameTime(time)
     RGlobal.SetTime(prev_time)
@@ -442,23 +450,34 @@ def prev_frame(time):
 
 
 def set_frame_range(start_frame, end_frame):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     RGlobal.SetStartTime(fps.IndexedFrameTime(start_frame))
     RGlobal.SetEndTime(fps.IndexedFrameTime(end_frame))
 
 
 def set_frame(frame):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     RGlobal.SetTime(fps.IndexedFrameTime(frame))
 
 
-def get_frame_time(frame):
-    fps: RFps = RGlobal.GetFps()
+def refresh_timeline(actors):
+    """Selecting and deselecting the actors is enough to refresh the animation player timeline
+       after any changes in project length and animation clips"""
+    RScene.ClearSelectObjects()
+    if actors:
+        actor: LinkActor
+        for actor in actors:
+            RScene.SelectObject(actor.object)
+        RScene.ClearSelectObjects()
+
+
+def get_frame_time(frame) -> RTime:
+    fps = get_fps()
     return fps.IndexedFrameTime(frame)
 
 
 def get_clip_frame(clip: RIClip, scene_time: RTime):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     clip_time = clip.SceneTimeToClipTime(scene_time)
     return fps.GetFrameIndex(clip_time)
 
@@ -470,8 +489,22 @@ def update_timeline(to_time=None):
     RGlobal.Play(to_time, to_time)
 
 
+def extend_project_range(end_time: RTime, min_time = 0):
+    proj_length: RTime = RGlobal.GetProjectLength()
+    if end_time.ToFloat() > proj_length.ToFloat():
+        utils.log_info(f"Extending Project Range: {end_time.ToFloat()}")
+        RGlobal.SetProjectLength(end_time)
+    else:
+        RGlobal.SetProjectLength(proj_length)
+
+
+def set_project_range(end_time: RTime):
+    utils.log_info(f"Setting Project Range: {end_time.ToFloat()}")
+    RGlobal.SetProjectLength(end_time)
+
+
 def get_clip_at_or_before(avatar: RIAvatar, time: RTime):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
     num_clips = SC.GetClipCount()
     found_clip: RIClip = None
@@ -492,7 +525,7 @@ def get_clip_at_or_before(avatar: RIAvatar, time: RTime):
 
 
 def make_avatar_clip(avatar, start_time, num_frames):
-    fps: RFps = RGlobal.GetFps()
+    fps = get_fps()
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
     clip: RIClip = SC.AddClip(start_time)
     length = fps.IndexedFrameTime(num_frames)
@@ -1280,7 +1313,7 @@ class DataLink(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, window_layout = qt.window("Data Link (WIP)", width=336, height=524, show_hide=self.on_show_hide)
+        self.window, window_layout = qt.window("Data Link (WIP)", width=440, height=524, show_hide=self.on_show_hide)
 
         scroll, layout = qt.scroll_area(window_layout, vertical=True, horizontal=False)
 
@@ -1331,60 +1364,64 @@ class DataLink(QObject):
         self.button_link = qt.button(grid, "Listen", self.link_start, row=0, col=0, toggle=True, value=False, height=48)
         qt.button(grid, "Stop", self.link_stop, row=0, col=1, width=64, height=48)
 
-        qt.spacing(layout, 20)
-
+        qt.label(layout, "Send:")
         grid = qt.grid(layout)
-        self.button_send = qt.button(grid, "Send Character", self.send_actor,
+        grid.setColumnStretch(0,1)
+        grid.setColumnStretch(1,1)
+        align_width = 150
+        self.button_send = qt.icon_button(grid, "Send Character", self.send_actor,
                                      row=0, col=0, icon=self.icon_avatar,
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                     icon_size=48)
-        self.button_rigify = qt.button(grid, "Rigify Character", self.send_rigify_request,
+                                     icon_size=48, align_width=align_width)
+        self.button_rigify = qt.icon_button(grid, "Rigify Character", self.send_rigify_request,
                                        row=0, col=1, icon="PostEffect.png",
                                        width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                       icon_size=48)
-        self.button_pose = qt.button(grid, "Send Pose", self.send_pose,
+                                       icon_size=48, align_width=align_width)
+        self.button_pose = qt.icon_button(grid, "Send Pose", self.send_pose,
                                      row=1, col=0, icon="Pose.png",
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                     icon_size=48)
-        self.button_animation = qt.button(grid, "Send Motion", self.send_motion_export,
+                                     icon_size=48, align_width=align_width)
+        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motion_export,
                                           row=1, col=1, icon="Animation.png",
                                           width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                          icon_size=48)
-        self.button_sequence = qt.button(grid, "Live Sequence", self.send_sequence,
+                                          icon_size=48, align_width=align_width)
+        self.button_sequence = qt.icon_button(grid, "Live Sequence", self.send_sequence,
                                          row=2, col=0, icon="Motion.png",
                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                         icon_size=48)
+                                         icon_size=48, align_width=align_width)
 
         if cc.is_cc():
-            self.button_update_replace = qt.button(grid, "Update / Replace", self.send_update_replace,
+            self.button_update_replace = qt.icon_button(grid, "Update / Replace", self.send_update_replace,
                                                    row=2, col=1, icon=self.icon_replace_avatar,
                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                                   icon_size=48)
+                                                   icon_size=48, align_width=align_width)
 
         if cc.is_cc():
-            qt.spacing(layout, 20)
-
+            qt.label(layout, "Morph:")
             grid = qt.grid(layout)
-            self.button_morph = qt.button(grid, "Send Morph", self.send_morph,
+            grid.setColumnStretch(0,1)
+            grid.setColumnStretch(1,1)
+            self.button_morph = qt.icon_button(grid, "Send Morph", self.send_morph,
                                           row=0, col=0, icon="FullBodyMorph.png",
                                           width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                          icon_size=48)
-            self.button_morph_update = qt.button(grid, "Update Morph", self.send_morph_update,
+                                          icon_size=48, align_width=align_width)
+            self.button_morph_update = qt.icon_button(grid, "Update Morph", self.send_morph_update,
                                                  row=0, col=1, icon="Morph.png",
                                                  width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                                 icon_size=48)
+                                                 icon_size=48, align_width=align_width)
 
-        qt.spacing(layout, 20)
-
+        qt.label(layout, "Lights & Camera:")
         grid = qt.grid(layout)
-        self.button_sync_lights = qt.button(grid, "Sync Lights", self.sync_lights,
+        grid.setColumnStretch(0,1)
+        grid.setColumnStretch(1,1)
+        self.button_sync_lights = qt.icon_button(grid, "Sync Lights", self.sync_lights,
                                             row=0, col=0, icon=self.icon_light,
                                             width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                            icon_size=48)
-        self.button_sync_camera = qt.button(grid, "Sync Camera", self.send_camera_sync,
+                                            icon_size=48, align_width=align_width)
+        self.button_sync_camera = qt.icon_button(grid, "Sync Camera", self.send_camera_sync,
                                             row=0, col=1, icon=self.icon_camera,
                                             width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                            icon_size=48)
+                                            icon_size=48, align_width=align_width)
 
         qt.stretch(layout, 20)
 
@@ -1454,7 +1491,7 @@ class DataLink(QObject):
             T = type(first)
             if prop_or_avatar:
                 T = type(prop_or_avatar)
-            if T is RIAvatar:
+            if T is RIAvatar or T is RILightAvatar:
                 avatar = prop_or_avatar
             elif T is RIProp:
                 prop = prop_or_avatar
@@ -1473,7 +1510,7 @@ class DataLink(QObject):
             prop_or_avatar = cc.find_parent_avatar_or_prop(obj)
             if prop_or_avatar:
                 T = type(prop_or_avatar)
-            if T is RIAvatar and prop_or_avatar not in props_and_avatars:
+            if (T is RIAvatar or T is RILightAvatar) and prop_or_avatar not in props_and_avatars:
                 num_avatars += 1
                 props_and_avatars.append(prop_or_avatar)
                 avatars.append(prop_or_avatar)
@@ -1694,10 +1731,10 @@ class DataLink(QObject):
 
         if self.is_sequence_running():
             self.button_sequence.setText("Stop Sequence")
-            self.button_sequence.setStyleSheet(qt.STYLE_BUTTON_BOLD)
+            self.button_sequence.toggleOn()
         else:
             self.button_sequence.setText("Live Sequence")
-            self.button_sequence.setStyleSheet(qt.STYLE_BUTTON)
+            self.button_sequence.toggleOff()
 
         self.update_ui()
 
@@ -1987,7 +2024,7 @@ class DataLink(QObject):
         for obj in selected:
             prop_or_avatar: RIAvatar = cc.find_parent_avatar_or_prop(obj)
             id = prop_or_avatar.GetID()
-            if type(prop_or_avatar) is RIAvatar:
+            if type(prop_or_avatar) is RIAvatar or type(prop_or_avatar) is RILightAvatar:
                 if id not in avatars:
                     avatars[id] = {
                             "avatar": prop_or_avatar,
@@ -2032,7 +2069,7 @@ class DataLink(QObject):
             export.do_export(export_path)
             time.sleep(0.5)
             self.send_notify(f"Motion Import: {motion_name}")
-            fps: RFps = RGlobal.GetFps()
+            fps = get_fps()
             start_time: RTime = RGlobal.GetStartTime()
             end_time: RTime = RGlobal.GetEndTime()
             start_frame = fps.GetFrameIndex(start_time)
@@ -2146,7 +2183,7 @@ class DataLink(QObject):
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
-            if type(actor.object) is RIAvatar:
+            if type(actor.object) is RIAvatar or type(actor.object) is RILightAvatar:
                 self.update_link_status(f"Requesting Rigify Character: {actor.name}")
                 self.send_notify(f"Rigify: {actor.name}")
                 rigify_data = encode_from_json({
@@ -2203,7 +2240,7 @@ class DataLink(QObject):
         return encode_from_json(character_template)
 
     def encode_pose_data(self, actors):
-        fps: RFps = RGlobal.GetFps()
+        fps = get_fps()
         start_time: RTime = RGlobal.GetStartTime()
         end_time: RTime = RGlobal.GetEndTime()
         start_frame = fps.GetFrameIndex(start_time)
@@ -2303,7 +2340,7 @@ class DataLink(QObject):
         return data
 
     def encode_sequence_data(self, actors):
-        fps: RFps = RGlobal.GetFps()
+        fps = get_fps()
         start_time: RTime = RGlobal.GetStartTime()
         end_time: RTime = RGlobal.GetEndTime()
         start_frame = fps.GetFrameIndex(start_time)
@@ -2586,7 +2623,7 @@ class DataLink(QObject):
 
     def send_frame_sync(self):
         self.update_link_status(f"Sending Frame Sync")
-        fps: RFps = RGlobal.GetFps()
+        fps = get_fps()
         start_time = RGlobal.GetStartTime()
         end_time = RGlobal.GetEndTime()
         current_time = RGlobal.GetTime()
@@ -2715,7 +2752,7 @@ class DataLink(QObject):
     def prep_actor_clip(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
         """Creates an empty clip and grabs the t-pose data for the character"""
 
-        fps: RFps = RGlobal.GetFps()
+        fps = get_fps()
         RGlobal.RemoveAllAnimations(actor.object)
 
         clip: RIClip
@@ -2820,10 +2857,14 @@ class DataLink(QObject):
         start_time = get_frame_time(start_frame)
         end_time = get_frame_time(end_frame)
         frame_time = get_frame_time(frame)
+        # extend project range
+        extend_project_range(end_time)
         # move to the start frame
         RGlobal.SetStartTime(start_time)
         RGlobal.SetEndTime(end_time)
         RGlobal.SetTime(RTime.FromValue(0))
+        # for performance it is best to do all actor processing with nothing selected
+        RScene.ClearSelectObjects()
         # pose actors
         actors = []
         for actor_data in json_data["actors"]:
@@ -2835,13 +2876,14 @@ class DataLink(QObject):
                 self.prep_actor_clip(actor, frame_time, 1, start_frame, end_frame)
                 actors.append(actor)
         self.data.sequence_actors = actors
+        # refresh actor timelines
+        refresh_timeline(actors)
 
     def receive_pose_frame(self, data):
         pose_frame_data = self.decode_pose_frame_data(data)
         if not pose_frame_data:
             return
         frame = pose_frame_data["frame"]
-        has_timeline = True
         scene_time = get_frame_time(frame)
         scene_time2 = get_frame_time(frame+1)
         if scene_time2 > RGlobal.GetEndTime():
@@ -2850,6 +2892,7 @@ class DataLink(QObject):
             RGlobal.SetStartTime(scene_time)
         self.update_link_status(f"Pose Data Recevied: {frame}")
         # update all actor poses
+        RScene.ClearSelectObjects()
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
             actor.begin_editing()
@@ -2858,6 +2901,9 @@ class DataLink(QObject):
             apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
             apply_pose(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
             actor.end_editing(scene_time)
+        for actor_data in pose_frame_data["actors"]:
+            actor: LinkActor = actor_data["actor"]
+            RScene.SelectObject(actor.object)
         # set the scene time to the end of the clip(s)
         RGlobal.SetTime(scene_time)
         RGlobal.ForceViewportUpdate()
@@ -2873,13 +2919,16 @@ class DataLink(QObject):
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame + 1
         start_time = get_frame_time(self.data.sequence_start_frame)
         end_time = get_frame_time(self.data.sequence_end_frame)
-        RScene.ClearSelectObjects()
+        print(f"start_time: {start_time.ToFloat()} end_time: {end_time.ToFloat()}")
+        # extend project range
+        extend_project_range(end_time)
         # move to start of timeline
         RGlobal.SetStartTime(start_time)
         RGlobal.SetEndTime(end_time)
-        RGlobal.SetTime(RTime.FromValue(0))
         # move to the start frame
-        #RGlobal.SetTime(start_time)
+        RGlobal.SetTime(start_time)
+        # for performance it is best to do all actor processing with nothing selected
+        RScene.ClearSelectObjects()
         # sequence actors
         actors = []
         for actor_data in json_data["actors"]:
@@ -2892,6 +2941,8 @@ class DataLink(QObject):
                 actor.begin_editing()
                 actors.append(actor)
         self.data.sequence_actors = actors
+        # refresh actor timelines
+        refresh_timeline(actors)
         # move to end of range
         RGlobal.SetTime(get_frame_time(self.data.sequence_end_frame))
         # start the sequence
@@ -2942,8 +2993,10 @@ class DataLink(QObject):
         scene_start_time = get_frame_time(self.data.sequence_start_frame)
         scene_end_time = get_frame_time(self.data.sequence_end_frame)
         actor: LinkActor
+        RScene.ClearSelectObjects()
         for actor in self.data.sequence_actors:
             actor.end_editing(scene_start_time)
+            RScene.SelectObject(actor.object)
         self.data.sequence_actors = None
         self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
         RGlobal.Play(scene_start_time, scene_end_time)
@@ -3040,6 +3093,7 @@ class DataLink(QObject):
             if results:
                 for cc_mesh_name in results:
                     utils.log_info(f"Replace Mesh: {obj_name} / {mesh_name} -> {cc_mesh_name}")
+                    status = None
                     try:
                         status: RStatus = avatar.ReplaceMesh(cc_mesh_name, obj_file_path)
                     except:
@@ -3048,7 +3102,10 @@ class DataLink(QObject):
                     if status == RStatus.Success:
                         RGlobal.ForceViewportUpdate()
                         self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
+                        utils.log_info(f"Replace mesh success!")
                         return
+                    else:
+                        utils.log_error(f"Replace mesh failed!")
             qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
             return
         qt.message_box("Error", f"Unable to find actor: {actor_name} / {character_type}")

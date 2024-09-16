@@ -93,8 +93,7 @@ def menu_export():
     selected = cc.get_selected_actor_objects()
     if cc.is_cc() and not selected:
         selected = cc.get_first_avatar()
-    if selected:
-        FBX_EXPORTER = exporter.Exporter(selected)
+    FBX_EXPORTER = exporter.Exporter(selected)
 
 
 def menu_export_iclone():

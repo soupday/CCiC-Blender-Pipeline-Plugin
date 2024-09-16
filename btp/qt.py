@@ -30,6 +30,8 @@ STYLE_ITALIC = "font: italic 13px"
 STYLE_ITALIC_SMALL = "font: italic 10px"
 STYLE_RL_BOLD = "color: #d2ff7b; font: bold"
 STYLE_BUTTON = ""
+STYLE_ICON_BUTTON_PADDED = "text-align: left;"
+STYLE_ICON_BUTTON_PADDED_BOLD = "color: white; font: bold 14px; text-align: left;"
 STYLE_BLENDER_TOGGLE = """QPushButton { border: 1px solid #505050; }
                           QPushButton:hover { border: 1px solid 505050; background-color: #505050; }
                           QPushButton:pressed { border: 1px solid 505050; background-color: #4772b3; }
@@ -51,7 +53,7 @@ ICON_BUTTON_HEIGHT = 64
 STYLE_ICON_BUTTON = ""
 
 
-def window(title, width=400, height=0, show_hide=None):
+def window(title, width=400, height=0, fixed=False, show_hide=None):
     window: RLPy.RIDockWidget
     dock: QDockWidget
 
@@ -60,10 +62,14 @@ def window(title, width=400, height=0, show_hide=None):
     window.SetAllowedAreas(RLPy.EDockWidgetAreas_AllFeatures)
     window.SetFeatures(RLPy.EDockWidgetFeatures_AllFeatures)
     dock = wrapInstance(int(window.GetWindow()), QDockWidget)
-    dock.setMinimumWidth(width)
+    if fixed and width > 0:
+        dock.setFixedWidth(width)
+    if fixed and height > 0:
+        dock.setFixedHeight(height)
+    if width > 0:
+        dock.setMinimumWidth(width)
     if height > 0:
         dock.setMinimumHeight(height)
-
     widget = QWidget()
     dock.setWidget(widget)
     layout = QVBoxLayout()
@@ -211,6 +217,18 @@ def spacing(layout: QLayout, size):
     return w
 
 
+def separator(layout: QLayout, line_width: int, style=""):
+    f = QFrame()
+    f.setFrameShape(QFrame.HLine)
+    f.setFrameShadow(QFrame.Plain)
+    f.setLineWidth(line_width)
+    if not style:
+        style = "color: #555555;"
+    f.setStyleSheet(style)
+    layout.addWidget(f)
+    return f
+
+
 def stretch(layout: QLayout, size):
     w = layout.addStretch(size)
     return w
@@ -221,10 +239,22 @@ def frame(layout: QLayout, style = "", line_width = 1):
     f.setFrameShape(QFrame.StyledPanel)
     f.setFrameShadow(QFrame.Plain)
     f.setLineWidth(line_width)
+    if style:
+        f.setStyleSheet(style)
     l = QVBoxLayout(f)
     layout.addWidget(f)
     return f, l
 
+
+def group(layout: QLayout, style="", title=""):
+    g = QGroupBox()
+    if style:
+        g.setStyleSheet(style)
+    if title:
+        g.setTitle(title)
+    l = QVBoxLayout(g)
+    layout.addWidget(g)
+    return g, l
 
 def scroll_area(layout: QLayout, vertical=True, horizontal=False):
     s = QScrollArea()
@@ -277,7 +307,7 @@ def checkbox(layout: QLayout, label, checked, style = STYLE_NONE,
     return w
 
 
-def radio_button(layout: QLayout, label, down, style = STYLE_NONE,
+def radio_button(layout: QLayout, label, down: bool, style = STYLE_NONE,
                  row=-1, col=-1, row_span=1, col_span=1,
                  align=None, update=None):
     w = QRadioButton()
@@ -333,7 +363,7 @@ def textbox(layout: QLayout, text, style = STYLE_NONE, read_only = False,
 
 def combobox(layout: QLayout, text, style = STYLE_NONE, options=None,
              width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
-             align=None, update=None):
+             align=None, update=None) -> QComboBox:
 
     w = QComboBox()
     w.setStyleSheet(style)
@@ -410,6 +440,71 @@ def button(layout: QLayout, text, func=None, icon = None, style="",
         layout.addWidget(w)
     if align:
         w.setAlignment(align)
+    if func:
+        w.clicked.connect(func)
+    return w
+
+
+class QAlignedIconButton(QPushButton):
+
+    align_width: int = 0
+    last_width: int = 0
+    toggle: bool = False
+
+    def setAlignWidth(self, x):
+        self.align_width = x
+
+    def toggleOn(self):
+        if not self.toggle:
+            self.toggle = True
+            self.restyle()
+
+    def toggleOff(self):
+        if self.toggle:
+            self.toggle = False
+            self.restyle()
+
+    def restyle(self):
+        self.last_width = self.width()
+        padding = max(2, (self.last_width - self.align_width) / 2)
+        if self.toggle:
+            self.setStyleSheet(f"{STYLE_ICON_BUTTON_PADDED_BOLD}; padding-left: {padding}px;")
+        else:
+            self.setStyleSheet(f"{STYLE_ICON_BUTTON_PADDED}; padding-left: {padding}px;")
+
+    def paintEvent(self, event):
+        # Heres a total hack: whenever the button is re-drawn...
+        #    if the width has changed re-calculate the padding centred around the 'alignment_width'
+        if self.last_width != self.width():
+            self.restyle()
+
+        QPushButton.paintEvent(self, event)
+
+
+def icon_button(layout: QLayout, text, func=None, icon = None,
+           width=0, height=BUTTON_HEIGHT, row=-1, col=-1, row_span=1, col_span=1, icon_size=0,
+           fixed=False, align_width=80):
+
+    w = QAlignedIconButton(text, minimumHeight=height, minimumWidth=width)
+    w.setAlignWidth(align_width)
+    if fixed:
+        if width:
+            w.setFixedWidth(width)
+        if height:
+            w.setFixedHeight(height)
+    if icon:
+        if type(icon) is str:
+            w.setIcon(get_icon(icon))
+            if icon_size > 0:
+                w.setIconSize(QSize(icon_size, icon_size))
+        elif type(icon) is QIcon:
+            w.setIcon(icon)
+            if icon_size > 0:
+                w.setIconSize(QSize(icon_size, icon_size))
+    if row >= 0 and col >= 0:
+        layout.addWidget(w, row, col, row_span, col_span)
+    else:
+        layout.addWidget(w)
     if func:
         w.clicked.connect(func)
     return w

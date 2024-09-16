@@ -297,7 +297,7 @@ class Importer:
         return objects
 
     def update_materials(self, obj):
-        if type(obj) is RLPy.RIAvatar:
+        if type(obj) is RLPy.RIAvatar or type(obj) is RLPy.RILightAvatar:
             self.avatar = obj
             self.rebuild_materials()
         elif type(obj) is RLPy.RIProp:
