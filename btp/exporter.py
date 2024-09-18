@@ -198,8 +198,10 @@ class Exporter:
         self.profile_path = os.path.join(self.folder, self.character_id + ".ccFacialProfile")
 
     def create_options_window(self):
-        title = f"Blender Export ({vars.VERSION})"
-        self.window_options, layout = qt.window(title, width=400, height=0, fixed=True, show_hide=self.on_show_hide)
+        W = 400
+        H = 520
+        TITLE = f"Blender Export ({vars.VERSION})"
+        self.window_options, layout = qt.window(TITLE, width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window_options.SetFeatures(EDockWidgetFeatures_Closable)
 
         qt.label(layout, "Presets:", style=qt.STYLE_TITLE)
@@ -294,13 +296,14 @@ class Exporter:
 
     def create_progress_window(self):
         title = "Blender Export"
-        self.window_progress, layout = qt.window(title, width=500)
+        self.window_progress, layout = qt.window(title, width=500, height=150, fixed=True)
+        self.window_progress.SetFeatures(EDockWidgetFeatures_NoFeatures)
         qt.spacing(layout, 8)
         label = qt.label(layout, f"Export Progress ...")
         label.setAlignment(Qt.AlignHCenter)
         qt.spacing(layout, 16)
+        qt.stretch(layout, 1)
         self.progress_bar = qt.progress(layout, 0, 0, 0, "Intializing ...", width=500)
-        qt.stretch(layout, 0)
         self.progress_count = 0
         num_avatars = len(self.avatars)
         num_props = len(self.props)

@@ -128,6 +128,7 @@ class MorphSlider(QObject):
         self.checkbox_auto_apply = qt.checkbox(layout, "Auto Apply", self.auto_apply, update=self.update_checkbox_auto_apply)
 
         qt.spacing(layout, 5)
+        qt.stretch(layout, 1)
 
         qt.button(layout, "Create Slider", self.create_slider, width=200, height=80, style=qt.STYLE_BUTTON_BOLD)
 

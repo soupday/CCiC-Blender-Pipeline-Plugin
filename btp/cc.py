@@ -922,7 +922,7 @@ def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=
                     if material_filter and material_filter(mesh_name):
                         continue
 
-                    physics_object, physics_component = get_actor_physics_object(actor, mesh_name, mat_name)
+                    physics_object = get_actor_physics_object(actor, mesh_name, mat_name)
 
                     M = CCMeshMaterial(actor=actor, obj=obj, mesh_name=mesh_name, mat_name=mat_name,
                                        physx_object=physics_object, cc_json_data=json_data)
@@ -973,7 +973,7 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
                     utils.log_info(f"Mesh / Material: {mesh_name} / {mat_name}")
                     utils.log_indent()
 
-                    physics_object, physics_component = get_actor_physics_object(avatar, mesh_name, mat_name)
+                    physics_object = get_actor_physics_object(avatar, mesh_name, mat_name)
 
                     M = CCMeshMaterial(actor=avatar, obj=obj, mesh_name=mesh_name, mat_name=mat_name,
                                        physx_object=physics_object, cc_json_data=json_data)
@@ -1063,25 +1063,6 @@ def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAva
             return partial_obj_match.GetMeshNames()
 
         return []
-
-
-def find_child_obj(obj, search):
-    if obj == search:
-        return True
-    else:
-        children = obj.GetChildren()
-        for child in children:
-            if find_child_obj(child, search):
-                return True
-    return False
-
-
-def get_parent_avatar(obj):
-    avatars = RScene.GetAvatars()
-    for avatar in avatars:
-        if find_child_obj(avatar, obj):
-            return avatar
-    return avatars[0]
 
 
 def get_first_avatar():
@@ -1224,6 +1205,19 @@ def find_parent_avatar_or_prop(obj: RIObject):
         for prop in props:
             if prop.GetID() == node_id:
                 return prop
+        node = node.GetParent()
+    return None
+
+
+def find_parent_avatar(obj: RIObject):
+    avatars = RScene.GetAvatars()
+    root: RINode = RScene.GetRootNode()
+    node = find_node(root, obj.GetID())
+    while node:
+        node_id = node.GetID()
+        for avatar in avatars:
+            if avatar.GetID() == node_id:
+                return avatar
         node = node.GetParent()
     return None
 
@@ -1779,13 +1773,17 @@ def get_actor_physics_object(actor, mesh_name, mat_name):
         if (type(obj) == RIAccessory or
             type(obj) == RIHair or
             type(obj) == RIAvatar or
-            type(obj) == RILightAvatar):
-            physics_component = obj.GetPhysicsComponent()
+            type(obj) == RILightAvatar or
+            type(obj) == RICloth):
+            try:
+                physics_component = obj.GetPhysicsComponent()
+            except:
+                physics_component = None
             if physics_component:
                 if mesh_name in physics_component.GetSoftPhysicsMeshNameList():
                     if mat_name in physics_component.GetSoftPhysicsMaterialNameList(mesh_name):
-                        return obj, physics_component
-    return None, None
+                        return obj
+    return None
 
 
 def get_actor_physics_components(actor: RIAvatar):
@@ -1794,8 +1792,13 @@ def get_actor_physics_components(actor: RIAvatar):
     for obj in objects:
         if (type(obj) == RIAccessory or
             type(obj) == RIHair or
-            type(obj) == RIAvatar):
-            obj_physics_component = obj.GetPhysicsComponent()
+            type(obj) == RIAvatar or
+            type(obj) == RILightAvatar or
+            type(obj) == RICloth):
+            try:
+                obj_physics_component = obj.GetPhysicsComponent()
+            except:
+                obj_physics_component = None
             if obj_physics_component and obj_physics_component not in physics_components:
                 physics_components.append(obj_physics_component)
     return physics_components

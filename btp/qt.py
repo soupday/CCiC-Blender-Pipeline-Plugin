@@ -56,7 +56,6 @@ STYLE_ICON_BUTTON = ""
 def window(title, width=400, height=0, fixed=False, show_hide=None):
     window: RLPy.RIDockWidget
     dock: QDockWidget
-
     window = RLPy.RUi.CreateRDockWidget()
     window.SetWindowTitle(title)
     window.SetAllowedAreas(RLPy.EDockWidgetAreas_AllFeatures)

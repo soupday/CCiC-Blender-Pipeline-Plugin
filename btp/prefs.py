@@ -100,7 +100,11 @@ class Preferences(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", width=500, show_hide=self.on_show_hide)
+        W = 500
+        H = 520
+        if cc.is_cc():
+            H = 580
+        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
@@ -198,6 +202,7 @@ class Preferences(QObject):
                                                             row=6, col=0, col_span=2)
 
         qt.spacing(layout, 10)
+        qt.stretch(layout, 1)
 
     def on_show_hide(self, visible):
         if visible:
