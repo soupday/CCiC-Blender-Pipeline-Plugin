@@ -24,7 +24,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, json
-from . import qt, utils, vars
+from . import cc, qt, utils, vars
 
 # Datalink prefs
 BLENDER_PATH: str = None
@@ -100,18 +100,23 @@ class Preferences(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", width=600, show_hide=self.on_show_hide)
+        W = 500
+        H = 520
+        if cc.is_cc():
+            H = 580
+        self.window, layout = qt.window(f"Blender Pipeline Plug-in Preferences", width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
 
         # title
         grid = qt.grid(layout)
-        qt.label(grid, "Data-Link Settings:", style=qt.STYLE_RL_BOLD, row=0, col=0, col_span=2)
+        qt.label(grid, f"DataLink Settings:", style=qt.STYLE_RL_BOLD, row=0, col=0)
+        qt.label(grid, f"Version {vars.VERSION}  ", style=qt.STYLE_VERSION, row=0, col=1, align=Qt.AlignVCenter | Qt.AlignRight)
         qt.button(grid, "Detect", func=self.detect_settings, height=26, width=64, row=0, col=2)
 
-        # Data-Link folder
-        qt.label(grid, "Datalink Folder", row=1, col=0)
+        # DataLink folder
+        qt.label(grid, "DataLink Folder", row=1, col=0)
         self.textbox_go_b_path = qt.textbox(grid, DATALINK_FOLDER, update=self.update_textbox_datalink_folder,
                                             row=1, col=1)
         qt.button(grid, "Find", func=self.browse_datalink_folder, height=26, width=64, row=1, col=2)
@@ -124,83 +129,87 @@ class Preferences(QObject):
 
         qt.spacing(layout, 10)
 
-        row = qt.row(layout)
-        self.checkbox_auto_start_service = qt.checkbox(row, "Auto-start Link Server", AUTO_START_SERVICE, update=self.update_checkbox_auto_start_service)
-        self.checkbox_match_client_rate = qt.checkbox(row, "Match Client Rate", MATCH_CLIENT_RATE, update=self.update_checkbox_match_client_rate)
-        self.checkbox_datalink_frame_sync = qt.checkbox(row, "Sequence Frame Sync", DATALINK_FRAME_SYNC, update=self.update_checkbox_datalink_frame_sync)
+        col = qt.column(layout)
+        self.checkbox_auto_start_service = qt.checkbox(col, "Auto-start Link Server", AUTO_START_SERVICE, update=self.update_checkbox_auto_start_service)
+        self.checkbox_match_client_rate = qt.checkbox(col, "Match Client Rate", MATCH_CLIENT_RATE, update=self.update_checkbox_match_client_rate)
+        self.checkbox_datalink_frame_sync = qt.checkbox(col, "Sequence Frame Sync", DATALINK_FRAME_SYNC, update=self.update_checkbox_datalink_frame_sync)
 
         qt.spacing(layout, 10)
+        qt.separator(layout, 1)
+        qt.spacing(layout, 4)
 
         # Export Morph Materials
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 2)
-        grid.setColumnStretch(3, 2)
 
-        qt.label(grid, "Character Creator:", style=qt.STYLE_RL_BOLD,
+        qt.label(grid, "DataLink Send Settings:", style=qt.STYLE_RL_BOLD,
                  row=0, col=0, col_span=2)
-        self.checkbox_cc_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", CC_USE_FACIAL_PROFILE,
-                                                          update=self.update_checkbox_cc_use_facial_profile,
-                                                          row=1, col=0, col_span=2)
-        self.checkbox_cc_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", CC_USE_FACIAL_EXPRESSIONS,
-                                                              update=self.update_checkbox_cc_use_facial_expressions,
-                                                              row=2, col=0, col_span=2)
-        self.checkbox_cc_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", CC_USE_HIK_PROFILE,
-                                                       update=self.update_checkbox_cc_use_hik_profile,
-                                                       row=3, col=0, col_span=2)
-        self.checkbox_cc_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", CC_DELETE_HIDDEN_FACES,
-                                                           update=self.update_checkbox_cc_delete_hidden_faces,
-                                                           row=4, col=0, col_span=2)
-        self.checkbox_cc_bake_textures = qt.checkbox(grid, "Bake Textures", CC_BAKE_TEXTURES,
-                                                           update=self.update_checkbox_cc_bake_textures,
-                                                           row=5, col=0, col_span=2)
-        self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Morph", EXPORT_MORPH_MATERIALS,
-                                                           update=self.update_checkbox_export_morph_materials,
-                                                           row=6, col=0, col_span=2)
-        qt.label(grid, "Export With:", style=qt.STYLE_NONE,
-                 row=7, col=0)
-        self.combo_cc_export_mode = qt.combobox(grid, CC_EXPORT_MODE, options = [
-                                                    "Bind Pose", "Current Pose", "Animation"
-                                                ], update=self.update_combo_cc_export_mode,
-                                                row=7, col=1)
 
-        qt.label(grid, "iClone:", style=qt.STYLE_RL_BOLD,
-                 row=0, col=2, col_span=2)
-        self.checkbox_ic_use_facial_profile = qt.checkbox(grid, "Use Facial Profile", IC_USE_FACIAL_PROFILE,
-                                                          update=self.update_checkbox_ic_use_facial_profile,
-                                                          row=1, col=2, col_span=2)
-        self.checkbox_ic_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", IC_USE_FACIAL_EXPRESSIONS,
-                                                              update=self.update_checkbox_ic_use_facial_expressions,
-                                                              row=2, col=2, col_span=2)
-        self.checkbox_ic_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", IC_USE_HIK_PROFILE,
-                                                       update=self.update_checkbox_ic_use_hik_profile,
-                                                       row=3, col=2, col_span=2)
-        self.checkbox_ic_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", IC_DELETE_HIDDEN_FACES,
-                                                           update=self.update_checkbox_ic_delete_hidden_faces,
-                                                           row=4, col=2, col_span=2)
-        self.checkbox_ic_bake_textures = qt.checkbox(grid, "Bake Textures", IC_BAKE_TEXTURES,
-                                                           update=self.update_checkbox_ic_bake_textures,
-                                                           row=5, col=2, col_span=2)
-        qt.label(grid, "Export With:", style=qt.STYLE_NONE,
-                 row=7, col=2)
-        self.combo_ic_export_mode = qt.combobox(grid, IC_EXPORT_MODE, options = [
-                                                    "Bind Pose", "Current Pose", "Animation"
-                                                ], update=self.update_combo_ic_export_mode,
-                                                row=7, col=3)
+        if cc.is_cc():
+
+            qt.label(grid, "Export With:", style=qt.STYLE_NONE,
+                     row=1, col=0)
+            self.combo_cc_export_mode = qt.combobox(grid, CC_EXPORT_MODE, options = [
+                                                        "Bind Pose", "Current Pose", "Animation"
+                                                    ], update=self.update_combo_cc_export_mode,
+                                                    row=1, col=1)
+
+            qt.label(grid, "Default Morph Slider Path", row=2, col=0)
+            self.textbox_morph_slider_path = qt.textbox(grid, DEFAULT_MORPH_SLIDER_PATH, update=self.update_textbox_morph_slider_path,
+                                                    row=2, col=1)
+
+            self.checkbox_cc_use_facial_profile = qt.checkbox(grid, "Use Facial Setting", CC_USE_FACIAL_PROFILE,
+                                                            update=self.update_checkbox_cc_use_facial_profile,
+                                                            row=3, col=0, col_span=2)
+            self.checkbox_cc_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", CC_USE_FACIAL_EXPRESSIONS,
+                                                                update=self.update_checkbox_cc_use_facial_expressions,
+                                                                row=4, col=0, col_span=2)
+            self.checkbox_cc_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", CC_USE_HIK_PROFILE,
+                                                        update=self.update_checkbox_cc_use_hik_profile,
+                                                        row=5, col=0, col_span=2)
+            self.checkbox_cc_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", CC_DELETE_HIDDEN_FACES,
+                                                            update=self.update_checkbox_cc_delete_hidden_faces,
+                                                            row=6, col=0, col_span=2)
+            self.checkbox_cc_bake_textures = qt.checkbox(grid, "Bake Textures", CC_BAKE_TEXTURES,
+                                                            update=self.update_checkbox_cc_bake_textures,
+                                                            row=7, col=0, col_span=2)
+            self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Send Morph", EXPORT_MORPH_MATERIALS,
+                                                            update=self.update_checkbox_export_morph_materials,
+                                                            row=8, col=0, col_span=2)
+
+        else:
+
+            qt.label(grid, "Export With:", style=qt.STYLE_NONE,
+                     row=1, col=0)
+            self.combo_ic_export_mode = qt.combobox(grid, IC_EXPORT_MODE, options = [
+                                                        "Bind Pose", "Current Pose", "Animation"
+                                                    ], update=self.update_combo_ic_export_mode,
+                                                    row=1, col=1)
+
+            self.checkbox_ic_use_facial_profile = qt.checkbox(grid, "Use Facial Setting", IC_USE_FACIAL_PROFILE,
+                                                            update=self.update_checkbox_ic_use_facial_profile,
+                                                            row=2, col=0, col_span=2)
+            self.checkbox_ic_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", IC_USE_FACIAL_EXPRESSIONS,
+                                                                update=self.update_checkbox_ic_use_facial_expressions,
+                                                                row=3, col=0, col_span=2)
+            self.checkbox_ic_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", IC_USE_HIK_PROFILE,
+                                                        update=self.update_checkbox_ic_use_hik_profile,
+                                                        row=4, col=0, col_span=2)
+            self.checkbox_ic_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", IC_DELETE_HIDDEN_FACES,
+                                                            update=self.update_checkbox_ic_delete_hidden_faces,
+                                                            row=5, col=0, col_span=2)
+            self.checkbox_ic_bake_textures = qt.checkbox(grid, "Bake Textures", IC_BAKE_TEXTURES,
+                                                            update=self.update_checkbox_ic_bake_textures,
+                                                            row=6, col=0, col_span=2)
 
         qt.spacing(layout, 10)
-
-        grid = qt.grid(layout)
-        qt.label(grid, "Default Morph Slider Path", row=0, col=0)
-        self.textbox_morph_slider_path = qt.textbox(grid, DEFAULT_MORPH_SLIDER_PATH, update=self.update_textbox_morph_slider_path,
-                                                    row=0, col=1)
-
-        qt.spacing(layout, 10)
+        qt.stretch(layout, 1)
 
     def on_show_hide(self, visible):
         if visible:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", True)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", True)
         else:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", False)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", False)
 
     def detect_settings(self):
         detect_paths()
@@ -601,7 +610,7 @@ def detect_paths():
 
     if not DATALINK_FOLDER:
         res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
-        path = os.path.join(res[1], "Data Link")
+        path = os.path.join(res[1], "DataLink")
         DATALINK_FOLDER = path
         changed = True
 

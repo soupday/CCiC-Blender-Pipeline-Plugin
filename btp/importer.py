@@ -161,8 +161,11 @@ class Importer:
         FBX_IMPORTER = None
 
     def create_options_window(self):
-        title = f"Blender Auto-setup Character Import ({vars.VERSION}) - Options"
-        self.window_options, layout = qt.window(title, width=500)
+        W = 500
+        H = 300
+        TITLE = f"Blender Pipeline Import FBX"
+        self.window_options, layout = qt.window(TITLE, width=W, height=H, fixed=True)
+        self.window_options.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.label(layout, f"Character Name: {self.name}", style=qt.STYLE_TITLE)
         qt.label(layout, f"Character Path: {self.path}", style=qt.STYLE_TITLE)
@@ -180,6 +183,8 @@ class Importer:
 
         qt.spacing(layout, 10)
 
+        qt.stretch(layout, 1)
+
         row = qt.row(layout)
         qt.button(row, "Import Character", self.import_fbx, height=32)
         qt.button(row, "Cancel", self.close_progress_window, height=32)
@@ -188,13 +193,15 @@ class Importer:
 
     def create_progress_window(self):
         title = "Blender Auto-setup Character Import - Progress"
-        self.window_progress, layout = qt.window(title, width=500)
+        self.window_progress, layout = qt.window(title, width=500, height=180, fixed=True)
+        self.window_progress.SetFeatures(RLPy.EDockWidgetFeatures_NoFeatures)
 
         col = qt.column(layout)
         qt.label(col, f"Character Name: {self.name}")
         qt.label(col, f"Character Path: {self.path}")
 
         qt.spacing(layout, 10)
+        qt.stretch(layout, 1)
 
         qt.label(layout, "Import Progress")
         self.progress_bar = qt.progress(layout, 0, 0, 0, "Intializing ...")
@@ -297,7 +304,7 @@ class Importer:
         return objects
 
     def update_materials(self, obj):
-        if type(obj) is RLPy.RIAvatar:
+        if type(obj) is RLPy.RIAvatar or type(obj) is RLPy.RILightAvatar:
             self.avatar = obj
             self.rebuild_materials()
         elif type(obj) is RLPy.RIProp:

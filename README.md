@@ -65,6 +65,10 @@ Known Issues
 Changelog
 =========
 
+### 2.1.9
+- Some UI Restructure.
+- Fix to exporting Lite Avatars.
+
 ### 2.1.7
 - Normal map fix for imported characters.
 - Sync lights includes scene IBL from visual settings.

@@ -241,29 +241,15 @@ def test_control(obj, control_name):
 
 
 def test():
-    thing: RILight = RScene.GetSelectedObjects()[0]
-    print(dir(thing))
-    test_control(thing, "Transform")
-    test_control(thing, "Active")
-    test_control(thing, "Enabled")
-    test_control(thing, "On")
-    test_control(thing, "Color")
-    test_control(thing, "LightColor")
-    test_control(thing, "Multiplier")
-    test_control(thing, "ShadowColor")
-    test_control(thing, "Shadow Color")
-    test_control(thing, "DarkenStrength")
-    test_control(thing, "Darken Strength")
-    test_control(thing, "VolumetricLight")
-    test_control(thing, "Volumetric Light")
-    test_control(thing, "Parameter")
-    test_control(thing, "LookAt")
-    test_control(thing, "PathPosition")
-    test_control(thing, "PathOffsets")
-    test_control(thing, "Path Offsets")
-    test_control(thing, "PathOffset")
-    test_control(thing, "Path Offset")
-    test_control(thing, "Link")
+    thing: RIAvatar = RScene.GetSelectedObjects()[0]
+    #print(dir(thing))
+    MC: RIMaterialComponent = thing.GetMaterialComponent()
+    for mesh_name in thing.GetMeshNames():
+        for mat_name in MC.GetMaterialNames(mesh_name):
+            params = MC.GetShaderParameterNames(mesh_name, mat_name)
+            print(f"{mesh_name} / {mat_name}:")
+            print(params)
+
 
 
 # Compares the bone transforms (local and world) with the animation clip transform control transforms
