@@ -418,35 +418,34 @@ class Exporter:
         self.option_animation_only = False
         self.option_remove_hidden = False
         if cc.is_cc():
-            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
-            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+            self.option_hik_data = True
+            self.option_profile_data = True
             self.check_non_standard_export()
         else:
-            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
-            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
+            self.option_hik_data = False
+            self.option_profile_data = False
         self.update_options()
 
     def preset_current_pose(self):
         self.option_preset = 1
         self.label_desc.setText(self.preset_description(self.option_preset))
         self.option_t_pose = False
-        self.option_current_pose = prefs.CC_EXPORT_MODE != "Animation"
-        self.option_current_animation = prefs.CC_EXPORT_MODE == "Animation"
+        self.option_current_pose = False
+        self.option_current_animation = True
         self.option_animation_only = False
         self.option_profile_data = False
+        self.option_profile_data = False
         if cc.is_cc():
-            self.option_bakehair = prefs.CC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
-            self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
-            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
+            self.option_bakehair = False
+            self.option_bakeskin = False
+            self.option_remove_hidden = False
+            self.option_hik_data = True
             self.check_non_standard_export()
         else:
-            self.option_bakehair = prefs.IC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
-            self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
-            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
+            self.option_bakehair = True
+            self.option_bakeskin = True
+            self.option_remove_hidden = True
+            self.option_hik_data = True
         self.update_options()
 
     def preset_unity(self):
@@ -460,11 +459,11 @@ class Exporter:
         self.option_animation_only = False
         self.option_remove_hidden = True
         if cc.is_cc():
-            self.option_bakehair = prefs.CC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
+            self.option_bakehair = True
+            self.option_bakeskin = True
         else:
-            self.option_bakehair = prefs.IC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
+            self.option_bakehair = True
+            self.option_bakeskin = True
         self.update_options()
 
     def close_options_window(self):
