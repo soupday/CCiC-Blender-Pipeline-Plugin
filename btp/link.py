@@ -857,6 +857,7 @@ class LinkService(QObject):
     remote_app: str = None
     remote_version: str = None
     remote_path: str = None
+    remote_addon: str = None
 
     def __init__(self):
         QObject.__init__(self)
@@ -1078,7 +1079,8 @@ class LinkService(QObject):
                 self.remote_app = json_data["Application"]
                 self.remote_version = json_data["Version"]
                 self.remote_path = json_data["Path"]
-                utils.log_info(f"Connected to: {self.remote_app} {self.remote_version}")
+                self.remote_addon = json_data.get("Addon", "x.x.x")
+                utils.log_info(f"Connected to: {self.remote_app} {self.remote_version} / {self.remote_addon}")
                 utils.log_info(f"Using file path: {self.remote_path}")
             self.service_initialize()
             if data:
@@ -1709,7 +1711,7 @@ class DataLink(QObject):
             self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet(qt.STYLE_BUTTON_ACTIVE)
             self.button_link.setText("Linked")
-            self.label_header.setText(f"Connected: {self.service.remote_app} ({self.service.remote_version})")
+            self.label_header.setText(f"Connected to {self.service.remote_app} {self.service.remote_version} ({self.service.remote_addon})")
             self.label_folder.setText(f"{self.get_remote_folder()}")
         elif self.is_listening():
             self.textbox_host.setEnabled(False)

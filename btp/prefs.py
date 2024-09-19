@@ -111,7 +111,8 @@ class Preferences(QObject):
 
         # title
         grid = qt.grid(layout)
-        qt.label(grid, f"DataLink Settings  ({vars.VERSION}):", style=qt.STYLE_RL_BOLD, row=0, col=0, col_span=2)
+        qt.label(grid, f"DataLink Settings:", style=qt.STYLE_RL_BOLD, row=0, col=0)
+        qt.label(grid, f"Version {vars.VERSION}  ", style=qt.STYLE_VERSION, row=0, col=1, align=Qt.AlignVCenter | Qt.AlignRight)
         qt.button(grid, "Detect", func=self.detect_settings, height=26, width=64, row=0, col=2)
 
         # DataLink folder
