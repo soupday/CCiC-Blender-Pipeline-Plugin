@@ -90,9 +90,12 @@ class Exporter:
 
 
     def __init__(self, objects, no_window=False):
-        if type(objects) is not list:
-            objects = [ objects ]
-        self.collect_objects(objects)
+        if objects:
+            if type(objects) is not list:
+                objects = [ objects ]
+            self.collect_objects(objects)
+        else:
+            self.clear_objects()
 
         self.option_preset = prefs.EXPORT_PRESET
         self.option_bakehair = prefs.EXPORT_BAKE_HAIR
@@ -272,6 +275,7 @@ class Exporter:
                 REventHandler.UnregisterCallback(self.callback_id)
                 self.callback = None
                 self.callback_id = None
+
 
     def on_selection_change(self):
         selected = RScene.GetSelectedObjects()
@@ -903,7 +907,8 @@ def new_exporter():
     selected = cc.get_selected_actor_objects()
     if cc.is_cc() and not selected:
         selected = cc.get_first_avatar()
-        RScene.SelectObject(selected)
+        if selected:
+            RScene.SelectObject(selected)
     return Exporter(selected)
 
 
@@ -912,5 +917,10 @@ def get_exporter():
     if not EXPORTER:
         EXPORTER = new_exporter()
     else:
+        selected = cc.get_selected_actor_objects()
+        if cc.is_cc() and not selected:
+            selected = cc.get_first_avatar()
+            if selected:
+                RScene.SelectObject(selected)
         EXPORTER.on_selection_change()
     return EXPORTER
