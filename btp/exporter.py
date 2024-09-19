@@ -276,7 +276,6 @@ class Exporter:
                 self.callback = None
                 self.callback_id = None
 
-
     def on_selection_change(self):
         selected = RScene.GetSelectedObjects()
         self.collect_objects(selected)
