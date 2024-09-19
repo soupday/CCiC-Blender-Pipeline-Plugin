@@ -356,13 +356,13 @@ class Exporter:
         if self.check_animation_only: self.check_animation_only.setChecked(self.option_animation_only)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
         if self.option_preset == 0:
-            qt.disable(self.group_export_range, self.check_t_pose, self.check_animation_only)
-            qt.enable(self.check_hik_data, self.check_profile_data)
+            qt.disable(self.group_export_range, self.check_animation_only)
+            qt.enable(self.check_t_pose)
         elif self.option_preset == 1:
             qt.disable(self.check_t_pose)
-            qt.enable(self.group_export_range, self.check_animation_only, self.check_hik_data, self.check_profile_data)
+            qt.enable(self.group_export_range, self.check_animation_only)
         elif self.option_preset == 2:
-            qt.disable(self.group_export_range, self.check_hik_data, self.check_profile_data, self.check_animation_only)
+            qt.disable(self.group_export_range, self.check_animation_only)
             qt.enable(self.check_t_pose)
 
     def fetch_options(self):
