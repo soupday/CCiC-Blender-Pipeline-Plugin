@@ -81,7 +81,8 @@ class MorphSlider(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, layout = qt.window("Import Character Morph", width=400, show_hide=self.on_show_hide)
+        self.window, layout = qt.window("Import Character Morph", width=400, height=540, fixed=True, show_hide=self.on_show_hide)
+        self.window.SetFeatures(EDockWidgetFeatures_Closable)
 
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 2)
@@ -241,8 +242,6 @@ class MorphSlider(QObject):
         return name
 
     def create_slider(self):
-        self.window.Close()
-
         if os.path.exists(self.target_path) and os.path.exists(self.key_path):
 
             slider_setting = RMorphSliderSetting()
@@ -279,6 +278,10 @@ class MorphSlider(QObject):
                     utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
                     ASC.SetShapingMorphWeight(morph_id, min_max[1])
                     avatar.Update()
+
+        self.window.Close()
+
+
 
 
 

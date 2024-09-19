@@ -21,14 +21,9 @@ from btp import vars, prefs, cc, qt, tests, importer, exporter, morph, link, gob
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
 FBX_IMPORTER: importer.Importer = None
-FBX_EXPORTER: exporter.Exporter = None
-SETTINGS: prefs.Preferences = None
-
-ACTION_LINK = None
 
 
 def initialize_plugin():
-    global ACTION_LINK
     prefs.detect_paths()
     # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
@@ -40,7 +35,7 @@ def initialize_plugin():
         qt.menu_separator(plugin_menu)
         qt.add_menu_action(plugin_menu, "Import Character from Blender", menu_import)
     qt.menu_separator(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Data Link", menu_link)
+    qt.add_menu_action(plugin_menu, "DataLink", menu_link)
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
 
@@ -52,24 +47,24 @@ def initialize_plugin():
 
     if cc.is_cc():
         icon_morph = qt.get_icon("MeshIcoSphere.png")
-        qt.add_toolbar_action(toolbar, icon_morph, "Morph", menu_go_morph)
+        qt.add_toolbar_action(toolbar, icon_morph, "GoB-Morph", menu_go_morph)
 
     icon_link = qt.get_icon("BlenderDataLink.png")
-    qt.add_toolbar_action(toolbar, icon_link, "Data-link", menu_link, toggle=True)
+    qt.add_toolbar_action(toolbar, icon_link, "Blender DataLink", menu_link, toggle=True)
 
     qt.add_toolbar_separator(toolbar)
 
     icon_export = qt.get_icon("BlenderExport.png")
-    qt.add_toolbar_action(toolbar, icon_export, "Export", menu_export)
+    qt.add_toolbar_action(toolbar, icon_export, "Export to Blender", menu_export)
 
     if cc.is_cc():
         icon_import = qt.get_icon("BlenderImport.png")
-        qt.add_toolbar_action(toolbar, icon_import, "Import", menu_import)
+        qt.add_toolbar_action(toolbar, icon_import, "Import from Blender", menu_import)
 
     qt.add_toolbar_separator(toolbar)
 
     icon_settings = qt.get_icon("BlenderSettings.png")
-    qt.add_toolbar_action(toolbar, icon_settings, "Settings", menu_settings, toggle=True)
+    qt.add_toolbar_action(toolbar, icon_settings, "Blender Pipeline Settings", menu_settings, toggle=True)
 
     if prefs.AUTO_START_SERVICE:
         link.link_auto_start()
@@ -88,17 +83,11 @@ def menu_import():
 
 
 def menu_export():
-    global FBX_EXPORTER
-    FBX_EXPORTER = None
-    selected = cc.get_selected_actor_objects()
-    if cc.is_cc() and not selected:
-        selected = cc.get_first_avatar()
-    FBX_EXPORTER = exporter.Exporter(selected)
-
-
-def menu_export_iclone():
-    global FBX_EXPORTER
-    FBX_EXPORTER = None
+    export = exporter.get_exporter()
+    if export.is_shown():
+        export.hide()
+    else:
+        export.show()
 
 
 def menu_link():

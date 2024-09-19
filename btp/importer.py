@@ -163,8 +163,9 @@ class Importer:
     def create_options_window(self):
         W = 500
         H = 300
-        TITLE = f"Blender Auto-setup Character Import ({vars.VERSION}) - Options"
+        TITLE = f"Blender Pipeline Import FBX"
         self.window_options, layout = qt.window(TITLE, width=W, height=H, fixed=True)
+        self.window_options.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.label(layout, f"Character Name: {self.name}", style=qt.STYLE_TITLE)
         qt.label(layout, f"Character Path: {self.path}", style=qt.STYLE_TITLE)

@@ -104,18 +104,18 @@ class Preferences(QObject):
         H = 520
         if cc.is_cc():
             H = 580
-        self.window, layout = qt.window(f"CC/iC Blender Pipeline Preferences ({vars.VERSION})", width=W, height=H, fixed=True, show_hide=self.on_show_hide)
+        self.window, layout = qt.window(f"Blender Pipeline Plug-in Preferences", width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
 
         # title
         grid = qt.grid(layout)
-        qt.label(grid, "Data-Link Settings:", style=qt.STYLE_RL_BOLD, row=0, col=0, col_span=2)
+        qt.label(grid, f"DataLink Settings  ({vars.VERSION}):", style=qt.STYLE_RL_BOLD, row=0, col=0, col_span=2)
         qt.button(grid, "Detect", func=self.detect_settings, height=26, width=64, row=0, col=2)
 
-        # Data-Link folder
-        qt.label(grid, "Datalink Folder", row=1, col=0)
+        # DataLink folder
+        qt.label(grid, "DataLink Folder", row=1, col=0)
         self.textbox_go_b_path = qt.textbox(grid, DATALINK_FOLDER, update=self.update_textbox_datalink_folder,
                                             row=1, col=1)
         qt.button(grid, "Find", func=self.browse_datalink_folder, height=26, width=64, row=1, col=2)
@@ -141,7 +141,7 @@ class Preferences(QObject):
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 2)
 
-        qt.label(grid, "Data Link Send Settings:", style=qt.STYLE_RL_BOLD,
+        qt.label(grid, "DataLink Send Settings:", style=qt.STYLE_RL_BOLD,
                  row=0, col=0, col_span=2)
 
         if cc.is_cc():
@@ -206,9 +206,9 @@ class Preferences(QObject):
 
     def on_show_hide(self, visible):
         if visible:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", True)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", True)
         else:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Settings", False)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", False)
 
     def detect_settings(self):
         detect_paths()
@@ -609,7 +609,7 @@ def detect_paths():
 
     if not DATALINK_FOLDER:
         res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
-        path = os.path.join(res[1], "Data Link")
+        path = os.path.join(res[1], "DataLink")
         DATALINK_FOLDER = path
         changed = True
 

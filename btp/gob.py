@@ -204,7 +204,7 @@ def get_go_b_paths(name):
     datalink_folder = prefs.DATALINK_FOLDER
 
     if not os.path.exists(datalink_folder):
-        datalink_folder = cc.temp_files_path("Data Link")
+        datalink_folder = cc.temp_files_path("DataLink")
         if not os.path.exists(datalink_folder):
             os.makedirs(datalink_folder, exist_ok=True)
 

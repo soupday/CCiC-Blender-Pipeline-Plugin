@@ -18,7 +18,7 @@ import RLPy
 import time
 from . import utils
 from PySide2.QtWidgets import *
-from PySide2.QtCore import Qt, Signal, QSize
+from PySide2.QtCore import Qt, Signal, QSize, QRect, QPoint
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 
@@ -55,12 +55,11 @@ STYLE_ICON_BUTTON = ""
 
 def window(title, width=400, height=0, fixed=False, show_hide=None):
     window: RLPy.RIDockWidget
-    dock: QDockWidget
     window = RLPy.RUi.CreateRDockWidget()
     window.SetWindowTitle(title)
     window.SetAllowedAreas(RLPy.EDockWidgetAreas_AllFeatures)
     window.SetFeatures(RLPy.EDockWidgetFeatures_AllFeatures)
-    dock = wrapInstance(int(window.GetWindow()), QDockWidget)
+    dock = get_dock_widget(window)
     if fixed and width > 0:
         dock.setFixedWidth(width)
     if fixed and height > 0:
@@ -78,6 +77,27 @@ def window(title, width=400, height=0, fixed=False, show_hide=None):
         dock.visibilityChanged.connect(show_hide)
 
     return window, layout
+
+
+def get_dock_widget(ri_dock: RLPy.RIDockWidget) -> QDockWidget:
+    dock: QDockWidget = wrapInstance(int(ri_dock.GetWindow()), QDockWidget)
+    return dock
+
+
+def get_main_window() -> QMainWindow:
+    main_window: QMainWindow = wrapInstance(int(RLPy.RUi.GetMainWindow()), QMainWindow)
+    return main_window
+
+
+def place_window(window: RLPy.RIDockWidget, px, py):
+    """Places window at a percentage position of the main window width and height"""
+    dock: QDockWidget = wrapInstance(int(window.GetWindow()), QDockWidget)
+    main_window = get_main_window()
+    dock_geo: QRect = dock.geometry()
+    main_geo: QRect = main_window.geometry()
+    pos = QPoint(max(10, main_window.x() + (main_geo.width() * px) - (dock_geo.width() / 2)),
+                 max(10, main_window.y() + (main_geo.height() * py) - (dock_geo.height() / 2)))
+    dock.move(pos)
 
 
 def find_add_plugin_menu(name):

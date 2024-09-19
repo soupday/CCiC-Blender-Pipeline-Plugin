@@ -932,7 +932,7 @@ class LinkService(QObject):
                 self.client_port = self.host_port
                 self.keepalive_timer = KEEPALIVE_TIMEOUT_S
                 self.ping_timer = PING_INTERVAL_S
-                utils.log_info(f"Connecting to data link server on {self.host_ip}:{self.host_port}")
+                utils.log_info(f"Connecting to data-link server on {self.host_ip}:{self.host_port}")
                 self.send_hello()
                 self.connecting.emit()
                 self.changed.emit()
@@ -1313,7 +1313,7 @@ class DataLink(QObject):
         return self.window.IsVisible()
 
     def create_window(self):
-        self.window, window_layout = qt.window("Data Link (WIP)", width=440, height=524, show_hide=self.on_show_hide)
+        self.window, window_layout = qt.window("Blender DataLink", width=440, height=524, show_hide=self.on_show_hide)
 
         scroll, layout = qt.scroll_area(window_layout, vertical=True, horizontal=False)
 
@@ -1329,7 +1329,7 @@ class DataLink(QObject):
 
         grid = qt.grid(layout)
         grid.setColumnStretch(1, 3)
-        qt.label(grid, f"Data Link ({vars.VERSION}):", row=0, col=0, style=qt.STYLE_TITLE)
+        qt.label(grid, f"DataLink ({vars.VERSION}):", row=0, col=0, style=qt.STYLE_TITLE)
         self.label_header = qt.label(grid, f"Not Connected",
                                      row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
         qt.label(grid, f"Working Folder:", row=1, col=0, style=qt.STYLE_TITLE)
@@ -1450,12 +1450,12 @@ class DataLink(QObject):
 
     def on_show_hide(self, visible):
         if visible:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Data-link", True)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender DataLink", True)
             if not self.callback_id:
                 self.callback = LinkEventCallback(self)
                 self.callback_id = REventHandler.RegisterCallback(self.callback)
         else:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Data-link", False)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender DataLink", False)
             if self.callback_id:
                 REventHandler.UnregisterCallback(self.callback_id)
                 self.callback = None
@@ -1929,7 +1929,7 @@ class DataLink(QObject):
                                                       EObjectType_Cloth | EObjectType_Accessory | EObjectType_Hair)
 
         # TODO export.export_extra_data should add the link_id's for these sub-objects.
-        # TODO only add link_id data when using data link export...
+        # TODO only add link_id data when using data-link export...
 
     def send_avatar(self, actor: LinkActor):
         """
@@ -2919,7 +2919,6 @@ class DataLink(QObject):
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame + 1
         start_time = get_frame_time(self.data.sequence_start_frame)
         end_time = get_frame_time(self.data.sequence_end_frame)
-        print(f"start_time: {start_time.ToFloat()} end_time: {end_time.ToFloat()}")
         # extend project range
         extend_project_range(end_time)
         # move to start of timeline

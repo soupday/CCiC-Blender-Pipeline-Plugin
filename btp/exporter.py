@@ -24,9 +24,6 @@ import os
 from . import blender, cc, qt, prefs, utils, vars
 
 
-FBX_EXPORTER = None
-
-
 class ExporterEventCallback(REventCallback):
 
     target = None
@@ -56,8 +53,8 @@ class Exporter:
     prop: RIProp = None # type: ignore
     avatars = None
     props = None
-    window_options: RIDockWidget = None
-    window_progress = None
+    window: RIDockWidget = None
+    window_progress: RIDockWidget = None
     progress_count = 0
     progress_bar = None
     group_export_range: QGroupBox = None
@@ -128,18 +125,35 @@ class Exporter:
         self.avatars = [ o for o in objects if (type(o) is RIAvatar or type(o) is RILightAvatar) ]
         self.props = [ o for o in objects if type(o) is RIProp ]
 
+    def clear_objects(self):
+        self.avatars = []
+        self.props = []
+        self.avatar = None
+        self.prop = None
+
     def show(self):
-        self.window_options.Show()
+        if not self.has_window():
+            self.create_options_window()
+        self.window.Show()
 
     def hide(self):
-        self.window_options.Hide()
+        self.clear_objects()
+        self.window.Hide()
+
+    def has_window(self):
+        try:
+            if self.window and self.window.GetWindow():
+                return True
+            else:
+                return False
+        except:
+            return False
 
     def is_shown(self):
-        return self.window_options.IsVisible()
+        return self.window and self.window.IsVisible()
 
     def clean_up_globals(self):
-        global FBX_EXPORTER
-        FBX_EXPORTER = None
+        pass
 
     def set_avatar(self, avatar: RIAvatar):
         self.avatar = avatar
@@ -200,9 +214,9 @@ class Exporter:
     def create_options_window(self):
         W = 400
         H = 520
-        TITLE = f"Blender Export ({vars.VERSION})"
-        self.window_options, layout = qt.window(TITLE, width=W, height=H, fixed=True, show_hide=self.on_show_hide)
-        self.window_options.SetFeatures(EDockWidgetFeatures_Closable)
+        TITLE = f"Blender Pipeline Export FBX"
+        self.window, layout = qt.window(TITLE, width=W, height=H, fixed=True, show_hide=self.on_show_hide)
+        self.window.SetFeatures(EDockWidgetFeatures_Closable)
 
         qt.label(layout, "Presets:", style=qt.STYLE_TITLE)
 
@@ -246,16 +260,14 @@ class Exporter:
 
         self.on_selection_change()
 
-        self.window_options.Show()
-
     def on_show_hide(self, visible):
         if visible:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Export", True)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Export to Blender", True)
             if not self.callback_id:
                 self.callback = ExporterEventCallback(self)
                 self.callback_id = REventHandler.RegisterCallback(self.callback)
         else:
-            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Export", False)
+            qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Export to Blender", False)
             if self.callback_id:
                 REventHandler.UnregisterCallback(self.callback_id)
                 self.callback = None
@@ -298,6 +310,7 @@ class Exporter:
         title = "Blender Export"
         self.window_progress, layout = qt.window(title, width=500, height=150, fixed=True)
         self.window_progress.SetFeatures(EDockWidgetFeatures_NoFeatures)
+        qt.place_window(self.window_progress, 0.5, 0.333)
         qt.spacing(layout, 8)
         label = qt.label(layout, f"Export Progress ...")
         label.setAlignment(Qt.AlignHCenter)
@@ -383,11 +396,11 @@ class Exporter:
 
     def preset_description(self, preset):
         if preset == 0:
-            return "For exporting full models and props, without animations"
+            return "For exporting models without animations, in their bind pose"
         elif preset == 1:
-            return "Selected character models and props with their animations"
+            return "For exporting models with their animations"
         elif preset == 2:
-            return "For editing in Blender before sending on to Unity"
+            return "For further editing in Blender before sending on to Unity"
         return "No preset selected!"
 
 
@@ -418,16 +431,19 @@ class Exporter:
         self.option_current_animation = prefs.CC_EXPORT_MODE == "Animation"
         self.option_animation_only = False
         self.option_profile_data = False
-        self.option_hik_data = prefs.CC_USE_HIK_PROFILE
         if cc.is_cc():
             self.option_bakehair = prefs.CC_BAKE_TEXTURES
             self.option_bakeskin = prefs.CC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
+            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.check_non_standard_export()
         else:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
+            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
         self.update_options()
 
     def preset_unity(self):
@@ -449,9 +465,6 @@ class Exporter:
         self.update_options()
 
     def close_options_window(self):
-        if self.window_options:
-            self.window_options.Close()
-        self.window_options = None
         self.check_bakehair = None
         self.check_bakeskin = None
         self.radio_export_pose = None
@@ -461,6 +474,9 @@ class Exporter:
         self.check_profile_data = None
         self.check_t_pose = None
         self.check_remove_hidden = None
+        if self.window:
+            self.window.Close()
+        self.window = None
 
     def check_non_standard_export(self):
         # non standard characters, especially actorbuild and actorscan
@@ -539,7 +555,9 @@ class Exporter:
         single_export = (len(self.avatars) + len(self.props) == 1)
         if not file_path:
             file_path = RUi.SaveFileDialog("Fbx Files(*.fbx)")
-        self.create_progress_window()
+        self.window_progress = None
+        if multi_export:
+            self.create_progress_window()
         self.update_progress(0, "Exporting ...", True)
         if file_path and file_path != "":
             if not self.no_options:
@@ -575,6 +593,7 @@ class Exporter:
             utils.log("Export Cancelled.")
 
         self.close_progress_window()
+        self.clear_objects()
 
     def export_fbx(self):
         obj = None
@@ -816,8 +835,9 @@ class Exporter:
 
         elif self.prop:
 
-            root_json["Avatar_Type"] = "Prop"
-            root_json["Link_ID"] = cc.get_link_id(self.prop)
+            if root_json:
+                root_json["Avatar_Type"] = "Prop"
+                root_json["Link_ID"] = cc.get_link_id(self.prop)
 
         # Add sub object id's and root bones
         info_json = []
@@ -875,3 +895,22 @@ class Exporter:
                         else:
                             utils.log(f"Unable to save missing weightmap: {weight_map_path}")
 
+
+EXPORTER: Exporter = None
+
+
+def new_exporter():
+    selected = cc.get_selected_actor_objects()
+    if cc.is_cc() and not selected:
+        selected = cc.get_first_avatar()
+        RScene.SelectObject(selected)
+    return Exporter(selected)
+
+
+def get_exporter():
+    global EXPORTER
+    if not EXPORTER:
+        EXPORTER = new_exporter()
+    else:
+        EXPORTER.on_selection_change()
+    return EXPORTER
