@@ -125,8 +125,8 @@ class Exporter:
             self.create_options_window()
 
     def collect_objects(self, objects):
-        self.avatars = [ o for o in objects if (type(o) is RIAvatar or type(o) is RILightAvatar) ]
-        self.props = [ o for o in objects if type(o) is RIProp ]
+        self.avatars = [ o for o in objects if cc.is_avatar(o) ]
+        self.props = [ o for o in objects if cc.is_prop(o) ]
 
     def clear_objects(self):
         self.avatars = []
@@ -181,8 +181,7 @@ class Exporter:
     def set_multi_paths(self, object, motion_only=False):
         base_path = self.base_path
         ext = ".iCCX"
-        T = type(object)
-        if T is RIAvatar or T is RILightAvatar or T is RIProp:
+        if cc.is_avatar(object) or cc.is_prop(object):
             ext = ".Fbx"
         name = object.GetName()
         if motion_only:
@@ -671,6 +670,8 @@ class Exporter:
         elif self.option_current_animation and num_frames > 0:
             export = "ANIMATION"
         elif self.option_current_animation and num_frames > 0:
+            export = "CURRENT_POSE"
+        elif self.option_current_pose:
             export = "CURRENT_POSE"
         else:
             export = "BIND"

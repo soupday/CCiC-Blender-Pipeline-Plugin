@@ -150,29 +150,25 @@ class LinkActor():
 
     def get_skeleton_component(self) -> RISkeletonComponent:
         if self.object:
-            T = type(self.object)
-            if T is RIAvatar or T is RILightAvatar or T is RIProp:
+            if cc.is_avatar(self.object) or cc.is_prop(self.object):
                 return self.object.GetSkeletonComponent()
         return None
 
     def get_face_component(self) -> RIFaceComponent:
         if self.object:
-            T = type(self.object)
-            if T is RIAvatar or T is RILightAvatar:
+            if cc.is_avatar(self.object):
                 return self.object.GetFaceComponent()
         return None
 
     def get_viseme_component(self) -> RIVisemeComponent:
         if self.object:
-            T = type(self.object)
-            if T is RIAvatar or T is RILightAvatar:
+            if cc.is_avatar(self.object):
                 return self.object.GetVisemeComponent()
         return None
 
     def get_morph_component(self) -> RIMorphComponent:
         if self.object:
-            T = type(self.object)
-            if T is RIAvatar or T is RILightAvatar or T is RIProp:
+            if cc.is_avatar(self.object) or cc.is_prop(self.object):
                 return self.object.GetMorphComponent()
         return None
 
@@ -289,7 +285,7 @@ class LinkActor():
         T = type(obj)
         if T is RIAvatar or T is RILightAvatar:
             return "AVATAR"
-        elif T is RIProp:
+        elif T is RIProp or T is RIMDProp:
             return "PROP"
         elif T is RILight:
             return "LIGHT"
@@ -302,10 +298,10 @@ class LinkActor():
         return self.get_actor_type(self.object)
 
     def is_avatar(self):
-        return type(self.object) is RIAvatar or type(self.object) is RILightAvatar
+        return cc.is_avatar(self.object)
 
     def is_prop(self):
-        return type(self.object) is RIProp
+        return cc.is_prop(self.object)
 
     def is_light(self):
         return type(self.object) is RILight
@@ -1495,7 +1491,7 @@ class DataLink(QObject):
                 T = type(prop_or_avatar)
             if T is RIAvatar or T is RILightAvatar:
                 avatar = prop_or_avatar
-            elif T is RIProp:
+            elif T is RIProp or T is RIMDProp:
                 prop = prop_or_avatar
             elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
                 light = first
@@ -1533,7 +1529,7 @@ class DataLink(QObject):
                     generation == EAvatarGeneration_CC_Game_Base_One):
                     num_rigable += 1
 
-            elif T is RIProp and prop_or_avatar not in props_and_avatars:
+            elif (T is RIProp or T is RIMDProp) and prop_or_avatar not in props_and_avatars:
                 props_and_avatars.append(prop_or_avatar)
                 props.append(prop_or_avatar)
                 num_props += 1

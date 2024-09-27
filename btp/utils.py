@@ -250,6 +250,16 @@ def name_contains_distinct_keywords(name : str, keywords : list):
     return False
 
 
+def name_is_split_mesh(name):
+    if (len(name) >= 4 and
+        name[-1].isdigit() and
+        name[-2].isdigit() and
+        name[-3] == "S" and
+        name[-4] == "_"):
+        return True
+    return False
+
+
 def make_folder(path):
     folder, file = os.path.split(path)
     os.makedirs(folder, exist_ok=True)
