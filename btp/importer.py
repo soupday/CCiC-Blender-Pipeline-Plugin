@@ -304,21 +304,22 @@ class Importer:
         return objects
 
     def update_materials(self, obj):
-        if type(obj) is RLPy.RIAvatar or type(obj) is RLPy.RILightAvatar:
+        # NOTE: RILightAvatars and RIMDProps do not have material components so can't be updated.
+        if type(obj) is RLPy.RIAvatar:
             self.avatar = obj
-            self.rebuild_materials()
+            self.rebuild_materials(update=True)
         elif type(obj) is RLPy.RIProp:
             objects = set()
             objects.add(obj)
             child_objects = RLPy.RGlobal.FindChildObjects(obj, RLPy.EObjectType_Prop)
-            for obj in child_objects:
-                if type(obj) is RLPy.RIProp:
-                    objects.add(obj)
+            for child in child_objects:
+                if cc.is_prop(child):
+                    objects.add(child)
             for obj in objects:
                 self.avatar = obj
-                self.rebuild_materials()
+                self.rebuild_materials(update=True)
 
-    def rebuild_materials(self):
+    def rebuild_materials(self, update=False):
         """Material reconstruction process.
         """
 
@@ -328,7 +329,7 @@ class Importer:
         utils.start_timer()
 
         self.create_progress_window()
-        cc_mesh_materials = cc.get_avatar_mesh_materials(avatar, json_data=json_data)
+        cc_mesh_materials = cc.get_avatar_mesh_materials(avatar, json_data=json_data, exact=update)
         utils.log("Rebuilding character materials and texures:")
         self.update_shaders(cc_mesh_materials)
         self.update_progress(0, "Done Initializing!", True)
@@ -338,19 +339,21 @@ class Importer:
             self.import_custom_textures(cc_mesh_materials)
             self.import_physics(cc_mesh_materials)
 
-        if self.character_type == "HUMANOID":
-            self.option_import_hik = True
-            self.option_import_profile = True
-            # user optional for importing custom facial expressions as the import profile will load the old ones.
-            # and it's slow...
-            #self.option_import_expressions = True
+        if not update: # do not update HIK / facial profiles on material updates
 
-        if self.option_import_hik:
-            self.import_hik_profile()
+            if self.character_type == "HUMANOID":
+                self.option_import_hik = True
+                self.option_import_profile = True
+                # user optional for importing custom facial expressions as the import profile will load the old ones.
+                # and it's slow...
+                #self.option_import_expressions = True
 
-        if self.character_type == "STANDARD" or self.character_type == "HUMANOID":
-            if self.option_import_profile or self.option_import_expressions:
-                self.import_facial_profile()
+            if self.option_import_hik:
+                self.import_hik_profile()
+
+            if self.character_type == "STANDARD" or self.character_type == "HUMANOID":
+                if self.option_import_profile or self.option_import_expressions:
+                    self.import_facial_profile()
 
         self.final(cc_mesh_materials)
 

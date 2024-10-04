@@ -263,7 +263,7 @@ class CCMeshJson():
     def json(self):
         return self.mesh_json
 
-    def find_material_name(self, search_mat_name):
+    def find_material_name(self, search_mat_name, exact=False):
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
@@ -275,6 +275,8 @@ class CCMeshJson():
                 trunc_mat_name = json_mat_name[:-13]
             if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
                 return json_mat_name
+        if exact:
+            return None
         # try a partial match, but only if there is only one result
         partial_mat_name = None
         partial_mat_count = 0
@@ -293,8 +295,8 @@ class CCMeshJson():
             return partial_mat_name
         return None
 
-    def find_material(self, search_mat_name):
-        mat_name = self.find_material_name(search_mat_name)
+    def find_material(self, search_mat_name, exact=False):
+        mat_name = self.find_material_name(search_mat_name, exact=exact)
         cc_mat_json: CCMaterialJson = None
         if mat_name:
             cc_mat_json = self.materials[mat_name]
@@ -347,7 +349,7 @@ class CCPhysicsMeshJson():
     def json(self):
         return self.physics_mesh_json
 
-    def find_material_name(self, search_mat_name):
+    def find_material_name(self, search_mat_name, exact=False):
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
@@ -359,6 +361,8 @@ class CCPhysicsMeshJson():
                 trunc_mat_name = json_mat_name[:-13]
             if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
                 return json_mat_name
+        if exact:
+            return None
         # try a partial match, but only if there is only one result
         partial_mat_name = None
         partial_mat_count = 0
@@ -377,8 +381,8 @@ class CCPhysicsMeshJson():
             return partial_mat_name
         return None
 
-    def find_material(self, search_mat_name):
-        mat_name = self.find_material_name(search_mat_name)
+    def find_material(self, search_mat_name, exact=False):
+        mat_name = self.find_material_name(search_mat_name, exact=exact)
         cc_mat_json: CCPhysicsMaterialJson = None
         if mat_name:
             cc_mat_json = self.materials[mat_name]
@@ -531,7 +535,7 @@ class CCJsonData():
             utils.log("Could not find character json: " + self.character_id)
             return None
 
-    def find_source_mesh_name(self, imported_mesh_name, imported_obj_name, rl_meshes):
+    def find_source_mesh_name(self, imported_mesh_name, imported_obj_name, rl_meshes, exact=False):
         try_names = set()
         try_names.add(imported_mesh_name)
         try_names.add(safe_export_name(imported_mesh_name))
@@ -544,6 +548,8 @@ class CCJsonData():
         for mesh_name in rl_meshes:
             if mesh_name in try_names:
                 return mesh_name
+        if exact:
+            return None
         # try a partial match, but only if there is only one result
         partial_mesh_match = None
         partial_mesh_count = 0
@@ -559,17 +565,14 @@ class CCJsonData():
             return partial_mesh_match
         return None
 
-    def find_mesh_name(self, search_mesh_name, search_obj_name = None):
-        return self.find_source_mesh_name(search_mesh_name, search_obj_name, self.meshes)
-
-    def find_mesh(self, search_mesh_name, search_obj_name = None):
-        mesh_name = self.find_mesh_name(search_mesh_name, search_obj_name)
+    def find_mesh(self, search_mesh_name, search_obj_name=None, exact=False):
+        mesh_name = self.find_source_mesh_name(search_mesh_name, search_obj_name, self.meshes, exact=exact)
         cc_mesh_json: CCMeshJson = None
         if mesh_name:
             cc_mesh_json = self.meshes[mesh_name]
         return cc_mesh_json
 
-    def find_physics_mesh_name(self, search_mesh_name, search_obj_name = None):
+    def find_physics_mesh_name(self, search_mesh_name, search_obj_name, rl_meshes, exact=False):
         try_names = set()
         if search_mesh_name:
             try_names.add(search_mesh_name)
@@ -580,10 +583,25 @@ class CCJsonData():
         for mesh_name in self.physics_meshes:
             if mesh_name in try_names:
                 return mesh_name
+        if exact:
+            return None
+        # try a partial match, but only if there is only one result
+        partial_mesh_match = None
+        partial_mesh_count = 0
+        for mesh_name in rl_meshes:
+            for try_name in try_names:
+                if try_name in mesh_name:
+                    partial_mesh_count += 1
+                    if not partial_mesh_match:
+                        partial_mesh_match = mesh_name
+                    # only count 1 match per try set
+                    break
+        if partial_mesh_count == 1:
+            return partial_mesh_match
         return None
 
-    def find_physics_mesh(self, search_mesh_name, search_obj_name = None):
-        mesh_name = self.find_physics_mesh_name(search_mesh_name, search_obj_name)
+    def find_physics_mesh(self, search_mesh_name, search_obj_name=None, exact=False):
+        mesh_name = self.find_physics_mesh_name(search_mesh_name, search_obj_name, self.physics_meshes, exact=exact)
         cc_physics_mesh_json: CCPhysicsMeshJson = None
         if mesh_name:
             cc_physics_mesh_json = self.physics_meshes[mesh_name]
@@ -615,7 +633,8 @@ class CCMeshMaterial():
     def __init__(self, actor = None, obj = None,
                  mesh_name = None, mat_name = None,
                  duf_mesh = None, duf_material = None,
-                 physx_object = None, cc_json_data = None):
+                 physx_object = None, cc_json_data = None,
+                 exact=False):
         self.actor = actor
         self.obj = obj
         self.actor_name = actor.GetName()
@@ -628,7 +647,7 @@ class CCMeshMaterial():
         self.duf_material = duf_material
         self.json_data = cc_json_data
         if self.json_data:
-            self.find_json_data()
+            self.find_json_data(exact)
 
     def material_component(self):
         if not self.mat_component and self.actor:
@@ -866,20 +885,20 @@ class CCMeshMaterial():
         else:
             PC.SetSoftPhysXProperty(self.mesh_name, self.mat_name, phys_param_name, float(param_value))
 
-    def find_json_data(self):
+    def find_json_data(self, exact):
         if self.json_data:
-            self.mesh_json = self.json_data.find_mesh(self.mesh_name, self.obj_name)
+            self.mesh_json = self.json_data.find_mesh(self.mesh_name, self.obj_name, exact=exact)
             if self.mesh_json:
                 self.json_mesh_name = self.mesh_json.name
-                self.mat_json = self.mesh_json.find_material(self.mat_name)
+                self.mat_json = self.mesh_json.find_material(self.mat_name, exact=exact)
                 if self.mat_json:
                     self.json_mat_name = self.mat_json.name
                 else:
                     utils.log_warn(f"Material JSON {self.mat_name} not found!")
                 if self.physx_object:
-                    self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name)
+                    self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name, exact=exact)
                     if self.physx_mesh_json:
-                        self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name)
+                        self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name, exact=exact)
             else:
                 utils.log_warn(f"Mesh JSON {self.obj_name}/{self.mesh_name} not found!")
 
@@ -933,7 +952,8 @@ def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=
 
 
 def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_names=None,
-                              mesh_filter=None, material_filter=None, json_data=None):
+                              mesh_filter=None, material_filter=None, json_data=None,
+                              exact=False):
 
     mesh_materials = []
 
@@ -976,7 +996,8 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
                     physics_object = get_actor_physics_object(avatar, mesh_name, mat_name)
 
                     M = CCMeshMaterial(actor=avatar, obj=obj, mesh_name=mesh_name, mat_name=mat_name,
-                                       physx_object=physics_object, cc_json_data=json_data)
+                                       physx_object=physics_object, cc_json_data=json_data,
+                                       exact=exact)
 
                     mesh_materials.append(M)
 
@@ -1366,7 +1387,7 @@ def get_object_type(obj):
     T = type(obj)
     if T is RIAvatar or T is RILightAvatar:
         return "AVATAR"
-    elif T is RIProp:
+    elif T is RIProp or T is RIMDProp:
         return "PROP"
     elif T is RIAccessory:
         return "ACCESSORY"
@@ -1728,6 +1749,16 @@ def print_node_tree(obj):
     print_nodes(node)
 
 
+def is_prop(obj):
+    T = type(obj)
+    return (T is RIProp or T is RIMDProp)
+
+
+def is_avatar(obj):
+    T = type(obj)
+    return (T is RIAvatar or T is RILightAvatar)
+
+
 IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
 
 def get_actor_objects(actor):
@@ -1746,7 +1777,7 @@ def get_actor_objects(actor):
         if avatar.GetAvatarType() != EAvatarType_Standard:
             objects.append(avatar)
 
-    elif actor and type(actor) is RIProp:
+    elif actor and (T is RIProp or T is RIMDProp):
         child_objects = RScene.FindChildObjects(actor, EObjectType_Avatar)
         for obj in child_objects:
             name = obj.GetName()
