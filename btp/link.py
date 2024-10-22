@@ -1985,7 +1985,7 @@ class DataLink(QObject):
            Attached props are sent as part of the parent prop.
            (Avatars can only be linked, not attached)
         """
-        objects = RScene.FindChildObjects(EObjectType_Prop |
+        objects = RScene.FindChildObjects(EObjectType_Prop | EObjectType_MDProp |
                                           EObjectType_Light |
                                           EObjectType_Camera)
         for obj in objects:
@@ -2000,6 +2000,8 @@ class DataLink(QObject):
                 self.send_light()
             elif actor.is_camera():
                 self.send_camera()
+            else:
+                utils.log_error("Unknown Actor type!")
         return
 
     def send_actor(self):

@@ -978,7 +978,7 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
             obj = find_actor_object(avatar, mesh_name)
             if obj:
 
-                utils.log_info(f"Actor Object: {obj.GetName()}")
+                utils.log_info(f"Actor Object: {obj.GetName()} ({mesh_name})")
                 utils.log_indent()
 
                 material_names = material_component.GetMaterialNames(mesh_name)
@@ -1216,6 +1216,7 @@ def find_node(node: RINode, id):
 def find_parent_avatar_or_prop(obj: RIObject):
     avatars = RScene.GetAvatars()
     props = RScene.GetProps()
+    md_props = RScene.GetMDProps()
     root: RINode = RScene.GetRootNode()
     node = find_node(root, obj.GetID())
     while node:
@@ -1224,6 +1225,9 @@ def find_parent_avatar_or_prop(obj: RIObject):
             if avatar.GetID() == node_id:
                 return avatar
         for prop in props:
+            if prop.GetID() == node_id:
+                return prop
+        for prop in md_props:
             if prop.GetID() == node_id:
                 return prop
         node = node.GetParent()
@@ -1444,7 +1448,11 @@ def find_avatar_by_id(avatar_id):
 
 def find_prop_by_id(prop_id):
     props = RScene.GetProps()
+    md_props = RScene.GetMDProps()
     for prop in props:
+        if prop.GetID() == prop_id:
+            return prop
+    for prop in md_props:
         if prop.GetID() == prop_id:
             return prop
     return None
