@@ -1134,6 +1134,15 @@ def custom_morph_path():
     return res[1]
 
 
+def user_files_path(sub_path=None, create=False):
+    path = os.path.normpath(os.path.expanduser("~/Documents/Reallusion/"))
+    if sub_path:
+        path = os.path.join(path, sub_path)
+    if create:
+        os.makedirs(path, exist_ok=True)
+    return path
+
+
 def temp_files_path(sub_path=None, create=False):
     res = RGlobal.GetPath(EPathType_Temp, "")
     path = res[1]

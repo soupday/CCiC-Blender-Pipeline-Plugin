@@ -239,7 +239,6 @@ class Preferences(QObject):
         global DATALINK_FOLDER
         folder_path = qt.browse_folder("Datalink Folder", DATALINK_FOLDER)
         if os.path.exists(folder_path):
-            self.path_daz_library_root = folder_path
             self.textbox_go_b_path.setText(folder_path)
             DATALINK_FOLDER = folder_path
             write_temp_state()
@@ -609,8 +608,7 @@ def detect_paths():
                 break
 
     if not DATALINK_FOLDER:
-        res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
-        path = os.path.join(res[1], "DataLink")
+        path = cc.user_files_path("DataLink")
         DATALINK_FOLDER = path
         changed = True
 
@@ -625,20 +623,23 @@ def detect_paths():
     utils.log_info(f"Using Datalink Folder: {DATALINK_FOLDER}")
 
 
-def check_paths():
+def check_paths(quiet=False):
     global BLENDER_PATH
     global DATALINK_FOLDER
 
     report = ""
     valid = True
+    write = False
 
     if DATALINK_FOLDER:
+        if DATALINK_FOLDER == cc.temp_files_path("DataLink"):
+            DATALINK_FOLDER = cc.user_files_path("DataLink", create=True)
+            write = True
         if not os.path.exists(DATALINK_FOLDER):
             os.makedirs(DATALINK_FOLDER, exist_ok=True)
-
-    if not DATALINK_FOLDER:
-        valid = False
-        report += "Invalid Datalink folder!\n"
+    else:
+        DATALINK_FOLDER = cc.user_files_path("DataLink", create=True)
+        write = True
 
     if os.path.exists(DATALINK_FOLDER):
         if not os.path.isdir(DATALINK_FOLDER):
@@ -652,9 +653,12 @@ def check_paths():
         valid = False
         report += "Blender .exe path is invalid!\n"
 
-    if not valid:
+    if not quiet and not valid:
         report += "\n\nPlease check plugin path settings."
         qt.message_box("Path Error", report)
+
+    if valid and write:
+        write_temp_state()
 
     return valid
 

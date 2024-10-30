@@ -65,9 +65,13 @@ Known Issues
 Changelog
 =========
 
+### 2.1.11
+- Fix to motion exports not using project FPS.
+
 ### 2.1.10
 - Support for exporting MDProps.
 - Update materials through the datalink will use exact name matching and will no longer update materials on partial name matches.
+
 
 ### 2.1.9
 - Some UI Restructure.

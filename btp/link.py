@@ -948,6 +948,7 @@ class LinkService(QObject):
     def send_hello(self):
         self.local_app = RApplication.GetProductName()
         self.local_version = RApplication.GetProductVersion()
+        prefs.check_paths(quiet=True)
         self.local_path = prefs.DATALINK_FOLDER
         json_data = {
             "Application": self.local_app,
