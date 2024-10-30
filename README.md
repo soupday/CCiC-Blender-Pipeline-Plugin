@@ -67,6 +67,8 @@ Changelog
 
 ### 2.1.11
 - Fix to motion exports not using project FPS.
+- Fix to datalink not detecting MD Props on send.
+- Default datalink path changed to user documents folder.
 
 ### 2.1.10
 - Support for exporting MDProps.
