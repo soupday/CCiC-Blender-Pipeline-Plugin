@@ -948,7 +948,7 @@ class LinkService(QObject):
     def send_hello(self):
         self.local_app = RApplication.GetProductName()
         self.local_version = RApplication.GetProductVersion()
-        prefs.check_paths(quiet=True)
+        prefs.check_paths(quiet=True, create=True)
         self.local_path = prefs.DATALINK_FOLDER
         json_data = {
             "Application": self.local_app,
@@ -1227,7 +1227,6 @@ class LinkService(QObject):
             self.sequence_send_count = count
             if self.loop_count % 30 == 0:
                 print(f"rate: {rate} count: {count} delta_frames: {delta_frames}")
-
 
 
 class LinkEventCallback(REventCallback):
@@ -1864,14 +1863,24 @@ class DataLink(QObject):
                 export_folder = local_path
             return export_folder
         else:
-            return "None"
+            return ""
 
     def get_export_path(self, folder_name, file_name, unique=True):
         if self.service:
             if self.service.remote_path:
                 export_folder = utils.make_sub_folder(self.service.remote_path, "imports")
+                if not export_folder:
+                    qt.message_box("Path Error", f"Unable to create remote export path: {self.service.remote_path}\\imports")
             else:
                 export_folder = utils.make_sub_folder(self.service.local_path, "imports")
+                if not export_folder:
+                    qt.message_box("Path Error", f"Unable to create local export path:\n"
+                                                 f"      {self.service.local_path}\\imports\n\n"
+                                                  "Please check DataLink folder path.")
+                    prefs.get_preferences().show()
+
+            if not export_folder:
+                return ""
 
             if unique:
                 character_export_folder = utils.get_unique_folder_path(export_folder, folder_name, create=True)
@@ -1881,7 +1890,7 @@ class DataLink(QObject):
                     os.makedirs(character_export_folder, exist_ok=True)
             export_path = os.path.join(character_export_folder, file_name)
             return export_path
-        return "None"
+        return ""
 
     def send_save(self):
         self.send(OpCodes.SAVE)
@@ -1937,6 +1946,7 @@ class DataLink(QObject):
         self.update_link_status(f"Sending Avatar for Import: {actor.name}")
         self.send_notify(f"Exporting: {actor.name}")
         export_path = self.get_export_path(actor.name, actor.name + ".fbx")
+        if not export_path: return
         utils.log_info(f"Exporting Character: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         export = exporter.Exporter(actor.object, no_window=True)
@@ -1958,6 +1968,7 @@ class DataLink(QObject):
         self.update_link_status(f"Sending Prop for Import: {actor.name}")
         self.send_notify(f"Exporting: {actor.name}")
         export_path = self.get_export_path(actor.name, actor.name + ".fbx")
+        if not export_path: return
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export()
         export.do_export(file_path=export_path)
@@ -2041,6 +2052,7 @@ class DataLink(QObject):
             actor = LinkActor(avatar)
             objects = [ cc.safe_export_name(o.GetName()) for o in avatars[id]["objects"] ]
             export_path = self.get_export_path(actor.name + "_Update", actor.name + "_Update.fbx")
+            if not export_path: return
             export = exporter.Exporter(actor.object, no_window=True)
             export.set_update_replace_export(full_avatar=not objects)
             export.do_export(file_path=export_path)
@@ -2063,6 +2075,7 @@ class DataLink(QObject):
             self.update_link_status(f"Sending Animation: {motion_name}")
             self.send_notify(f"Exporting Motion: {motion_name}")
             export_path = self.get_export_path(motion_name, motion_name + ".fbx")
+            if not export_path: return
             utils.log_info(f"Exporting Character: {export_path}")
             #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
             export = exporter.Exporter(actor.object, no_window=True)
@@ -2098,6 +2111,7 @@ class DataLink(QObject):
         self.update_link_status(f"Sending Character for Morph: {actor.name}")
         self.send_notify(f"Exporting Morph: {actor.name}")
         export_path = self.get_export_path(actor.name, actor.name + ".obj")
+        if not export_path: return
         obj_options = (EExport3DFileOption_ResetToBindPose |
                        EExport3DFileOption_FullBodyPart |
                        EExport3DFileOption_AxisYUp |
@@ -2481,6 +2495,7 @@ class DataLink(QObject):
             ambient_color = RRgb(0.2,0.2,0.2)
         if use_ibl:
             export_path = self.get_export_path("Lighting Settings", "RL_Scene_HDRI.hdr", unique=False)
+            if not export_path: return
             if os.path.exists(export_path):
                 try:
                     os.remove(export_path)
