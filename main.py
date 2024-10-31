@@ -117,7 +117,7 @@ def menu_go_b():
     if data_link.is_connected():
         data_link.send_actor()
     else:
-        if prefs.check_paths():
+        if prefs.check_paths(create=True):
             gob.go_b()
         else:
             show_settings()
@@ -128,7 +128,7 @@ def menu_go_morph():
     if data_link.is_connected():
         data_link.send_morph()
     else:
-        if prefs.check_paths():
+        if prefs.check_paths(create=True):
             gob.go_morph()
         else:
             show_settings()

@@ -660,9 +660,9 @@ class Exporter:
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
         # determine if any frames to export
-        fps = RGlobal.GetFps()
-        start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
-        end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        project_fps = RGlobal.GetFps()
+        start_frame = project_fps.GetFrameIndex(RGlobal.GetStartTime())
+        end_frame = project_fps.GetFrameIndex(RGlobal.GetEndTime())
         num_frames = end_frame - start_frame
 
         if (self.option_current_animation or self.option_current_pose) and num_frames == 0:
@@ -678,12 +678,12 @@ class Exporter:
 
         if export == "ANIMATION":
             export_fbx_setting.EnableExportMotion(True)
-            export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+            export_fbx_setting.SetExportMotionFps(project_fps)
             export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
             utils.log_info(f"Exporting with current animation: {num_frames}")
         elif export == "CURRENT_POSE":
             export_fbx_setting.EnableExportMotion(True)
-            frame = fps.GetFrameIndex(RGlobal.GetTime())
+            frame = project_fps.GetFrameIndex(RGlobal.GetTime())
             export_fbx_setting.SetExportMotionRange(RRangePair(frame, frame))
             utils.log_info(f"Exporting with current frame pose: {frame}")
         elif export == "EMPTY_POSE":

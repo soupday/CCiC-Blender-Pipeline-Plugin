@@ -255,6 +255,7 @@ class Importer:
                 # to determine which prop(s) was imported, store a list of all current props
                 if self.character_type == "PROP":
                     stored_props = RLPy.RScene.GetProps()
+                    stored_md_props = RLPy.RScene.GetMDProps()
 
                 if os.path.exists(self.key):
                     RLPy.RFileIO.LoadFbxFile(self.path, args, self.key, "", True)
@@ -264,8 +265,12 @@ class Importer:
                 # any prop not in the stored list is newly imported.
                 if self.character_type == "PROP":
                     all_props = RLPy.RScene.GetProps()
+                    all_md_props = RLPy.RScene.GetMDProps()
                     for prop in all_props:
                         if prop not in stored_props:
+                            objects.append(prop)
+                    for prop in all_md_props:
+                        if prop not in stored_md_props:
                             objects.append(prop)
             else:
 

@@ -201,13 +201,8 @@ def start_datalink():
 
 
 def get_go_b_paths(name):
+    # paths have been checked by go_b / go_morph
     datalink_folder = prefs.DATALINK_FOLDER
-
-    if not os.path.exists(datalink_folder):
-        datalink_folder = cc.temp_files_path("DataLink")
-        if not os.path.exists(datalink_folder):
-            os.makedirs(datalink_folder, exist_ok=True)
-
     project_folder = utils.get_unique_folder_path(datalink_folder, name, create=True)
     blend_path = os.path.normpath(os.path.join(project_folder, name + ".blend"))
     import_folder = utils.make_sub_folder(project_folder, "imports")

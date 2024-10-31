@@ -358,9 +358,31 @@ def get_unique_folder_path(parent_folder, folder_name, create=False):
 
 
 def make_sub_folder(parent_folder, folder_name):
-    folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
-    os.makedirs(folder_path, exist_ok=True)
-    return folder_path
+    try:
+        folder_path = os.path.normpath(os.path.join(parent_folder, folder_name))
+        os.makedirs(folder_path, exist_ok=True)
+        return folder_path
+    except:
+        return None
+
+
+def contains_path(path1, path2):
+    """Returns True if path2 is a parent path of path1"""
+    if not os.path.isdir(path1):
+        path1 = os.path.dirname(path1)
+    if not os.path.isdir(path2):
+        path1 = os.path.dirname(path2)
+    path1 = os.path.normcase(os.path.normpath(os.path.abspath(path1)))
+    path2 = os.path.normcase(os.path.normpath(os.path.abspath(path2)))
+    return path1.startswith(path2)
+    #parent = os.path.dirname(path1)
+    #while parent:
+    #    if os.path.samefile(parent, path2):
+    #        return True
+    #    if os.path.ismount(parent) and parent.endswith(":\\"):
+    #        break
+    #    parent = os.path.dirname(parent)
+    #return False
 
 
 def stop_now():

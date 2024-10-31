@@ -59,7 +59,9 @@ EXPORT_HIK: bool = False
 EXPORT_FACIAL_PROFILE: bool = False
 EXPORT_REMOVE_HIDDEN: bool = False
 
-
+BLENDER_VERSIONS = [ "4.3", "4.2", "4.1", "4.0",
+                     "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0",
+                     "2.93", "2.92", "2.91", "2.90", "2.83" ]
 
 
 class Preferences(QObject):
@@ -205,13 +207,26 @@ class Preferences(QObject):
         qt.spacing(layout, 10)
         qt.stretch(layout, 1)
 
+    def refresh_ui(self):
+        self.no_update = True
+        if self.textbox_blender_path:
+            self.textbox_blender_path.setText(BLENDER_PATH)
+        if self.textbox_go_b_path:
+            self.textbox_go_b_path.setText(DATALINK_FOLDER)
+        self.no_update = False
+
     def on_show_hide(self, visible):
         if visible:
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", True)
+            self.refresh_ui()
         else:
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", False)
 
     def detect_settings(self):
+        global DATALINK_FOLDER
+        # if datalink path is invalid, generate a new one
+        if not check_datalink_path()[0]:
+            DATALINK_FOLDER = ""
         detect_paths()
         self.textbox_blender_path.setText(BLENDER_PATH)
         self.textbox_go_b_path.setText(DATALINK_FOLDER)
@@ -239,7 +254,6 @@ class Preferences(QObject):
         global DATALINK_FOLDER
         folder_path = qt.browse_folder("Datalink Folder", DATALINK_FOLDER)
         if os.path.exists(folder_path):
-            self.path_daz_library_root = folder_path
             self.textbox_go_b_path.setText(folder_path)
             DATALINK_FOLDER = folder_path
             write_temp_state()
@@ -599,8 +613,7 @@ def detect_paths():
 
     if not BLENDER_PATH:
         blender_base_path = "C:\\Program Files\\Blender Foundation\\"
-        blender_versions = [ "4.3", "4.2", "4.1", "4.0", "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0", "2.93", "2.92", "2.91", "2.90", "2.83" ]
-        for ver in blender_versions:
+        for ver in BLENDER_VERSIONS:
             B = f"Blender {ver}"
             try_path = os.path.join(blender_base_path, B, "blender.exe")
             if os.path.exists(try_path):
@@ -608,15 +621,18 @@ def detect_paths():
                 changed = True
                 break
 
-    if not DATALINK_FOLDER:
-        res = RLPy.RGlobal.GetPath(RLPy.EPathType_Temp, "")
-        path = os.path.join(res[1], "DataLink")
-        DATALINK_FOLDER = path
-        changed = True
-
     if DATALINK_FOLDER:
         if not os.path.exists(DATALINK_FOLDER):
-            os.makedirs(DATALINK_FOLDER, exist_ok=True)
+            try:
+                os.makedirs(DATALINK_FOLDER, exist_ok=True)
+            except:
+                utils.log_warn(f"DataLink folder: {DATALINK_FOLDER} invalid! Using default.")
+                DATALINK_FOLDER = ""
+
+    if not DATALINK_FOLDER:
+        path = cc.user_files_path("DataLink", create=True)
+        DATALINK_FOLDER = path
+        changed = True
 
     if changed:
         write_temp_state()
@@ -625,34 +641,79 @@ def detect_paths():
     utils.log_info(f"Using Datalink Folder: {DATALINK_FOLDER}")
 
 
-def check_paths():
-    global BLENDER_PATH
+def check_datalink_path(report=None, create=False, warn=False):
     global DATALINK_FOLDER
+    if not report:
+        report = ""
 
-    report = ""
     valid = True
+    write = False
+
+    # correct old datalink folder default path (or any CC/iC temp files path)
+    if utils.contains_path(DATALINK_FOLDER, cc.temp_files_path()):
+        DATALINK_FOLDER = cc.user_files_path("DataLink", create=True)
+        utils.log_info(f"Using corrected default DataLink path: {DATALINK_FOLDER}")
+        write = True
+
+    # if empty use user documents folder
+    if not DATALINK_FOLDER:
+        DATALINK_FOLDER = cc.user_files_path("DataLink", create=True)
+        utils.log_info(f"Using default DataLink path: {DATALINK_FOLDER}")
+        write = True
 
     if DATALINK_FOLDER:
-        if not os.path.exists(DATALINK_FOLDER):
-            os.makedirs(DATALINK_FOLDER, exist_ok=True)
+        if os.path.exists(DATALINK_FOLDER):
+            # if exists but not a folder, reset to user documents
+            if not os.path.isdir(DATALINK_FOLDER):
+                report += "Datalink path is not a folder!\n"
+                utils.log_warn(f"DataLink path: {DATALINK_FOLDER} is not a folder!")
+                DATALINK_FOLDER = cc.user_files_path("DataLink", create=True)
+                utils.log_info(f"Using default DataLink path: {DATALINK_FOLDER}")
+                write = True
+        elif create:
+            try:
+                os.makedirs(DATALINK_FOLDER, exist_ok=True)
+                utils.log_info(f"DataLink path: {DATALINK_FOLDER} created!")
+            except:
+                # the datalink path can't be made, reset to user documents
+                utils.log_warn(f"DataLink path: {DATALINK_FOLDER} is not valid, unable to create path!")
+                DATALINK_FOLDER = cc.user_files_path("DataLink", create=True)
+                utils.log_info(f"Using default DataLink path: {DATALINK_FOLDER}")
+                write = True
 
-    if not DATALINK_FOLDER:
-        valid = False
-        report += "Invalid Datalink folder!\n"
+    if valid and write:
+        write_temp_state()
 
-    if os.path.exists(DATALINK_FOLDER):
-        if not os.path.isdir(DATALINK_FOLDER):
-            valid = False
-            report += "Datalink path is not a folder!\n"
-    else:
-        valid = False
-        report += "Datalink folder could not be created!\n"
+    if warn and not valid:
+        report += "\n\nPlease check plugin datalink path settings."
+        qt.message_box("Path Error", report)
+
+    return valid, report
+
+
+def check_blender_path(report=None):
+    global BLENDER_PATH
+    if not report:
+        report = ""
+
+    valid = True
 
     if not BLENDER_PATH or not os.path.exists(BLENDER_PATH):
         valid = False
         report += "Blender .exe path is invalid!\n"
 
-    if not valid:
+    return valid, report
+
+
+def check_paths(quiet=False, create=False):
+    report = ""
+    valid = True
+
+    datalink_valid, report = check_datalink_path(report=report, create=create)
+    blender_valid, report = check_blender_path(report=report)
+    valid = datalink_valid and blender_valid
+
+    if not quiet and not valid:
         report += "\n\nPlease check plugin path settings."
         qt.message_box("Path Error", report)
 
