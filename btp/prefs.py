@@ -58,6 +58,9 @@ EXPORT_MOTION_ONLY: bool = False
 EXPORT_HIK: bool = False
 EXPORT_FACIAL_PROFILE: bool = False
 EXPORT_REMOVE_HIDDEN: bool = False
+#
+TOOLBAR_STATE_CC: bool = True
+TOOLBAR_STATE_IC: bool = True
 
 BLENDER_VERSIONS = [ "4.3", "4.2", "4.1", "4.0",
                      "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0",
@@ -497,6 +500,8 @@ def read_temp_state():
     global EXPORT_HIK
     global EXPORT_FACIAL_PROFILE
     global EXPORT_REMOVE_HIDDEN
+    global TOOLBAR_STATE_CC
+    global TOOLBAR_STATE_IC
 
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
@@ -533,6 +538,8 @@ def read_temp_state():
             EXPORT_HIK = get_attr(temp_state_json, "export_hik", False)
             EXPORT_FACIAL_PROFILE = get_attr(temp_state_json, "export_facial_profile", False)
             EXPORT_REMOVE_HIDDEN = get_attr(temp_state_json, "export_remove_hidden", False)
+            TOOLBAR_STATE_CC = get_attr(temp_state_json, "toolbar_state_cc", True)
+            TOOLBAR_STATE_IC = get_attr(temp_state_json, "toolbar_state_ic", True)
 
 
 def write_temp_state():
@@ -565,6 +572,8 @@ def write_temp_state():
     global EXPORT_HIK
     global EXPORT_FACIAL_PROFILE
     global EXPORT_REMOVE_HIDDEN
+    global TOOLBAR_STATE_CC
+    global TOOLBAR_STATE_IC
 
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
@@ -599,6 +608,8 @@ def write_temp_state():
         "export_hik": EXPORT_HIK,
         "export_facial_profile": EXPORT_FACIAL_PROFILE,
         "export_remove_hidden": EXPORT_REMOVE_HIDDEN,
+        "toolbar_state_cc": TOOLBAR_STATE_CC,
+        "toolbar_state_ic": TOOLBAR_STATE_IC,
     }
     write_json(temp_state_json, temp_state_path)
 
@@ -611,7 +622,7 @@ def detect_paths():
 
     changed = False
 
-    if not BLENDER_PATH:
+    if not BLENDER_PATH or not os.path.exists(BLENDER_PATH):
         blender_base_path = "C:\\Program Files\\Blender Foundation\\"
         for ver in BLENDER_VERSIONS:
             B = f"Blender {ver}"

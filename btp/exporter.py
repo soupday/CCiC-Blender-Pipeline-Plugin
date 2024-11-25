@@ -744,11 +744,11 @@ class Exporter:
         else:
             export_fbx_setting.EnableBasicBindPose(True)
 
-        fps = RGlobal.GetFps()
-        start_frame = fps.GetFrameIndex(RGlobal.GetStartTime())
-        end_frame = fps.GetFrameIndex(RGlobal.GetEndTime())
+        project_fps = RGlobal.GetFps()
+        start_frame = project_fps.GetFrameIndex(RGlobal.GetStartTime())
+        end_frame = project_fps.GetFrameIndex(RGlobal.GetEndTime())
         export_fbx_setting.EnableExportMotion(True)
-        export_fbx_setting.SetExportMotionFps(RFps.Fps60)
+        export_fbx_setting.SetExportMotionFps(project_fps)
         export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
 
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)

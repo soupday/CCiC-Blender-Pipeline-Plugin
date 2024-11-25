@@ -18,7 +18,8 @@ import RLPy
 import time
 from . import utils
 from PySide2.QtWidgets import *
-from PySide2.QtCore import Qt, Signal, QSize, QRect, QPoint
+from PySide2.QtCore import *
+from PySide2.QtCore import Qt, Signal, QSize, QRect, QPoint, QTimer
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 
@@ -52,7 +53,7 @@ ALIGN_CENTRE = Qt.AlignCenter
 HORIZONTAL = Qt.Horizontal
 ICON_BUTTON_HEIGHT = 64
 STYLE_ICON_BUTTON = ""
-
+BLANK_ICON: QIcon = None
 
 def window(title, width=400, height=0, fixed=False, show_hide=None):
     window: RLPy.RIDockWidget
@@ -101,7 +102,14 @@ def place_window(window: RLPy.RIDockWidget, px, py):
     dock.move(pos)
 
 
-def find_add_plugin_menu(name):
+def find_plugin_menu(name) -> QMenu:
+    rl_menu = RLPy.RUi.FindMenu(name)
+    if rl_menu:
+        return wrapInstance(int(rl_menu), QMenu)
+    return None
+
+
+def find_add_plugin_menu(name) -> QMenu:
     rl_menu = RLPy.RUi.FindMenu(name)
     if rl_menu:
         menu = wrapInstance(int(rl_menu), QMenu)
@@ -118,7 +126,22 @@ def menu_separator(menu: QMenu):
     menu.addSeparator()
 
 
-def add_menu_action(menu: QMenu, name, action=None):
+def find_menu_action(menu: QMenu, name):
+    actions = menu.actions()
+    for a in actions:
+        if a.text() == name:
+            return a
+    return None
+
+
+def get_blank_icon():
+    global BLANK_ICON
+    if not BLANK_ICON:
+        BLANK_ICON = get_icon("Blank.png")
+    return BLANK_ICON
+
+
+def add_menu_action(menu: QMenu, name, action=None, toggle=False, icon=None, blank_icon=False, on=False):
     actions = menu.actions()
     to_remove = []
     for a in actions:
@@ -126,8 +149,15 @@ def add_menu_action(menu: QMenu, name, action=None):
             to_remove.append(a)
     for a in to_remove:
         menu.removeAction(a)
-    menu_action: QAction = menu.addAction(name)
+    menu_action = QAction(name, menu, checkable=toggle)
+    if toggle and on:
+        menu_action.setChecked(on)
+    if icon:
+        menu_action.setIcon(icon)
+    elif blank_icon:
+        menu_action.setIcon(get_blank_icon())
     menu_action.triggered.connect(action)
+    menu.addAction(menu_action)
     return menu_action
 
 
@@ -136,18 +166,45 @@ def get_main_window() -> QMainWindow:
     return main_window
 
 
-def find_add_toolbar(name) -> QToolBar:
+def find_toolbar(name) -> QToolBar:
     rl_toolbar = RLPy.RUi.FindToolBar(name)
     if rl_toolbar:
-        toolbar = wrapInstance(int(rl_toolbar), QToolBar)
+        toolbar: QToolBar = wrapInstance(int(rl_toolbar), QToolBar)
+        return toolbar
+    return None
+
+
+def find_add_toolbar(name, show_hide=None) -> QToolBar:
+    rl_toolbar = RLPy.RUi.FindToolBar(name)
+    if rl_toolbar:
+        toolbar: QToolBar = wrapInstance(int(rl_toolbar), QToolBar)
     else:
         main_window = get_main_window()
         toolbar = QToolBar(name)
         main_window.addToolBar(toolbar)
+    toolbar.setMovable(True)
+    toolbar.setFloatable(True)
+    try:
+        toolbar.visibilityChanged.disconnect()
+    except:
+        ...
+    toolbar.visibilityChanged.connect(show_hide)
     #toolbar.setIconSize(QSize(16, 16))
     #toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
     return toolbar
+
+
+def remove_toolbar(name):
+    rl_toolbar = RLPy.RUi.FindToolBar(name)
+    if rl_toolbar:
+        toolbar = wrapInstance(int(rl_toolbar), QToolBar)
+        if toolbar:
+            clear_toolbar(toolbar)
+            main_window = get_main_window()
+            main_window.removeToolBar(toolbar)
+            return True
+    return False
 
 
 def clear_toolbar(toolbar):
@@ -649,3 +706,10 @@ def message_box(title, msg):
 def do_events():
     QApplication.processEvents()
 
+
+def delay_run(func, interval_msec):
+    timer = QTimer()
+    timer.timeout.connect(func)
+    timer.setInterval(interval_msec)
+    timer.start()
+    return timer

@@ -21,53 +21,89 @@ from btp import vars, prefs, cc, qt, tests, importer, exporter, morph, link, gob
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
 FBX_IMPORTER: importer.Importer = None
+BLOCK_UPDATE = False
 
 
 def initialize_plugin():
+    global BLOCK_UPDATE
+
+    BLOCK_UPDATE = True
+
+    print("CC/iC Blender Pipeline Plugin: Initialize")
+
     prefs.detect_paths()
+
+    icon_export = qt.get_icon("BlenderExport.png")
+    icon_import = qt.get_icon("BlenderImport.png")
+    icon_link = qt.get_icon("BlenderDataLink.png")
+    icon_blender = qt.get_icon("BlenderLogo.png")
+    icon_settings = qt.get_icon("BlenderSettings.png")
+    icon_morph = qt.get_icon("MeshIcoSphere.png")
+
     # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
     qt.clear_menu(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Settings", menu_settings)
-    qt.menu_separator(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Export Character to Blender", menu_export)
+    qt.add_menu_action(plugin_menu, "Export Character to Blender", action=menu_export, icon=icon_export)
     if cc.is_cc():
-        qt.menu_separator(plugin_menu)
-        qt.add_menu_action(plugin_menu, "Import Character from Blender", menu_import)
+        qt.add_menu_action(plugin_menu, "Import Character from Blender", action=menu_import, icon=icon_import)
     qt.menu_separator(plugin_menu)
-    qt.add_menu_action(plugin_menu, "DataLink", menu_link)
+    qt.add_menu_action(plugin_menu, "DataLink", action=menu_link, icon=icon_link)
     qt.menu_separator(plugin_menu)
-    qt.add_menu_action(plugin_menu, "Go-B", menu_go_b)
+    qt.add_menu_action(plugin_menu, "Go-B", action=menu_go_b, icon=icon_blender)
+    if cc.is_cc():
+        qt.add_menu_action(plugin_menu, "Go-B (Morph)", action=menu_go_morph, icon=icon_morph)
+    qt.menu_separator(plugin_menu)
+    qt.add_menu_action(plugin_menu, "Settings", action=menu_settings, icon=icon_settings)
+    qt.add_menu_action(plugin_menu, "Toolbar", action=menu_toolbar, toggle=True, on=True)
 
-    toolbar = qt.find_add_toolbar("Blender Pipeline Toolbar")
+    toolbar = qt.find_add_toolbar("Blender Pipeline Toolbar", show_hide=fetch_toolbar_state)
     qt.clear_toolbar(toolbar)
-
-    icon_blender = qt.get_icon("BlenderLogo.png")
-    qt.add_toolbar_action(toolbar, icon_blender, "GoB", menu_go_b)
-
+    qt.add_toolbar_action(toolbar, icon_blender, "GoB", action=menu_go_b)
     if cc.is_cc():
-        icon_morph = qt.get_icon("MeshIcoSphere.png")
-        qt.add_toolbar_action(toolbar, icon_morph, "GoB-Morph", menu_go_morph)
-
-    icon_link = qt.get_icon("BlenderDataLink.png")
-    qt.add_toolbar_action(toolbar, icon_link, "Blender DataLink", menu_link, toggle=True)
-
+        qt.add_toolbar_action(toolbar, icon_morph, "GoB-Morph", action=menu_go_morph)
+    qt.add_toolbar_action(toolbar, icon_link, "Blender DataLink", action=menu_link, toggle=True)
     qt.add_toolbar_separator(toolbar)
-
-    icon_export = qt.get_icon("BlenderExport.png")
-    qt.add_toolbar_action(toolbar, icon_export, "Export to Blender", menu_export)
-
+    qt.add_toolbar_action(toolbar, icon_export, "Export to Blender", action=menu_export)
     if cc.is_cc():
-        icon_import = qt.get_icon("BlenderImport.png")
-        qt.add_toolbar_action(toolbar, icon_import, "Import from Blender", menu_import)
-
+        qt.add_toolbar_action(toolbar, icon_import, "Import from Blender", action=menu_import)
     qt.add_toolbar_separator(toolbar)
-
-    icon_settings = qt.get_icon("BlenderSettings.png")
-    qt.add_toolbar_action(toolbar, icon_settings, "Blender Pipeline Settings", menu_settings, toggle=True)
+    qt.add_toolbar_action(toolbar, icon_settings, "Blender Pipeline Settings", action=menu_settings, toggle=True)
 
     if prefs.AUTO_START_SERVICE:
         link.link_auto_start()
+
+    BLOCK_UPDATE = False
+
+
+def fetch_toolbar_state(visible):
+    """Update the menu Toolbar toggle with the visibilty state of the toolbar.
+       CC4 / iC8 remembers the visibility state of toolbars and applies it after the
+       plug-in has been initialized. This will update the menu with those changes."""
+    global BLOCK_UPDATE
+    if BLOCK_UPDATE: return
+    plugin_menu = qt.find_plugin_menu("Blender Pipeline")
+    if plugin_menu:
+        menu_toolbar_action = qt.find_menu_action(plugin_menu, "Toolbar")
+        if menu_toolbar_action:
+            BLOCK_UPDATE = True
+            menu_toolbar_action.setChecked(visible)
+            BLOCK_UPDATE = False
+
+
+def menu_toolbar():
+    global BLOCK_UPDATE
+    if BLOCK_UPDATE: return
+    plugin_menu = qt.find_plugin_menu("Blender Pipeline")
+    toolbar = qt.find_toolbar("Blender Pipeline Toolbar")
+    if plugin_menu and toolbar:
+        menu_toolbar_action = qt.find_menu_action(plugin_menu, "Toolbar")
+        if menu_toolbar_action:
+            BLOCK_UPDATE = True
+            if menu_toolbar_action.isChecked():
+                toolbar.show()
+            else:
+                toolbar.hide()
+            BLOCK_UPDATE = False
 
 
 def menu_import():

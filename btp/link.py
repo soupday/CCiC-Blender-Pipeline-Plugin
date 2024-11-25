@@ -24,6 +24,7 @@ from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random, atexit, traceback
 from . import blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
+import math
 
 LOCALHOST = "127.0.0.1"
 BLENDER_PORT = 9334
@@ -94,6 +95,56 @@ VISEME_NAME_MAP = {
 }
 
 
+FACE_EXPRESSION_PREFIXES = ["Mouth_",
+                            "Jaw_",
+                            "Eye_",
+                            "Right_Eyeball_",
+                            "Left_Eyeball_"]
+
+IGNORE_EXPRESSIONS = [ "Mouth_Close" ]
+
+FACE_BONES = [ "CC_Base_JawRoot", "CC_Base_FacialBone", "CC_Base_Head",
+               "CC_Base_Tongue01", "CC_Base_Tongue02", "CC_Base_Tongue03",
+               "CC_Base_R_Eye", "CC_Base_L_Eye",
+               "CC_Base_Teeth01", "CC_Base_Teeth02", "CC_Base_UpperJaw", ""]
+
+FACE_DRIVERS = {
+    "Jaw_Open": "CC_Base_JawRoot",
+    "Eye_L_Look_L": "CC_Base_L_Eye",
+    "Eye_R_Look_L": "CC_Base_R_Eye",
+    "Eye_L_Look_R": "CC_Base_L_Eye",
+    "Eye_R_Look_R": "CC_Base_R_Eye",
+    "Eye_L_Look_Up": "CC_Base_L_Eye",
+    "Eye_R_Look_Up": "CC_Base_R_Eye",
+    "Eye_L_Look_Down": "CC_Base_L_Eye",
+    "Eye_R_Look_Down": "CC_Base_R_Eye",
+    "A10_Eye_Look_Out_Left": "CC_Base_L_Eye",
+    "A12_Eye_Look_In_Right": "CC_Base_R_Eye",
+    "A11_Eye_Look_In_Left": "CC_Base_L_Eye",
+    "A13_Eye_Look_Out_Right": "CC_Base_R_Eye",
+    "A06_Eye_Look_Up_Left": "CC_Base_L_Eye",
+    "A07_Eye_Look_Up_Right": "CC_Base_R_Eye",
+    "A08_Eye_Look_Down_Left": "CC_Base_L_Eye",
+    "A09_Eye_Look_Down_Right": "CC_Base_R_Eye",
+}
+
+
+def quaternion_to_angle_axis(q: RQuaternion, axis: RVector3):
+    q.Normalize()
+    axis.Normalize()
+
+    q = [q.x, q.y, q.z, q.w]
+    axis = [axis.x, axis.y, axis.z]
+
+    # Calculate the dot product of quaternion's vector part and the axis
+    dot_product = sum([q[i] * axis[i] for i in range(3)])
+
+    # Calculate the angle of rotation
+    angle = 2 * math.acos(dot_product)
+
+    return angle
+
+
 class LinkActor():
     name: str = "Name"
     object: RIObject = None
@@ -103,6 +154,8 @@ class LinkActor():
     skin_meshes: list = None
     expressions: dict = None
     expression_rotations: dict = None
+    face_rotations: dict = None
+    face_drivers: dict = None
     visemes: dict = None
     morphs: dict = None
     t_pose: dict = None
@@ -117,6 +170,8 @@ class LinkActor():
         self.skin_meshes = []
         self.expressions = {}
         self.expression_rotations = {}
+        self.face_rotations = {}
+        self.face_drivers = {}
         self.visemes = {}
         self.morphs = {}
         self.t_pose = None
@@ -178,17 +233,21 @@ class LinkActor():
         bones = SC.GetSkinBones()
         expressions = FC.GetExpressionNames("")
         expression_rotations = {}
-        i = 10
+        face_rotations = {}
+        face_drivers = {}
+
         for expression in expressions:
-            skip = False
-            for exclude in ["Mouth_", "Jaw_", "Eye_", "Right_Eyeball_", "Left_Eyeball_"]:
-                if expression.startswith(exclude):
-                    skip = True
-                    break
-            if skip:
+            is_face = False
+            if expression in IGNORE_EXPRESSIONS:
                 continue
+            for face_prefix in FACE_EXPRESSION_PREFIXES:
+                if expression.startswith(face_prefix):
+                    is_face = True
+                    break
             for bone in bones:
                 bone_name = bone.GetName()
+                if is_face and bone_name not in FACE_BONES:
+                    continue
                 try:
                     ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
                 except:
@@ -197,17 +256,27 @@ class LinkActor():
                                    0, 0, 1)
                 ERQ = RQuaternion()
                 ERQ.FromRotationMatrix(ERM)
-                euler_angle_x = euler_angle_y = euler_angle_z = 0
-                result = ERM.ToEulerAngle(EEulerOrder_XYZ, euler_angle_x, euler_angle_y, euler_angle_z)
-                t = abs(result[0]) + abs(result[1]) + abs(result[2])
-                if t > 0.0001:
+                euler_angle_x, euler_angle_y, euler_angle_z = cc.quaternion_to_euler_xyz(ERQ, degrees=True)
+                t = abs(euler_angle_x) + abs(euler_angle_y) + abs(euler_angle_z)
+                if t > 0.1:
                     if expression in actor_expressions:
-                        if expression not in expression_rotations:
-                            expression_rotations[expression] = {}
-                        expression_rotations[expression][bone_name] = ERQ
+                        if is_face:
+                            if expression not in face_rotations:
+                                face_rotations[expression] = {}
+                            face_rotations[expression][bone_name] = ERQ
+                            #print(f"{expression} / {bone_name} = ({euler_angle_x:.4f}, {euler_angle_y:.4f}, {euler_angle_z:.4f})")
+                            if expression in FACE_DRIVERS:
+                                driving_bone = FACE_DRIVERS[expression]
+                                if driving_bone not in face_drivers:
+                                    face_drivers[driving_bone] = []
+                                face_drivers[driving_bone].append(expression)
+                        else:
+                            if expression not in expression_rotations:
+                                expression_rotations[expression] = {}
+                            expression_rotations[expression][bone_name] = ERQ
         self.expression_rotations = expression_rotations
-        return expression_rotations
-
+        self.face_rotations = face_rotations
+        self.face_drivers = face_drivers
 
     def set_template(self, actor_data):
         self.bones = actor_data["bones"]
@@ -665,7 +734,7 @@ def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTim
     set_ik_effector(SC, clip, EHikEffector_RightFoot, time,  rot, tra, sca)
 
 
-def apply_world_fk_pose(actor, SC, clip, time, bone: RINode, pose_data, shape_data, t_pose_data,
+def apply_world_fk_pose(actor, SC: RISkeletonComponent, clip, time, bone: RINode, pose_data, shape_data, t_pose_data,
                         parent_world_rot, parent_world_tra, parent_world_sca):
     source_name = bone.GetName()
     bone_name = try_get_pose_bone(source_name, actor.bones)
@@ -678,6 +747,8 @@ def apply_world_fk_pose(actor, SC, clip, time, bone: RINode, pose_data, shape_da
         # don't apply any translation to twist or share bones
         if "Twist" in bone_name or "Share" in bone_name:
             local_tra = t_pose_tra
+        if bone_name in actor.face_drivers:
+            apply_face_drivers(actor, bone_name, shape_data, local_rot, parent_world_rot, t_pose_rot)
         ec_rot = get_expression_counter_rotation(actor, bone_name, shape_data)
         set_bone_control(SC, clip, bone, time, ec_rot,
                          t_pose_rot, t_pose_tra, t_pose_sca,
@@ -772,14 +843,45 @@ def set_transform_control(time, obj: RIObject, loc: RVector3, rot: RQuaternion, 
         control.SetValue(time, transform)
 
 
-def apply_shapes(actor: LinkActor, time: RTime, shape_weights: list):
+def apply_face_drivers(actor: LinkActor, bone_name, shape_data,
+                       local_rot: RQuaternion, parent_world_rot: RQuaternion, t_pose_rot: RQuaternion):
+
+    expressions = actor.face_drivers[bone_name]
+    face_rotations = actor.face_rotations
+
+    # forward is -y
+    forward: RVector3 = RVector3(0, -1, 0)
+    t_pose_rot_inv: RQuaternion = t_pose_rot.Inverse()
+    # local pose rotation
+    local_pose: RQuaternion = t_pose_rot_inv.Multiply(local_rot)
+    # pose bone vector
+    pose_dir: RVector3 = local_pose.MultiplyVector(forward)
+
+    for expr in expressions:
+        if expr in actor.face_rotations and bone_name in actor.face_rotations[expr]:
+            ERQ: RQuaternion = face_rotations[expr][bone_name]
+            expr_index = actor.expressions[expr]
+            # expression bone vector
+            expr_dir: RVector3 = ERQ.MultiplyVector(forward)
+            # expression axis
+            expr_axis: RVector3 = expr_dir.Cross(forward)
+            # angles for the pose and expression vectors on this axis
+            angle_pose = cc.signed_angle_between_vectors(forward, pose_dir, expr_axis)
+            angle_expr = cc.signed_angle_between_vectors(forward, expr_dir, expr_axis)
+            # expression weight to produce this pose rotation
+            angle_fac = min(1.5, max(0, angle_pose/angle_expr))
+            shape_data[expr_index] = min(1.5, max(-1.5, angle_fac))
+            #print(f"{bone_name}:{expr} {cc.dumps_quaternion_xyz(local_pose)} / {cc.dumps_quaternion_xyz(ERQ)} // {cc.dumps_vector3(pose_dir)} / {cc.dumps_vector3(expr_dir)} - {angle_pose:.3f} / {angle_expr:.3f} / {angle_fac:.3f}")
+
+
+def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data, t_pose_data):
     FC = actor.get_face_component()
     VC = actor.get_viseme_component()
     MC = actor.get_morph_component()
 
     if FC and actor.expressions:
         expressions = [expression for expression in actor.expressions]
-        strengths = [shape_weights[idx] for idx in actor.expressions.values()]
+        strengths = [shape_data[idx] for idx in actor.expressions.values()]
         #FC.BeginKeyEditing()
         FC.AddExpressivenessKey(time, 1.0)
         res = FC.AddExpressionKeys(time, expressions, strengths, RTime.FromValue(1))
@@ -2517,24 +2619,22 @@ class DataLink(QObject):
             # ibl_rotation = VSC.GetIBLRotation()
             # ibl_scale = VSC.GetIBLScale()
             # for now get from the sky (which is not updated by the IBL settings, but better than nothing)
-            ibl_location = RVector3(0,0,0)
+            ibl_location = [ 0.0, 0.0, 0.0 ]
             ibl_rotation = [ 0.0, 0.0, 0.0 ]
             ibl_scale = RVector3(1,1,1)
             if True: #VSC.IsIBLSyncSkyOrientation():
                 sky: RISky = RScene.FindObject(EObjectType_Sky, "Sky")
-                T: RTransform = sky.WorldTransform()
-                t: RVector3 = T.T()
-                r: RQuaternion = T.R()
-                s: RVector3 = T.S()
-                rot_matrix: RMatrix3 = r.ToRotationMatrix()
-                x = y = z = 0
-                euler = rot_matrix.ToEulerAngle(EEulerOrder_XYZ, x, y, z)
-                ibl_location = t
-                ibl_rotation = [ euler[0], euler[1], euler[2] - 96.5*0.01745329 ]
-                ibl_scale = s
-            lights_data["ibl_location"] = [ ibl_location.x,
-                                            ibl_location.y,
-                                            ibl_location.z - 96.5*0.01745329 ]
+                if sky:
+                    T: RTransform = sky.WorldTransform()
+                    t: RVector3 = T.T()
+                    r: RQuaternion = T.R()
+                    s: RVector3 = T.S()
+                    rot_matrix: RMatrix3 = r.ToRotationMatrix()
+                    (x, y, z) = cc.matrix_to_euler_xyz(rot_matrix)
+                    ibl_location = [ t.x, t.y, t.z ]
+                    ibl_rotation = [ x, y, z - 96.5*0.01745329 ]
+                    ibl_scale = s
+            lights_data["ibl_location"] = ibl_location
             lights_data["ibl_rotation"] = ibl_rotation
             lights_data["ibl_scale"] = ibl_scale.x
 
@@ -2912,10 +3012,10 @@ class DataLink(QObject):
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
             actor.begin_editing()
-            apply_shapes(actor, scene_time, actor_data["shapes"])
-            apply_shapes(actor, scene_time2, actor_data["shapes"])
             apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
             apply_pose(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
+            apply_shapes(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
+            apply_shapes(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
             actor.end_editing(scene_time)
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
@@ -2985,8 +3085,8 @@ class DataLink(QObject):
         # update all actor poses
         for actor_data in sequence_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
-            apply_shapes(actor, scene_time, actor_data["shapes"])
             apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
+            apply_shapes(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
         # send sequence frame ack
         self.send_sequence_ack(frame)
 
