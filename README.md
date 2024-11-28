@@ -66,8 +66,8 @@ Changelog
 =========
 
 ### 2.2.1
-- Plugin toolbar visibility can be toggled.
-- Datalink Receive sequence will calculate facial expressions for the Eye look and Jaw open expressions based on the bone rotations.
+- Plugin toolbar visibility can now be toggled.
+- Datalink Receive Sequence will calculate facial expressions for the Eye look and Jaw open expressions based on the bone rotations.
 - Datalink send motion will use correct project FPS.
 
 ### 2.2.0
