@@ -16,7 +16,7 @@
 
 from RLPy import *
 
-VERSION = "2.1.11"
+VERSION = "2.2.1"
 #DEV = True
 DEV = False
 

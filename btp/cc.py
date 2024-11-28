@@ -15,7 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
-import os, json
+import os, json, math
 from . import utils, vars
 from enum import IntEnum
 
@@ -1981,3 +1981,86 @@ def set_morph_slider(avatar: RIAvatar, slider_name, weight):
     if morph_id:
         ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
         ASC.SetShapingMorphWeight(morph_id, weight)
+
+
+def matrix_to_euler_xyz(M: RMatrix3, degrees=False):
+    x = y = z = 0.0
+    result = M.ToEulerAngle(EEulerOrder_XYZ, x, y, z)
+    if degrees:
+        x = result[0] * 180.0 / math.pi
+        y = result[1] * 180.0 / math.pi
+        z = result[2] * 180.0 / math.pi
+    else:
+        x = result[0]
+        y = result[1]
+        z = result[2]
+    return (x, y, z)
+
+
+def quaternion_to_euler_xyz(q: RQuaternion, degrees=False):
+    M: RMatrix3 = q.ToRotationMatrix()
+    return matrix_to_euler_xyz(M, degrees=degrees)
+
+
+def dumps_vector3(v: RVector3):
+    return f"({v.x:.3f}, {v.y:.3f}, {v.z:.3f})"
+
+
+def dumps_quaternion(q: RQuaternion):
+    return f"({q.x:.3f}, {q.y:.3f}, {q.z:.3f}, {q.w:.3f})"
+
+
+def dumps_quaternion_xyz(q: RQuaternion):
+    x,y,z = quaternion_to_euler_xyz(q, degrees=True)
+    return f"({x:.3f}, {y:.3f}, {z:.3f})"
+
+
+def quaternion_to_vector(q: RQuaternion, axis: RVector3) -> RVector3:
+    # Normalize the quaternion and axis
+    q = q.Normalize()
+    qv = RVector3(q.x, q.y, q.z)
+    axis.Normalize()
+    # Project quaternion onto the plane perpendicular to the axis
+    d = axis.Dot(qv)
+    return qv - (axis * d)
+
+
+def signed_angle_between_quaternions(q1: RQuaternion, q2: RQuaternion, axis: RVector3):
+    # Get the vectors in the plane perpendicular to the axis
+    v1 = quaternion_to_vector(q1, axis)
+    v2 = quaternion_to_vector(q2, axis)
+    # Normalize the vectors
+    v1.Normalize()
+    v2.Normalize()
+    # Calculate the unsigned angle between the vectors
+    d = v1.Dot(v2)
+    angle = math.acos(d)
+    # Determine the sign of the angle
+    cp: RVector3 = v1.Cross(v2)
+    sign = cp.Dot(axis)
+    if sign < 0:
+        angle = -angle
+    return angle
+
+
+def signed_angle_between_vectors(v1: RVector3, v2: RVector3, axis: RVector3):
+    v1p: RVector3 = project_vector_around_axis(v1, axis)
+    v2p: RVector3 = project_vector_around_axis(v2, axis)
+    v1p.Normalize()
+    v2p.Normalize()
+    d = v1p.Dot(v2p)
+    angle = math.acos(d)
+    c: RVector3 = v1p.Cross(v2p)
+    sign = c.Dot(axis)
+    if sign < 0:
+        angle = -angle
+    return angle
+
+
+def project_vector_around_axis(v: RVector3, axis: RVector3):
+    axis.Normalize()
+    # Project the vector onto the axis
+    v_a = axis * v.Dot(axis)
+    # Calculate the perpendicular component
+    v_perpendicular = v - v_a
+    return v_perpendicular

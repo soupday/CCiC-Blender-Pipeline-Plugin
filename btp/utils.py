@@ -125,7 +125,7 @@ def get_current_path():
     return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
-def get_resource_path(sub_folder, file_name):
+def get_resource_path(sub_folder, file_name=""):
     path = get_current_path()
     resource_path = os.path.join(path, sub_folder, file_name)
     return resource_path
@@ -387,3 +387,5 @@ def contains_path(path1, path2):
 
 def stop_now():
     raise Exception("STOP!")
+
+

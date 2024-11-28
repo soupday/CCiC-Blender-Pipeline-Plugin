@@ -65,7 +65,12 @@ Known Issues
 Changelog
 =========
 
-### 2.1.11
+### 2.2.1
+- Plugin toolbar visibility can now be toggled.
+- Datalink Receive Sequence will calculate facial expressions for the Eye look and Jaw open expressions based on the bone rotations.
+- Datalink send motion will use correct project FPS.
+
+### 2.2.0
 - Fix to motion exports not using project FPS.
 - Fix to datalink not detecting MD Props on send.
 - Default datalink path changed to user documents folder.
@@ -73,7 +78,6 @@ Changelog
 ### 2.1.10
 - Support for exporting MDProps.
 - Update materials through the datalink will use exact name matching and will no longer update materials on partial name matches.
-
 
 ### 2.1.9
 - Some UI Restructure.
