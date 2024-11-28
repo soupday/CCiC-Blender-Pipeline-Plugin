@@ -94,21 +94,26 @@ VISEME_NAME_MAP = {
     "R": EVisemeID_R,
 }
 
-
-FACE_EXPRESSION_PREFIXES = ["Mouth_",
-                            "Jaw_",
-                            "Eye_",
-                            "Right_Eyeball_",
-                            "Left_Eyeball_"]
+FACIAL_EXPRESSION_PREFIXES = [
+    "Mouth_",
+    "Jaw_",
+    "Eye_",
+    "Right_Eyeball_",
+    "Left_Eyeball_",
+    "A25_Jaw_",
+    "Move_Jaw_",
+    "Turn_Jaw_",
+]
 
 IGNORE_EXPRESSIONS = [ "Mouth_Close" ]
 
 FACE_BONES = [ "CC_Base_JawRoot", "CC_Base_FacialBone", "CC_Base_Head",
                "CC_Base_Tongue01", "CC_Base_Tongue02", "CC_Base_Tongue03",
                "CC_Base_R_Eye", "CC_Base_L_Eye",
-               "CC_Base_Teeth01", "CC_Base_Teeth02", "CC_Base_UpperJaw", ""]
+               "CC_Base_Teeth01", "CC_Base_Teeth02", "CC_Base_UpperJaw" ]
 
 FACE_DRIVERS = {
+    # Std / Ext
     "Jaw_Open": "CC_Base_JawRoot",
     "Eye_L_Look_L": "CC_Base_L_Eye",
     "Eye_R_Look_L": "CC_Base_R_Eye",
@@ -118,14 +123,16 @@ FACE_DRIVERS = {
     "Eye_R_Look_Up": "CC_Base_R_Eye",
     "Eye_L_Look_Down": "CC_Base_L_Eye",
     "Eye_R_Look_Down": "CC_Base_R_Eye",
-    "A10_Eye_Look_Out_Left": "CC_Base_L_Eye",
-    "A12_Eye_Look_In_Right": "CC_Base_R_Eye",
-    "A11_Eye_Look_In_Left": "CC_Base_L_Eye",
-    "A13_Eye_Look_Out_Right": "CC_Base_R_Eye",
-    "A06_Eye_Look_Up_Left": "CC_Base_L_Eye",
-    "A07_Eye_Look_Up_Right": "CC_Base_R_Eye",
-    "A08_Eye_Look_Down_Left": "CC_Base_L_Eye",
-    "A09_Eye_Look_Down_Right": "CC_Base_R_Eye",
+    # ExPlus
+    "Mouth_Open": "CC_Base_JawRoot",
+    "Left_Eyeball_Look_Up": "CC_Base_L_Eye",
+    "Left_Eyeball_Look_Down": "CC_Base_L_Eye",
+    "Left_Eyeball_Look_R": "CC_Base_L_Eye",
+    "Left_Eyeball_Look_L": "CC_Base_L_Eye",
+    "Right_Eyeball_Look_Up": "CC_Base_R_Eye",
+    "Right_Eyeball_Look_Down": "CC_Base_R_Eye",
+    "Right_Eyeball_Look_R": "CC_Base_R_Eye",
+    "Right_Eyeball_Look_L": "CC_Base_R_Eye",
 }
 
 
@@ -235,17 +242,19 @@ class LinkActor():
         expression_rotations = {}
         face_rotations = {}
         face_drivers = {}
+        utils.log_info("Expression Bones:")
 
         for expression in expressions:
             is_face = False
             if expression in IGNORE_EXPRESSIONS:
                 continue
-            for face_prefix in FACE_EXPRESSION_PREFIXES:
+            for face_prefix in FACIAL_EXPRESSION_PREFIXES:
                 if expression.startswith(face_prefix):
                     is_face = True
                     break
             for bone in bones:
                 bone_name = bone.GetName()
+                is_face_driver = False
                 if is_face and bone_name not in FACE_BONES:
                     continue
                 try:
@@ -264,16 +273,19 @@ class LinkActor():
                             if expression not in face_rotations:
                                 face_rotations[expression] = {}
                             face_rotations[expression][bone_name] = ERQ
-                            #print(f"{expression} / {bone_name} = ({euler_angle_x:.4f}, {euler_angle_y:.4f}, {euler_angle_z:.4f})")
                             if expression in FACE_DRIVERS:
                                 driving_bone = FACE_DRIVERS[expression]
-                                if driving_bone not in face_drivers:
-                                    face_drivers[driving_bone] = []
-                                face_drivers[driving_bone].append(expression)
+                                if bone_name == driving_bone:
+                                    if driving_bone not in face_drivers:
+                                        face_drivers[driving_bone] = []
+                                    face_drivers[driving_bone].append(expression)
+                                    is_face_driver = True
                         else:
                             if expression not in expression_rotations:
                                 expression_rotations[expression] = {}
                             expression_rotations[expression][bone_name] = ERQ
+                        if vars.DEV:
+                            utils.log_info(f" - {expression} / {bone_name} = ({euler_angle_x:.4f}, {euler_angle_y:.4f}, {euler_angle_z:.4f}){' FACE DRIVER' if is_face_driver else ''}")
         self.expression_rotations = expression_rotations
         self.face_rotations = face_rotations
         self.face_drivers = face_drivers
@@ -738,7 +750,9 @@ def apply_world_fk_pose(actor, SC: RISkeletonComponent, clip, time, bone: RINode
                         parent_world_rot, parent_world_tra, parent_world_sca):
     source_name = bone.GetName()
     bone_name = try_get_pose_bone(source_name, actor.bones)
+
     if bone_name in actor.bones:
+
         bone_index = actor.bones.index(bone_name)
         world_tra, world_rot, world_sca = fetch_pose_transform(pose_data, bone_index)
         t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
@@ -753,6 +767,20 @@ def apply_world_fk_pose(actor, SC: RISkeletonComponent, clip, time, bone: RINode
         set_bone_control(SC, clip, bone, time, ec_rot,
                          t_pose_rot, t_pose_tra, t_pose_sca,
                          local_rot, local_tra, local_sca)
+
+        children = bone.GetChildren()
+        for child in children:
+            apply_world_fk_pose(actor, SC, clip, time, child, pose_data, shape_data,
+                                t_pose_data, world_rot, world_tra, world_sca)
+    else:
+
+        # don't follow twist or share bones
+        if "Twist" in bone_name or "Share" in bone_name:
+            return
+
+        t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
+        world_rot, world_tra, world_sca = calc_world(t_pose_rot, t_pose_tra, t_pose_sca,
+                                                     parent_world_rot, parent_world_tra, parent_world_sca)
 
         children = bone.GetChildren()
         for child in children:
@@ -869,8 +897,8 @@ def apply_face_drivers(actor: LinkActor, bone_name, shape_data,
             angle_pose = cc.signed_angle_between_vectors(forward, pose_dir, expr_axis)
             angle_expr = cc.signed_angle_between_vectors(forward, expr_dir, expr_axis)
             # expression weight to produce this pose rotation
-            angle_fac = min(1.5, max(0, angle_pose/angle_expr))
-            shape_data[expr_index] = min(1.5, max(-1.5, angle_fac))
+            angle_fac = min(1.0, max(0, angle_pose/angle_expr))
+            shape_data[expr_index] = angle_fac
             #print(f"{bone_name}:{expr} {cc.dumps_quaternion_xyz(local_pose)} / {cc.dumps_quaternion_xyz(ERQ)} // {cc.dumps_vector3(pose_dir)} / {cc.dumps_vector3(expr_dir)} - {angle_pose:.3f} / {angle_expr:.3f} / {angle_fac:.3f}")
 
 
