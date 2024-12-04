@@ -28,7 +28,8 @@ Installation
     - e.g: **C:\Program Files\Reallusion\Character Creator 4\Bin64\OpenPlugin\CC4-Blender-Tools-Plugin-main**
 - The plugin functionality can be found from the menu: **Plugins > Blender Pipeline**
 
-Alternatively the main.py script can run as a standalone script from the **Script > Load Python** menu.
+### Run Without Installing
+- Alternatively the main.py script can run as a standalone script from the **Script > Load Python** menu.
 
 Troubleshooting
 ===============
