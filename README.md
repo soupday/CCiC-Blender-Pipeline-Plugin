@@ -14,6 +14,11 @@ It is possible to include additional objects with the character exports from Ble
 Installation
 ============
 
+### Upgrading
+- **Important**: Remove **all** previous versions of this plug-in from the OpenPlugin folder.
+    - Existing previous versions will cause conflicts with the current version and it _will not_ work correctly.
+- Follow the Manual Installation procedure below.
+
 ### Manual Installation
 - Download the Zip file (__CCiC-Blender-Pipeline-Plugin-main.zip__) from the [**Code** button](https://github.com/soupday/CCiC-Blender-Pipeline-Plugin/archive/refs/heads/main.zip).
 - Unzip the zip file. There should be a folder: **CCiC-Blender-Pipeline-Plugin-main**
