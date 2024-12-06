@@ -2015,6 +2015,18 @@ def dumps_quaternion_xyz(q: RQuaternion):
     return f"({x:.3f}, {y:.3f}, {z:.3f})"
 
 
+def quaternion_to_angle_axis(q: RQuaternion, axis: RVector3):
+    q.Normalize()
+    axis.Normalize()
+    q = [q.x, q.y, q.z, q.w]
+    axis = [axis.x, axis.y, axis.z]
+    # Calculate the dot product of quaternion's vector part and the axis
+    dot_product = sum([q[i] * axis[i] for i in range(3)])
+    # Calculate the angle of rotation
+    angle = 2 * math.acos(dot_product)
+    return angle
+
+
 def quaternion_to_vector(q: RQuaternion, axis: RVector3) -> RVector3:
     # Normalize the quaternion and axis
     q = q.Normalize()
@@ -2064,3 +2076,4 @@ def project_vector_around_axis(v: RVector3, axis: RVector3):
     # Calculate the perpendicular component
     v_perpendicular = v - v_a
     return v_perpendicular
+

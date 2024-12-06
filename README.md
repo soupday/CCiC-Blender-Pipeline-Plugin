@@ -28,7 +28,8 @@ Installation
     - e.g: **C:\Program Files\Reallusion\Character Creator 4\Bin64\OpenPlugin\CC4-Blender-Tools-Plugin-main**
 - The plugin functionality can be found from the menu: **Plugins > Blender Pipeline**
 
-Alternatively the main.py script can run as a standalone script from the **Script > Load Python** menu.
+### Run Without Installing
+- Alternatively the main.py script can run as a standalone script from the **Script > Load Python** menu.
 
 Troubleshooting
 ===============
@@ -70,10 +71,14 @@ Known Issues
 Changelog
 =========
 
+### 2.2.2
+- Facial expression drivers will only be used when bones control expressions in Blender (i.e. Rigify)
+- When another instance of Blender connects to DataLink, the previous connection will be correctly terminated.
+
 ### 2.2.1
 - Plugin toolbar visibility can now be toggled.
-- Datalink Receive Sequence will calculate facial expressions for the Eye look and Jaw open expressions based on the bone rotations.
-- Datalink send motion will use correct project FPS.
+- DataLink Receive Sequence will calculate facial expressions for the Eye look and Jaw open expressions based on the bone rotations.
+- DataLink send motion will use correct project FPS.
 
 ### 2.2.0
 - Fix to motion exports not using project FPS.
@@ -116,10 +121,10 @@ Changelog
 
 ### 2.1.0
 - Motion set prefix and use fake user option for datalink animation transfer.
-- Datalink pose/sequence twist bone translation fix.
+- DataLink pose/sequence twist bone translation fix.
 
 ### 2.0.9
-- Datalink:
+- DataLink:
     - Live Sequence speed improvements.
     - Receive Replace Mesh function.
     - Receive Material/Texture updates.
@@ -129,15 +134,15 @@ Changelog
 ### 2.0.8
 - Fix to error messages when importing invalid characters.
 - Send Prop pose and sequence.
-    - Datalink skeleton bone order enforced, for more accurate matching of duplicate bone names.
+    - DataLink skeleton bone order enforced, for more accurate matching of duplicate bone names.
     - Adds prop structure data to json export.
 - Send Motion to Blender character/prop (direct motion export/import).
 - More robust & partial name matching for json meshes and materials.
 - iC motion export settings fix.
 
 ### 2.0.7
-- Datalink receives facial expression data for pose and sequence.
-- Datalink settings for exporting characters with animation, pose or none.
+- DataLink receives facial expression data for pose and sequence.
+- DataLink settings for exporting characters with animation, pose or none.
 
 ### 2.0.5
 - Receiving pose or animation sequence from Blender resets character transform.
@@ -158,11 +163,11 @@ Changelog
 
 ### 2.0.1
 - GoB toolbar added.
-    - Go-B, Go-B morph, Export, Import, Datalink, Settings.
-    - Plugin settings for Blender Path, Datalink working directory, Morph slider default path.
+    - Go-B, Go-B morph, Export, Import, DataLink, Settings.
+    - Plugin settings for Blender Path, DataLink working directory, Morph slider default path.
     - Go-B automatically launches blender and imports selected characters/props into Blender, matches lighting and camera.
     - In Blender single button click to send back character or character morph (if morph editing with Go-B Morph).
-- Datalink:
+- DataLink:
     - Prop import/export. Currently props aren't cooperating when posing.
     - Lighting and Camera Sync added
     - Receive Character import direct from Blender.
