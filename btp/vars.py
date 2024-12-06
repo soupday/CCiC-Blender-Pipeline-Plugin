@@ -14,12 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
+import uuid
 from RLPy import *
 
-VERSION = "2.2.1"
-#DEV = True
+VERSION = "2.2.2"
 DEV = False
-
+#DEV = True
 AVATAR_TYPES = {
     EAvatarType__None: "None",
     EAvatarType_Standard: "Standard",

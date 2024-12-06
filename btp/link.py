@@ -136,22 +136,6 @@ FACE_DRIVERS = {
 }
 
 
-def quaternion_to_angle_axis(q: RQuaternion, axis: RVector3):
-    q.Normalize()
-    axis.Normalize()
-
-    q = [q.x, q.y, q.z, q.w]
-    axis = [axis.x, axis.y, axis.z]
-
-    # Calculate the dot product of quaternion's vector part and the axis
-    dot_product = sum([q[i] * axis[i] for i in range(3)])
-
-    # Calculate the angle of rotation
-    angle = 2 * math.acos(dot_product)
-
-    return angle
-
-
 class LinkActor():
     name: str = "Name"
     object: RIObject = None
@@ -163,6 +147,7 @@ class LinkActor():
     expression_rotations: dict = None
     face_rotations: dict = None
     face_drivers: dict = None
+    use_drivers: bool = False
     visemes: dict = None
     morphs: dict = None
     t_pose: dict = None
@@ -179,6 +164,7 @@ class LinkActor():
         self.expression_rotations = {}
         self.face_rotations = {}
         self.face_drivers = {}
+        self.drivers = False
         self.visemes = {}
         self.morphs = {}
         self.t_pose = None
@@ -242,7 +228,8 @@ class LinkActor():
         expression_rotations = {}
         face_rotations = {}
         face_drivers = {}
-        utils.log_info("Expression Bones:")
+        if vars.DEV:
+            utils.log_info("Expression Bones:")
 
         for expression in expressions:
             is_face = False
@@ -290,9 +277,10 @@ class LinkActor():
         self.face_rotations = face_rotations
         self.face_drivers = face_drivers
 
-    def set_template(self, actor_data):
+    def set_template(self, actor_data: dict):
         self.bones = actor_data["bones"]
         self.shapes = actor_data["shapes"]
+        self.use_drivers = actor_data.get("drivers", "EXPRESSION") == "BONE"
         FC = self.get_face_component()
         VC = self.get_viseme_component()
         MC = self.get_morph_component()
@@ -761,7 +749,7 @@ def apply_world_fk_pose(actor, SC: RISkeletonComponent, clip, time, bone: RINode
         # don't apply any translation to twist or share bones
         if "Twist" in bone_name or "Share" in bone_name:
             local_tra = t_pose_tra
-        if bone_name in actor.face_drivers:
+        if actor.use_drivers and bone_name in actor.face_drivers:
             apply_face_drivers(actor, bone_name, shape_data, local_rot, parent_world_rot, t_pose_rot)
         ec_rot = get_expression_counter_rotation(actor, bone_name, shape_data)
         set_bone_control(SC, clip, bone, time, ec_rot,
@@ -1183,6 +1171,9 @@ class LinkService(QObject):
                     utils.log_error("Server socket accept failed!")
                     self.service_lost()
                     return
+                if self.is_connected:
+                    self.send(OpCodes.DISCONNECT)
+                    self.stop_client()
                 self.client_sock = sock
                 self.client_sockets = [sock]
                 self.client_ip = address[0]
@@ -2987,6 +2978,7 @@ class DataLink(QObject):
                 actor.set_template(actor_data)
             else:
                 utils.log_error(f"Unable to find actor: {name} ({link_id})")
+            utils.log_info(f" - character using expression drivers: {actor.use_drivers}")
 
     def receive_pose(self, data):
         self.update_link_status(f"Receiving Pose ...")
