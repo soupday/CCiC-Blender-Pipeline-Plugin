@@ -71,6 +71,9 @@ Known Issues
 Changelog
 =========
 
+### 2.2.3
+- Corrected avatar type detection on importing characters, preventing facial profile restore.
+
 ### 2.2.2
 - Facial expression drivers will only be used when bones control expressions in Blender (i.e. Rigify)
 - When another instance of Blender connects to DataLink, the previous connection will be correctly terminated.
