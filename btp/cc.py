@@ -488,6 +488,18 @@ class CCJsonData():
             pass
         return ""
 
+    def get_avatar_type(self):
+        try:
+            return self.json_data[self.character_id]["Avatar_Type"]
+        except:
+            return "NONE"
+
+    def set_avatar_type(self, avatar_type):
+        try:
+            self.json_data[self.character_id]["Avatar_Type"] = avatar_type
+        except:
+            utils.log_error("Unable to set json avatar type!")
+
     def get_link_id(self):
         try:
             return self.json_data[self.character_id]["Link_ID"]
@@ -501,8 +513,18 @@ class CCJsonData():
             pass
 
     def get_character_type(self):
-        character_type = "STANDARD"
         generation = self.get_character_generation().lower()
+        avatar_type = self.get_avatar_type()
+
+        for character_type in vars.CHARACTER_TYPES:
+            generations = [ g.lower() for g in vars.CHARACTER_TYPES[character_type]["generations"] ]
+            avatar_types = vars.CHARACTER_TYPES[character_type]["avatar_types"]
+            if generation in generations:
+                return character_type
+            if avatar_type in avatar_types:
+                return character_type
+
+        character_type = "STANDARD"
         if generation == "humanoid" or generation == "" or generation == "rigify" or generation == "rigify+":
             character_type = "HUMANOID"
         elif generation == "actorcore" or generation == "actorbuild" or generation == "actorscan":
