@@ -14,10 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import uuid
 from RLPy import *
 
-VERSION = "2.2.2"
+VERSION = "2.2.3"
 DEV = False
 #DEV = True
 AVATAR_TYPES = {
@@ -48,6 +47,41 @@ AVATAR_GENERATIONS = {
     EAvatarGeneration_CC_G3_Plus_Avatar: "RL_CC3_Plus",
     EAvatarGeneration_CC_Game_Base_One: "RL_CharacterCreator_Base_Game_G1_One_UV",
     EAvatarGeneration_CC_Game_Base_Multi: "RL_CharacterCreator_Base_Game_G1_Multi_UV",
+}
+
+CHARACTER_TYPES = {
+    "STANDARD": {
+        "generations": [ "G3",
+                         "RL_CC3_Plus", ],
+
+        "avatar_types": [ "Standard",
+                          "StandardSeries",
+                          "LightAvatarStandard",
+                          "LightAvatarStandardSeries", ],
+    },
+
+    "HUMANOID": {
+        "generations": [ "AccuRig",
+                         "ActorBuild",
+                         "ActorScan",
+                         "G1",
+                         "RL_CharacterCreator_Base_Game_G1_One_UV",
+                         "RL_CharacterCreator_Base_Game_G1_Multi_UV",
+                         "Humanoid", "Rigify", "Rigify+", "GameBase", ],
+
+        "avatar_types": [ "NonStandard",
+                          "LightAvatarNonStandard", ],
+    },
+
+    "CREATURE": {
+        "generations": [ "Creature", ],
+        "avatar_types": [ "NonHuman", "LightAvatarNonHuman", ],
+    },
+
+    "PROP": {
+        "generations": [ "Prop", ],
+        "avatar_types": [],
+    },
 }
 
 FACIAL_PROFILES = {

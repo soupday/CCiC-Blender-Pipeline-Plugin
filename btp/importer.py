@@ -721,6 +721,7 @@ class Importer:
             if self.option_import_expressions:
 
                 self.update_progress(0, "Importing Expressions", True)
+                utils.log(f"Importing Facial Expressions:")
 
                 # then overwrite with the blend shapes in the fbx
                 # any new/custom expression blend shapes must be added to json when exported from Blender
@@ -732,8 +733,11 @@ class Importer:
                         if category != "Jaw" and category != "EyeLook" and category != "Head":
                             utils.log(f"Gathering Expressions for Category: {category}")
                             sliders.extend(categories_json[category])
-                    utils.log(f"Importing Facial Expressions:")
-                    facial_profile.ImportMorphs(self.path, True, sliders, "Custom")
+                    utils.log(f"Importing Gathered Expressions: {sliders}")
+                    utils.log(f" - Path: {self.path}")
+                    res: RLPy.RStatus = facial_profile.ImportMorphs(self.path, True, sliders, "Custom")
+                    if res.IsError():
+                        utils.log_error(f"Expression import failed!")
 
                 self.update_progress(2, "Importing Expressions", True)
 
