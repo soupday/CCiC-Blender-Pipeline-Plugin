@@ -1373,6 +1373,7 @@ class DataLink(QObject):
     host_name: str = "localhost"
     motion_prefix: str = ""
     use_fake_user: bool = True
+    set_keyframes: bool = True
     host_ip: str = "127.0.0.1"
     host_port: int = BLENDER_PORT
     target: str = "Blender"
@@ -1400,6 +1401,7 @@ class DataLink(QObject):
     button_sync_lights: QPushButton = None
     button_sync_camera: QPushButton = None
     toggle_use_fake_user: QPushButton = None
+    toggle_set_keyframes: QPushButton = None
     #
     icon_avatar: QIcon = None
     icon_prop: QIcon = None
@@ -1408,6 +1410,8 @@ class DataLink(QObject):
     icon_all: QIcon = None
     icon_fake_user_off: QIcon = None
     icon_fake_user_on: QIcon = None
+    icon_set_keyframes_off: QIcon = None
+    icon_set_keyframes_on: QIcon = None
     icon_replace_avatar: QIcon = None
     icon_replace_clothing: QIcon = None
     # Service
@@ -1443,6 +1447,8 @@ class DataLink(QObject):
         self.icon_all = qt.get_icon("Actor.png")
         self.icon_fake_user_off = qt.get_icon("BlenderFakeUserOff.png")
         self.icon_fake_user_on = qt.get_icon("BlenderFakeUserOn.png")
+        self.icon_set_keyframes_off = qt.get_icon("BlenderActionOff.png")
+        self.icon_set_keyframes_on = qt.get_icon("BlenderActionOn.png")
         self.icon_replace_avatar = qt.get_icon("FullBodyMorphSkin.png")
         self.icon_replace_clothing = qt.get_icon("Clothing.png")
 
@@ -1464,13 +1470,21 @@ class DataLink(QObject):
         grid = qt.grid(layout)
         grid.setColumnStretch(2, 0)
         qt.label(grid, f"Action Name Prefix:", row=0, col=0, style=qt.STYLE_TITLE)
+
         self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
                                                      row=0, col=1, update=self.update_motion_prefix)
+
         self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
                                               icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
                                               toggle=True, value=self.use_fake_user,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
                                               row=0, col=2)
+
+        self.toggle_set_keyframes = qt.button(grid, "", self.update_toggle_set_keyframes,
+                                              icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
+                                              toggle=True, value=self.set_keyframes,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=3)
 
         qt.spacing(layout, 10)
 
@@ -1806,6 +1820,14 @@ class DataLink(QObject):
         self.use_fake_user = self.toggle_use_fake_user.isChecked()
 
 
+    def update_toggle_set_keyframes(self):
+        if self.toggle_set_keyframes.isChecked():
+            self.toggle_set_keyframes.setIcon(self.icon_set_keyframes_on)
+        else:
+            self.toggle_set_keyframes.setIcon(self.icon_set_keyframes_off)
+        self.set_keyframes = self.toggle_set_keyframes.isChecked()
+
+
     def update_target(self):
         if self.combo_target:
             self.target = self.combo_target.currentText()
@@ -2082,6 +2104,7 @@ class DataLink(QObject):
             "link_id": actor.get_link_id(),
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
         })
         self.send(OpCodes.CHARACTER, export_data)
 
@@ -2101,6 +2124,7 @@ class DataLink(QObject):
             "link_id": actor.get_link_id(),
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
         })
         self.send(OpCodes.PROP, export_data)
 
@@ -2225,6 +2249,7 @@ class DataLink(QObject):
                 "frame": current_frame,
                 "motion_prefix": self.motion_prefix,
                 "use_fake_user": self.use_fake_user,
+                "set_keyframes": self.set_keyframes,
             })
             self.send(OpCodes.MOTION, export_data)
 
@@ -2296,6 +2321,7 @@ class DataLink(QObject):
             "link_id": actor.get_link_id(),
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
             "save_after_import": save_after_import,
         })
         self.send(OpCodes.CHARACTER, export_data)
@@ -2394,6 +2420,7 @@ class DataLink(QObject):
             "frame": current_frame,
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
             "actors": actors_data,
         }
         actor: LinkActor
@@ -2494,6 +2521,7 @@ class DataLink(QObject):
             "frame": current_frame,
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
             "actors": actors_data,
         }
         actor: LinkActor
@@ -2775,6 +2803,7 @@ class DataLink(QObject):
             "current_frame": current_frame,
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
         }
         self.send(OpCodes.FRAME_SYNC, encode_from_json(frame_data))
 
