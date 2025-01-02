@@ -32,6 +32,7 @@ def bone_test():
                 pos.y + 100
                 SC.SetBoneTPosePosition(bone, pos)
 
+
 def clip_test():
     for obj in RScene.GetSelectedObjects():
         SC: RISkeletonComponent = obj.GetSkeletonComponent()
@@ -41,7 +42,6 @@ def clip_test():
         print(clip)
         print(dir(clip))
         print(clip.GetName())
-
 
 
 def get_control_position(avatar: RIAvatar, effector, clip: RIClip, time: RTime):
@@ -109,6 +109,7 @@ def write_json(json_data, path):
     with open(path, "w") as write_file:
         write_file.write(json_object)
 
+
 def bone_tree():
     for obj in RScene.GetSelectedObjects():
         cc.print_node_tree(obj)
@@ -168,7 +169,6 @@ def expression_test():
     MC: RIMorphComponent = avatar.GetMorphComponent()
     names = MC.GetMorphNames()
     print(names)
-
 
 
 def t_test():
@@ -231,25 +231,14 @@ def test_data_block_bad_get():
             print(value.ToString())
 
 
-def test_control(obj, control_name):
-    control = obj.GetControl(control_name)
-    if control:
-        print(f"Control: {control_name} - {control.GetKeyCount()} keys")
-    else:
-        print(f"No control: {control_name}")
-
-
-
-def test():
-    thing: RIAvatar = RScene.GetSelectedObjects()[0]
-    #print(dir(thing))
-    MC: RIMaterialComponent = thing.GetMaterialComponent()
-    for mesh_name in thing.GetMeshNames():
+def dump_shader_params():
+    avatar: RIAvatar = RScene.GetSelectedObjects()[0]
+    MC: RIMaterialComponent = avatar.GetMaterialComponent()
+    for mesh_name in avatar.GetMeshNames():
         for mat_name in MC.GetMaterialNames(mesh_name):
             params = MC.GetShaderParameterNames(mesh_name, mat_name)
             print(f"{mesh_name} / {mat_name}:")
             print(params)
-
 
 
 # Compares the bone transforms (local and world) with the animation clip transform control transforms
@@ -289,6 +278,7 @@ def compare_clip_with_bones():
 # Knowing the forward calculation means it can be reversed to get local transforms from
 # bones in world space (i.e. from Blender)
 
+
 def calculate_avatar_world_hierarchy():
     avatar = cc.get_first_avatar()
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
@@ -297,6 +287,7 @@ def calculate_avatar_world_hierarchy():
     root_tra = RVector3(RVector3(0,0,0))
     root_sca = RVector3(RVector3(1,1,1))
     calc_world_transform(root_bone, root_rot, root_tra, root_sca)
+
 
 def calc_world_transform(bone, parent_world_rot, parent_world_tra, parent_world_sca):
     bone_name = bone.GetName()
@@ -313,8 +304,10 @@ def calc_world_transform(bone, parent_world_rot, parent_world_tra, parent_world_
     for child in children:
         calc_world_transform(child, world_rot, world_tra, world_sca)
 
+
 def f2(v):
     return '{0:.2f}'.format(v)
+
 
 def show_local(bone):
     T: RTransform = bone.LocalTransform()
@@ -323,12 +316,14 @@ def show_local(bone):
     s: RVector3 = T.S()
     print(f"Local - T: ({f2(t.x)}, {f2(t.y)}, {f2(t.z)}) R: ({f2(r.x)}, {f2(r.y)}, {f2(r.z)}, {f2(r.w)}) S: ({f2(s.x)}, {f2(s.y)}, {f2(s.z)})")
 
+
 def show_world(bone):
     T: RTransform = bone.WorldTransform()
     t: RVector3 = T.T()
     r: RQuaternion = T.R()
     s: RVector3 = T.S()
     print(f"World - T: ({f2(t.x)}, {f2(t.y)}, {f2(t.z)}) R: ({f2(r.x)}, {f2(r.y)}, {f2(r.z)}, {f2(r.w)}) S: ({f2(s.x)}, {f2(s.y)}, {f2(s.z)})")
+
 
 def calc_world(local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3,
               parent_world_rot: RQuaternion, parent_world_tra: RVector3, parent_world_sca: RVector3):
@@ -385,8 +380,6 @@ def show_control_data(SC: RISkeletonComponent, data_block: RDataBlock, time: RTi
         print(f" - {ta}/{ra} - ({utils.fd2(rx)}, {utils.fd2(ry)}, {utils.fd2(rz)})")
 
 
-
-
 def test2():
     avatar = cc.get_first_avatar()
     fps: RFps = RGlobal.GetFps()
@@ -408,4 +401,29 @@ def test_face():
     print(path)
     FC.LoadProfile(path)
     # broken for non-standard humanoids
+    return
+
+
+def test_control(obj, control_name):
+    control = obj.GetControl(control_name)
+    if control:
+        print(f"Control: {control_name} - {control.GetKeyCount()} keys")
+    else:
+        print(f"No control: {control_name}")
+
+
+def test_controls():
+    avatar_list = RScene.GetAvatars()
+    avatar: RIAvatar = avatar_list[0]
+    obj: RIObject = None
+
+    test_control(avatar, "Transform")
+    test_control(avatar, "Active")
+    test_control(avatar, "Color")
+    test_control(avatar, "Multiplier")
+    test_control(avatar, "Color")
+
+
+def test():
+    test_controls()
     return
