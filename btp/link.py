@@ -2849,7 +2849,10 @@ class DataLink(QObject):
             self.update_link_status(f"Sending Animation Sequence")
             self.send_notify(f"Animation Sequence")
             # reset animation to start
-            self.data.sequence_current_frame_time = reset_animation()
+            if self.set_keyframes:
+                self.data.sequence_current_frame_time = reset_animation()
+            else:
+                self.data.sequence_current_frame_time = RGlobal.GetTime()
             current_frame = get_current_frame()
             self.data.sequence_current_frame = current_frame
             # send animation meta data
