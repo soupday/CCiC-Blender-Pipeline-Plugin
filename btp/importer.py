@@ -579,6 +579,9 @@ class Importer:
                 # Pbr Textures
                 png_base_color = False
                 has_opacity_map = M.mat_json.has_texture("Opacity")
+                displacement_strength = -1
+                normal_strength = -1
+                bump_strength = -1
 
                 for shader_channel in cc.TEXTURE_MAPS.keys():
 
@@ -616,12 +619,31 @@ class Importer:
                             if load_texture:
                                 M.load_channel_image(rl_channel, tex_path)
                             M.set_uv_mapping(rl_channel, offset, tiling, rotation)
-                            M.set_channel_texture_weight(rl_channel, strength)
+                            if shader_channel == "Displacement":
+                                displacement_strength = strength
+                            elif shader_channel == "Normal":
+                                normal_strength = strength
+                            elif shader_channel == "Bump":
+                                bump_strength = strength
+                            else:
+                                M.set_channel_texture_weight(rl_channel, strength)
                         if shader_channel == "Displacement":
                             level, multiplier, threshold = M.mat_json.get_tessellation()
                             M.set_attribute("TessellationLevel", level)
                             M.set_attribute("TessellationMultiplier", multiplier)
                             M.set_attribute("TessellationThreshold", threshold * 100)
+
+                # displacement strength overrides normal strength which overrides bump, so only set one.
+                if displacement_strength > -1:
+                    #print(f"Displacement Strength: {displacement_strength}")
+                    M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Displacement, displacement_strength)
+                elif normal_strength > -1:
+                    #print(f"Normal Strength: {normal_strength}")
+                    M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Normal, normal_strength)
+                elif bump_strength > -1:
+                    #print(f"Bump Strength: {bump_strength}")
+                    M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Bump, bump_strength)
+
 
             if self.option_parameters:
 
