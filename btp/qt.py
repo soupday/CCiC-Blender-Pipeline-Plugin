@@ -490,7 +490,7 @@ def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_onl
 
 def button(layout: QLayout, text, func=None, icon = None, style="",
            width=0, height=BUTTON_HEIGHT, row=-1, col=-1, row_span=1, col_span=1, icon_size=0,
-           align=None, toggle=False, value=False, fixed=False):
+           align=None, toggle=False, value=False, fixed=False, tooltip=None):
 
     w = QPushButton(text, minimumHeight=height, minimumWidth=width)
     if fixed:
@@ -519,6 +519,8 @@ def button(layout: QLayout, text, func=None, icon = None, style="",
         w.setAlignment(align)
     if func:
         w.clicked.connect(func)
+    if tooltip:
+        w.setToolTip(tooltip)
     return w
 
 

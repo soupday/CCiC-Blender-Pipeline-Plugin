@@ -1476,13 +1476,15 @@ class DataLink(QObject):
                                               icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
                                               toggle=True, value=self.use_fake_user,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=2)
+                                              row=0, col=2,
+                                              tooltip="Use Fake User")
 
         self.toggle_set_keyframes = qt.button(grid, "", self.update_toggle_set_keyframes,
                                               icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
                                               toggle=True, value=self.set_keyframes,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=3)
+                                              row=0, col=3,
+                                              tooltip="Set Keyframes")
 
         qt.spacing(layout, 10)
 

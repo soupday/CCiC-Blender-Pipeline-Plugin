@@ -71,6 +71,9 @@ Known Issues
 Changelog
 =========
 
+### 2.2.4
+- Set keyframes option, when toggled off Send Pose and Sequence will not create an action or set any keyframes.
+
 ### 2.2.3
 - Corrected avatar type detection on importing characters, preventing facial profile restore.
 
