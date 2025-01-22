@@ -1384,7 +1384,6 @@ class DataLink(QObject):
     label_header: QLabel = None
     button_link: QPushButton = None
     textbox_host: QLineEdit = None
-    combo_target: QComboBox = None
     context_frame: QVBoxLayout = None
     info_label_name: QLabel = None
     info_label_type: QLabel = None
@@ -1463,7 +1462,6 @@ class DataLink(QObject):
 
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
-        self.combo_target = qt.combobox(row, "", options=["Blender", "Unity"], update=self.update_target)
 
         #qt.spacing(layout, 10)
 
@@ -1478,13 +1476,15 @@ class DataLink(QObject):
                                               icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
                                               toggle=True, value=self.use_fake_user,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=2)
+                                              row=0, col=2,
+                                              tooltip="Use Fake User")
 
         self.toggle_set_keyframes = qt.button(grid, "", self.update_toggle_set_keyframes,
                                               icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
                                               toggle=True, value=self.set_keyframes,
                                               style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=3)
+                                              row=0, col=3,
+                                              tooltip="Set Keyframes")
 
         qt.spacing(layout, 10)
 
@@ -1827,18 +1827,6 @@ class DataLink(QObject):
             self.toggle_set_keyframes.setIcon(self.icon_set_keyframes_off)
         self.set_keyframes = self.toggle_set_keyframes.isChecked()
 
-
-    def update_target(self):
-        if self.combo_target:
-            self.target = self.combo_target.currentText()
-            if self.target == "Blender":
-                self.host_port = BLENDER_PORT
-            elif self.target == "Unity":
-                self.host_port = UNITY_PORT
-
-    def set_target(self, target):
-        self.combo_target.setCurrentText(target)
-
     def set_host(self, host_name):
         self.textbox_host.setText(host_name)
         self.host_name = host_name
@@ -1847,21 +1835,18 @@ class DataLink(QObject):
 
         if self.is_connected():
             self.textbox_host.setEnabled(False)
-            self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet(qt.STYLE_BUTTON_ACTIVE)
             self.button_link.setText("Linked")
             self.label_header.setText(f"Connected to {self.service.remote_app} {self.service.remote_version} ({self.service.remote_addon})")
             self.label_folder.setText(f"{self.get_remote_folder()}")
         elif self.is_listening():
             self.textbox_host.setEnabled(False)
-            self.combo_target.setEnabled(False)
             self.button_link.setStyleSheet(qt.STYLE_BUTTON_WAITING)
             self.button_link.setText("Listening ...")
             self.label_header.setText("Waiting for Connection")
             self.label_folder.setText(f"None")
         else:
             self.textbox_host.setEnabled(True)
-            self.combo_target.setEnabled(True)
             self.button_link.setStyleSheet(qt.STYLE_BUTTON)
             if SERVER_ONLY:
                 self.button_link.setText("Start Server")
