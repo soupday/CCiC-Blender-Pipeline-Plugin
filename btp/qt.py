@@ -464,6 +464,14 @@ def combobox(layout: QLayout, text, style = STYLE_NONE, options=None,
     return w
 
 
+def update_combobox_options(cb: QComboBox, options, current):
+    cb.clear()
+    for i, option in enumerate(options):
+        cb.addItem(option)
+        if current == option:
+            cb.setCurrentIndex(i)
+
+
 def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_only = False,
             width=0, height=0, row = -1, col = -1, row_span=1, col_span=1,
             align=None, update=None):

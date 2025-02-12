@@ -22,7 +22,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random, atexit, traceback
-from . import blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
+from . import gob, blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 import math
 
@@ -1384,6 +1384,8 @@ class DataLink(QObject):
     label_header: QLabel = None
     button_link: QPushButton = None
     textbox_host: QLineEdit = None
+    combobox_version: QComboBox = None
+    label_version: QLabel = None
     context_frame: QVBoxLayout = None
     info_label_name: QLabel = None
     info_label_type: QLabel = None
@@ -1462,6 +1464,12 @@ class DataLink(QObject):
 
         row = qt.row(layout)
         self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
+        self.label_version = qt.label(row, " Blender: ", style=qt.STYLE_BOLD)
+        self.combobox_version = qt.combobox(row, prefs.BLENDER_VERSION if prefs.BLENDER_VERSION else "None",
+                                            options=list(prefs.AVAILABLE_BLENDER_VERSIONS.keys()),
+                                            update=self.update_version)
+
+        prefs.LINK_UI_CALLBACK_VERSIONS = self.update_versions
 
         #qt.spacing(layout, 10)
 
@@ -1599,6 +1607,12 @@ class DataLink(QObject):
             REventHandler.UnregisterCallback(self.callback_id)
             self.callback_id = None
 
+    def update_versions(self):
+        if prefs.AVAILABLE_BLENDER_VERSIONS and prefs.BLENDER_VERSION:
+            qt.update_combobox_options(self.combobox_version, list(prefs.AVAILABLE_BLENDER_VERSIONS.keys()), prefs.BLENDER_VERSION)
+        else:
+            qt.update_combobox_options(self.combobox_version, ["None"], "None")
+
     def update_ui(self):
         avatar: RIAvatar = None
         prop: RIProp = None
@@ -1708,7 +1722,10 @@ class DataLink(QObject):
         elif num_cameras > 1:
             type_name = "Cameras"
             icon = self.icon_camera
-        self.button_send.setText(f"Send {type_name}")
+        if self.is_connected():
+            self.button_send.setText(f"Send {type_name}")
+        else:
+            self.button_send.setText(f"Go-B {type_name}")
         self.button_send.setIcon(icon)
         if num_posable > 1:
             self.button_pose.setText(f"Send Poses")
@@ -1729,7 +1746,8 @@ class DataLink(QObject):
                    self.button_pose, self.button_sequence,
                    self.button_animation, self.button_update_replace,
                    self.button_morph, self.button_morph_update,
-                   self.button_sync_lights, self.button_sync_camera)
+                   self.button_sync_lights, self.button_sync_camera,
+                   self.combobox_version, self.label_version)
 
         if self.is_connected():
             if num_posable > 0:
@@ -1741,7 +1759,10 @@ class DataLink(QObject):
             if num_rigable > 0:
                 qt.enable(self.button_rigify)
             qt.enable(self.button_sync_lights, self.button_sync_camera)
-
+        else:
+            qt.enable(self.combobox_version, self.label_version)
+            if num_sendable > 0:
+                qt.enable(self.button_send)
         # context info
 
         if avatar:
@@ -1808,6 +1829,12 @@ class DataLink(QObject):
             except:
                 self.host_ip = "127.0.0.1"
             utils.log_info(f"{self.host_name} ({self.host_ip})")
+
+    def update_version(self):
+        if self.combobox_version:
+            index = self.combobox_version.currentIndex()
+            text = self.combobox_version.currentText()
+            prefs.BLENDER_VERSION = text
 
     def update_motion_prefix(self):
         self.motion_prefix = self.textbox_motion_prefix.text()
@@ -2147,18 +2174,21 @@ class DataLink(QObject):
         return
 
     def send_actor(self):
-        #cc.deduplicate_scene()
-        actors = self.get_selected_actors()
-        actor: LinkActor
-        for actor in actors:
-            if actor.is_avatar():
-                self.send_avatar(actor)
-            elif actor.is_prop():
-                self.send_prop(actor)
-            elif actor.is_light():
-                self.send_light()
-            elif actor.is_camera():
-                self.send_camera()
+        if not self.is_connected():
+            gob.go_b()
+        else:
+            #cc.deduplicate_scene()
+            actors = self.get_selected_actors()
+            actor: LinkActor
+            for actor in actors:
+                if actor.is_avatar():
+                    self.send_avatar(actor)
+                elif actor.is_prop():
+                    self.send_prop(actor)
+                elif actor.is_light():
+                    self.send_light()
+                elif actor.is_camera():
+                    self.send_camera()
 
     def send_update_replace(self):
         avatars = {}
