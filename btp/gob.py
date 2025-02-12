@@ -229,4 +229,10 @@ bpy.ops.ccic.datalink(param="START")
 def launch_blender(script_path):
     global BLENDER_PROCESS
     utils.log_info(f"Launching Blender ...")
-    BLENDER_PROCESS = subprocess.Popen([f"{prefs.BLENDER_PATH}", "-P", f"{script_path}"])
+    blender_path = prefs.get_blender_path()
+    if blender_path and os.path.exists(blender_path):
+        BLENDER_PROCESS = subprocess.Popen([f"{blender_path}", "-P", f"{script_path}"])
+        return True
+    else:
+        return False
+
