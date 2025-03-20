@@ -64,7 +64,7 @@ EXPORT_REMOVE_HIDDEN: bool = False
 TOOLBAR_STATE_CC: bool = True
 TOOLBAR_STATE_IC: bool = True
 
-BLENDER_VERSIONS = [ "4.3", "4.2", "4.1", "4.0",
+BLENDER_VERSIONS = [ "4.5", "4.4", "4.3", "4.2", "4.1", "4.0",
                      "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0",
                      "2.93", "2.92", "2.91", "2.90", "2.83" ]
 

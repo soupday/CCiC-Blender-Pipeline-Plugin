@@ -219,7 +219,7 @@ import bpy
 
 bpy.ops.wm.save_as_mainfile(filepath=r"{blend_path}")
 bpy.ops.file.make_paths_relative()
-bpy.ops.ccic.datalink(param="START")
+bpy.ops.ccic.datalink(param="GOB_START")
     """
     utils.log_info(f"Writing Blender Launch Script: {script_path}")
     with open(script_path, 'w') as f:

@@ -1,5 +1,5 @@
 # Copyright (C) 2023 Victor Soupday
-# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CC/iC-Blender-Pipeline-Plugin>
+# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CCiC-Blender-Pipeline-Plugin>
 #
 # CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,15 +21,12 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os, socket, select, struct, time, json, random, atexit, traceback
+import os, socket, select, struct, time, json, random, atexit, traceback, shutil
 from . import gob, blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 import math
 
-LOCALHOST = "127.0.0.1"
-BLENDER_PORT = 9334
-UNITY_PORT = 9335
-RL_PORT = 9333
+SERVER_PORT = 9333
 TIMER_INTERVAL = 1000/60
 MAX_CHUNK_SIZE = 32768
 HANDSHAKE_TIMEOUT_S = 60
@@ -37,11 +34,9 @@ KEEPALIVE_TIMEOUT_S = 300
 PING_INTERVAL_S = 1
 SERVER_ONLY = True
 CLIENT_ONLY = False
-EMPTY_SOCKETS = []
 MAX_RECEIVE = 24
 USE_PING = False
 USE_KEEPALIVE = False
-USE_BLOCKING = False
 SOCKET_TIMEOUT = 5.0
 
 class OpCodes(IntEnum):
@@ -53,6 +48,7 @@ class OpCodes(IntEnum):
     DEBUG = 15
     NOTIFY = 50
     SAVE = 60
+    FILE = 75
     MORPH = 90
     MORPH_UPDATE = 91
     REPLACE_MESH = 95
@@ -938,7 +934,7 @@ class LinkService(QObject):
     client_sockets = []
     empty_sockets = []
     client_ip: str = "127.0.0.1"
-    client_port: int = BLENDER_PORT
+    client_port: int = SERVER_PORT
     is_listening: bool = False
     is_connected: bool = False
     is_connecting: bool = False
@@ -972,6 +968,9 @@ class LinkService(QObject):
     remote_version: str = None
     remote_path: str = None
     remote_addon: str = None
+    remote_is_local: bool = True
+    # temp
+    temp_path: str = None
 
     def __init__(self):
         QObject.__init__(self)
@@ -989,19 +988,19 @@ class LinkService(QObject):
                 self.keepalive_timer = HANDSHAKE_TIMEOUT_S
                 self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.server_sock.settimeout(SOCKET_TIMEOUT)
-                self.server_sock.bind(('', RL_PORT))
+                self.server_sock.bind(('', SERVER_PORT))
                 self.server_sock.listen(5)
                 #self.server_sock.setblocking(True)
                 self.server_sockets = [self.server_sock]
                 self.is_listening = True
-                utils.log_info(f"Listening on TCP *:{RL_PORT}")
+                utils.log_info(f"Listening on TCP *:{SERVER_PORT}")
                 self.listening.emit()
                 self.changed.emit()
             except:
                 self.server_sock = None
                 self.server_sockets = []
                 self.is_listening = True
-                utils.log_error(f"Unable to start server on TCP *:{RL_PORT}")
+                utils.log_error(f"Unable to start server on TCP *:{SERVER_PORT}")
 
     def stop_server(self):
         if self.server_sock:
@@ -1137,6 +1136,22 @@ class LinkService(QObject):
                                 return
                             data.extend(chunk)
                             size -= len(chunk)
+                    if op_code == OpCodes.FILE:
+                        remote_id = data.decode(encoding="utf-8")
+                        chunk = self.client_sock.recv(4)
+                        size = struct.unpack("!I", chunk)[0]
+                        tar_file_path = self.get_remote_tar_file_path(remote_id)
+                        with open(tar_file_path, 'wb') as file:
+                            while size > 0:
+                                chunk_size = min(size, MAX_CHUNK_SIZE)
+                                try:
+                                    chunk = self.client_sock.recv(chunk_size)
+                                    file.write(chunk)
+                                except Exception as e:
+                                    utils.log_error("Client socket recv:recv file chunk failed!", e)
+                                    self.client_lost()
+                                    return
+                                size -= len(chunk)
                     self.parse(op_code, data)
                     self.received.emit(op_code, data)
                     count += 1
@@ -1198,11 +1213,15 @@ class LinkService(QObject):
                 self.remote_version = json_data["Version"]
                 self.remote_path = json_data["Path"]
                 self.remote_addon = json_data.get("Addon", "x.x.x")
+                self.remote_is_local = json_data.get("Local", True)
                 utils.log_info(f"Connected to: {self.remote_app} {self.remote_version} / {self.remote_addon}")
                 utils.log_info(f"Using file path: {self.remote_path}")
+                utils.log_info(f"Client is connecting {('Locally' if self.remote_is_local else 'Remotely')}")
             self.service_initialize()
             if data:
                 self.changed.emit()
+        elif op_code == OpCodes.FILE:
+            self.receive_remote_file(data)
         elif op_code == OpCodes.PING:
             utils.log_info(f"Ping Received")
             pass
@@ -1212,6 +1231,15 @@ class LinkService(QObject):
         elif op_code == OpCodes.DISCONNECT:
             utils.log_info(f"Disconnection Received")
             self.service_recv_disconnected()
+
+    def receive_remote_file(self, data: bytearray):
+        remote_id = data.decode(encoding="utf-8")
+        tar_file_path = self.get_remote_tar_file_path(remote_id)
+        parent_path = os.path.dirname(tar_file_path)
+        unpack_folder = utils.make_sub_folder(parent_path, remote_id)
+        utils.log_info(f"Receive Remote Files: {remote_id} / {unpack_folder}")
+        shutil.unpack_archive(tar_file_path, unpack_folder, "tar")
+        os.remove(tar_file_path)
 
     def service_start(self, host, port):
         if not self.is_listening:
@@ -1248,6 +1276,12 @@ class LinkService(QObject):
     def client_lost(self):
         self.lost_connection.emit()
         self.stop_client()
+
+    def is_remote(self):
+        return not self.remote_is_local
+
+    def is_local(self):
+        return self.remote_is_local
 
     def loop(self):
         try:
@@ -1320,6 +1354,42 @@ class LinkService(QObject):
             utils.log_error("LinkService send failed!")
             traceback.print_exc()
 
+    def send_file(self, tar_id, tar_file):
+        try:
+            utils.log_info(f"Sending Remote files: {tar_file}")
+            if self.client_sock and (self.is_connected or self.is_connecting):
+                file_size = os.path.getsize(tar_file)
+                id_data = pack_string(tar_id)
+                data = bytearray()
+                data.extend(struct.pack("!I", OpCodes.FILE))
+                data.extend(id_data)
+                data.extend(struct.pack("!I", file_size))
+                self.client_sock.send(data)
+                remaining_size = file_size
+                with open(tar_file, 'rb') as file:
+                    while remaining_size > 0:
+                        chunk_size = min(MAX_CHUNK_SIZE, remaining_size)
+                        byte_array = bytearray(file.read(chunk_size))
+                        remaining_size -= MAX_CHUNK_SIZE
+                        self.client_sock.send(byte_array)
+                self.ping_timer = PING_INTERVAL_S
+                self.sent.emit()
+        except:
+            utils.log_error("LinkService send failed!")
+            traceback.print_exc()
+
+    def get_remote_tar_file_path(self, remote_id):
+        data_path = self.local_path
+        remote_import_path = utils.make_sub_folder(data_path, "imports")
+        remote_file_path = os.path.join(remote_import_path, f"{remote_id}.tar")
+        return remote_file_path
+
+    def get_unpacked_tar_file_folder(self, remote_id):
+        data_path = self.local_path
+        remote_import_path = utils.make_sub_folder(data_path, "imports")
+        remote_files_folder = os.path.join(data_path, "imports", remote_id)
+        return remote_files_folder
+
     def start_sequence(self, func=None):
         self.is_sequence = True
         if func:
@@ -1349,6 +1419,12 @@ class LinkService(QObject):
             if self.loop_count % 30 == 0:
                 print(f"rate: {rate} count: {count} delta_frames: {delta_frames}")
 
+    def update_link_status(text, events=False):
+        if LINK:
+            try:
+                LINK.update_link_status(text, events)
+            except: ...
+
 
 class LinkEventCallback(REventCallback):
 
@@ -1375,7 +1451,7 @@ class DataLink(QObject):
     use_fake_user: bool = True
     set_keyframes: bool = True
     host_ip: str = "127.0.0.1"
-    host_port: int = BLENDER_PORT
+    host_port: int = SERVER_PORT
     target: str = "Blender"
     # Callback
     callback: LinkEventCallback = None # type: ignore
@@ -1383,7 +1459,6 @@ class DataLink(QObject):
     # UI
     label_header: QLabel = None
     button_link: QPushButton = None
-    textbox_host: QLineEdit = None
     combobox_version: QComboBox = None
     label_version: QLabel = None
     context_frame: QVBoxLayout = None
@@ -1454,47 +1529,29 @@ class DataLink(QObject):
         self.icon_replace_clothing = qt.get_icon("Clothing.png")
 
         grid = qt.grid(layout)
-        grid.setColumnStretch(1, 3)
-        qt.label(grid, f"DataLink ({vars.VERSION}):", row=0, col=0, style=qt.STYLE_TITLE)
+        grid.setVerticalSpacing(0)
+        grid.setColumnStretch(2, 3)
+        logo = qt.label(grid, "", row_span=2, width=54, height=54, col=0, row=0)
+        logo.setPixmap(qt.get_pixmap("BlenderLogoLarge.png"))
+        qt.label(grid, f"DataLink ({vars.VERSION}):", row=0, col=1, style=qt.STYLE_TITLE)
         self.label_header = qt.label(grid, f"Not Connected",
-                                     row=0, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
-        qt.label(grid, f"Working Folder:", row=1, col=0, style=qt.STYLE_TITLE)
+                                     row=0, col=2, style=qt.STYLE_RL_BOLD, no_size=True)
+        qt.label(grid, f"Working Folder:", row=1, col=1, style=qt.STYLE_TITLE)
         self.label_folder = qt.label(grid, f"{self.get_remote_folder()}",
-                                     row=1, col=1, style=qt.STYLE_RL_BOLD, no_size=True)
+                                     row=1, col=2, style=qt.STYLE_RL_BOLD, no_size=True)
 
-        row = qt.row(layout)
-        self.textbox_host = qt.textbox(row, self.host_name, update=self.update_host)
-        self.label_version = qt.label(row, " Blender: ", style=qt.STYLE_BOLD)
-        self.combobox_version = qt.combobox(row, prefs.BLENDER_VERSION if prefs.BLENDER_VERSION else "None",
+        grid = qt.grid(layout)
+        grid.setColumnStretch(2, 3)
+        self.label_version = qt.label(grid, "Go-B Blender: ", style=qt.STYLE_BOLD, row=0, col=0)
+        self.combobox_version = qt.combobox(grid, prefs.BLENDER_VERSION if prefs.BLENDER_VERSION else "None",
                                             options=list(prefs.AVAILABLE_BLENDER_VERSIONS.keys()),
-                                            update=self.update_version)
+                                            update=self.update_version,
+                                            row=0, col=1)
+        qt.hide(self.label_version, self.combobox_version)
 
         prefs.LINK_UI_CALLBACK_VERSIONS = self.update_versions
 
         #qt.spacing(layout, 10)
-
-        grid = qt.grid(layout)
-        grid.setColumnStretch(2, 0)
-        qt.label(grid, f"Action Name Prefix:", row=0, col=0, style=qt.STYLE_TITLE)
-
-        self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
-                                                     row=0, col=1, update=self.update_motion_prefix)
-
-        self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
-                                              icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
-                                              toggle=True, value=self.use_fake_user,
-                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=2,
-                                              tooltip="Use Fake User")
-
-        self.toggle_set_keyframes = qt.button(grid, "", self.update_toggle_set_keyframes,
-                                              icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
-                                              toggle=True, value=self.set_keyframes,
-                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=3,
-                                              tooltip="Set Keyframes")
-
-        qt.spacing(layout, 10)
 
         self.label_status = qt.label(layout, "...", style=qt.STYLE_RL_DESC, no_size=True)
 
@@ -1505,7 +1562,29 @@ class DataLink(QObject):
         self.button_link = qt.button(grid, "Listen", self.link_start, row=0, col=0, toggle=True, value=False, height=48)
         qt.button(grid, "Stop", self.link_stop, row=0, col=1, width=64, height=48)
 
-        qt.label(layout, "Send:")
+
+        grid = qt.grid(layout)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(2, 2)
+        grid.setColumnStretch(3, 0)
+        grid.setColumnStretch(4, 0)
+        qt.label(grid, "Send:", row=0, col=0)
+        qt.label(grid, f"Motion Prefix:", row=0, col=1)
+        self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
+                                                     row=0, col=2, update=self.update_motion_prefix)
+        self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
+                                              icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
+                                              toggle=True, value=self.use_fake_user,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=3,
+                                              tooltip="Use Fake User")
+        self.toggle_set_keyframes = qt.button(grid, "", self.update_toggle_set_keyframes,
+                                              icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
+                                              toggle=True, value=self.set_keyframes,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=4,
+                                              tooltip="Set Keyframes")
+
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
         grid.setColumnStretch(1,1)
@@ -1817,18 +1896,11 @@ class DataLink(QObject):
 
         return
 
-    def update_link_status(self, text):
+    def update_link_status(self, text, events=False):
         self.label_status.setText(text)
+        if events:
+            qt.do_events()
         #utils.log_info(text)
-
-    def update_host(self):
-        if self.textbox_host:
-            self.host_name = self.textbox_host.text()
-            try:
-                self.host_ip = socket.gethostbyname(self.host_name)
-            except:
-                self.host_ip = "127.0.0.1"
-            utils.log_info(f"{self.host_name} ({self.host_ip})")
 
     def update_version(self):
         if self.combobox_version:
@@ -1854,26 +1926,25 @@ class DataLink(QObject):
             self.toggle_set_keyframes.setIcon(self.icon_set_keyframes_off)
         self.set_keyframes = self.toggle_set_keyframes.isChecked()
 
-    def set_host(self, host_name):
-        self.textbox_host.setText(host_name)
-        self.host_name = host_name
-
     def show_link_state(self):
-
+        link_service = self.get_link_service()
         if self.is_connected():
-            self.textbox_host.setEnabled(False)
-            self.button_link.setStyleSheet(qt.STYLE_BUTTON_ACTIVE)
-            self.button_link.setText("Linked")
-            self.label_header.setText(f"Connected to {self.service.remote_app} {self.service.remote_version} ({self.service.remote_addon})")
+            if self.is_remote():
+                self.button_link.setStyleSheet(qt.STYLE_BUTTON_ACTIVE_ALT)
+                self.button_link.setText(f"Linked ({self.service.client_ip})")
+            else:
+                self.button_link.setStyleSheet(qt.STYLE_BUTTON_ACTIVE)
+                self.button_link.setText("Linked (Local)")
+            self.label_header.setText(f"Connected to {link_service.remote_app} {link_service.remote_version} ({link_service.remote_addon})")
             self.label_folder.setText(f"{self.get_remote_folder()}")
         elif self.is_listening():
-            self.textbox_host.setEnabled(False)
+            my_hostname = get_hostname()
+            my_ip = get_ip()
             self.button_link.setStyleSheet(qt.STYLE_BUTTON_WAITING)
-            self.button_link.setText("Listening ...")
+            self.button_link.setText(f"Listening on {my_hostname} ({my_ip}) ...")
             self.label_header.setText("Waiting for Connection")
             self.label_folder.setText(f"None")
         else:
-            self.textbox_host.setEnabled(True)
             self.button_link.setStyleSheet(qt.STYLE_BUTTON)
             if SERVER_ONLY:
                 self.button_link.setText("Start Server")
@@ -1892,32 +1963,38 @@ class DataLink(QObject):
         self.update_ui()
 
     def is_connected(self):
-        if self.service:
-            return self.service.is_connected
+        link_service = self.get_link_service()
+        if link_service:
+            return link_service.is_connected
         else:
             return False
 
     def is_listening(self):
-        if self.service:
-            return self.service.is_listening
+        link_service = self.get_link_service()
+        if link_service:
+            return link_service.is_listening
         else:
             return False
 
     def link_start(self):
-        if not self.service:
-            self.service = LinkService()
-            self.service.changed.connect(self.show_link_state)
-            self.service.received.connect(self.parse)
-            self.service.connected.connect(self.on_connected)
-        self.service.service_start(self.host_ip, self.host_port)
+        link_service = self.get_link_service()
+        if not link_service:
+            link_service = LinkService()
+            link_service.changed.connect(self.show_link_state)
+            link_service.received.connect(self.parse)
+            link_service.connected.connect(self.on_connected)
+            self.service = link_service
+        link_service.service_start(self.host_ip, self.host_port)
 
     def link_stop(self):
-        if self.service:
-            self.service.service_stop()
+        link_service = self.get_link_service()
+        if link_service:
+            link_service.service_stop()
 
     def link_disconnect(self):
-        if self.service:
-            self.service.service_disconnect()
+        link_service = self.get_link_service()
+        if link_service:
+            link_service.service_disconnect()
 
     def parse(self, op_code, data):
 
@@ -1971,25 +2048,32 @@ class DataLink(QObject):
         self.send_notify("Connected")
 
     def send(self, op_code, data=None):
+        link_service = self.get_link_service()
         if self.is_connected():
-            self.service.send(op_code, data)
+            link_service.send(op_code, data)
 
     def is_sequence_running(self):
-        return self.data.sequence_active and self.service.is_sequence
+        link_service = self.get_link_service()
+        if link_service:
+            return self.data.sequence_active and link_service.is_sequence
+        return False
 
     def start_sequence(self, func=None):
+        link_service = self.get_link_service()
         if self.is_connected():
             self.data.sequence_active = True
-            self.service.start_sequence(func=func)
+            link_service.start_sequence(func=func)
 
     def stop_sequence(self):
+        link_service = self.get_link_service()
         if self.is_connected():
             self.data.sequence_active = False
-            self.service.stop_sequence()
+            link_service.stop_sequence()
 
     def update_sequence(self, rate, count, delta_frames):
+        link_service = self.get_link_service()
         if self.is_connected():
-            self.service.update_sequence(rate, count, delta_frames)
+            link_service.update_sequence(rate, count, delta_frames)
 
     def send_notify(self, message):
         notify_json = { "message": message }
@@ -2008,10 +2092,29 @@ class DataLink(QObject):
             debug_json = decode_to_json(data)
         debug(debug_json)
 
+    def is_remote(self):
+        link_service = self.get_link_service()
+        if link_service:
+            return link_service.is_remote()
+        return False
+
+    def is_local(self):
+        link_service = self.get_link_service()
+        if link_service:
+            return link_service.is_local()
+        return True
+
+    def get_link_service(self) -> LinkService:
+        return self.service
+
+    def send_save(self):
+        self.send(OpCodes.SAVE)
+
     def get_remote_folder(self):
-        if self.service:
-            remote_path = self.service.remote_path
-            local_path = self.service.local_path
+        link_service = self.get_link_service()
+        if link_service:
+            remote_path = link_service.remote_path
+            local_path = link_service.local_path
             if remote_path:
                 export_folder = remote_path
             else:
@@ -2020,35 +2123,81 @@ class DataLink(QObject):
         else:
             return ""
 
-    def get_export_path(self, folder_name, file_name, unique=True):
-        if self.service:
-            if self.service.remote_path:
-                export_folder = utils.make_sub_folder(self.service.remote_path, "imports")
-                if not export_folder:
-                    qt.message_box("Path Error", f"Unable to create remote export path: {self.service.remote_path}\\imports")
-            else:
-                export_folder = utils.make_sub_folder(self.service.local_path, "imports")
-                if not export_folder:
-                    qt.message_box("Path Error", f"Unable to create local export path:\n"
-                                                 f"      {self.service.local_path}\\imports\n\n"
-                                                  "Please check DataLink folder path.")
-                    prefs.get_preferences().show()
+    def get_export_folder(self):
+        export_folder = None
+        try:
+            link_service = self.get_link_service()
+            if link_service:
+                if self.is_remote() and link_service.remote_path:
+                    temp_path = cc.temp_files_path("Blender DataLink", create=True)
+                    export_folder = utils.make_sub_folder(temp_path, "exports")
+                    if not export_folder:
+                        qt.message_box("Path Error", f"Unable to create temp export path: {temp_path}\\exports")
+                else:
+                    if link_service.remote_path:
+                        export_folder = utils.make_sub_folder(link_service.remote_path, "imports")
+                        if not export_folder:
+                            qt.message_box("Path Error", f"Unable to create remote export path: {link_service.remote_path}\\imports")
+                    else:
+                        export_folder = utils.make_sub_folder(link_service.local_path, "imports")
+                        if not export_folder:
+                            qt.message_box("Path Error", f"Unable to create local export path:\n"
+                                                        f"      {link_service.local_path}\\imports\n\n"
+                                                        "Please check DataLink folder path.")
+                            prefs.get_preferences().show()
+        except:
+            export_folder = None
+        return export_folder
 
-            if not export_folder:
-                return ""
-
-            if unique:
-                character_export_folder = utils.get_unique_folder_path(export_folder, folder_name, create=True)
-            else:
-                character_export_folder = os.path.join(export_folder, folder_name)
-                if not os.path.exists(character_export_folder):
+    def get_actor_export_folder(self, folder_name, unique=True):
+        character_export_folder = None
+        export_folder = self.get_export_folder()
+        try:
+            if export_folder:
+                if unique:
+                    character_export_folder = utils.get_unique_folder_path(export_folder, folder_name, create=True)
+                else:
+                    character_export_folder = os.path.join(export_folder, folder_name)
                     os.makedirs(character_export_folder, exist_ok=True)
-            export_path = os.path.join(character_export_folder, file_name)
-            return export_path
-        return ""
+        except:
+            character_export_folder = None
+        return character_export_folder
 
-    def send_save(self):
-        self.send(OpCodes.SAVE)
+    def get_export_path(self, folder_name, file_name, unique=True):
+        export_path = None
+        character_export_folder = self.get_actor_export_folder(folder_name, unique=unique)
+        try:
+            if character_export_folder:
+                export_path = os.path.join(character_export_folder, file_name)
+        except:
+            export_path = None
+        return export_path
+
+    def send_remote_files(self, export_folder):
+        link_service = self.get_link_service()
+        remote_id = ""
+        if link_service.is_remote():
+            parent_folder = os.path.dirname(export_folder)
+            remote_id = str(time.time_ns())
+            cwd = os.getcwd()
+            tar_file_name = remote_id
+            os.chdir(parent_folder)
+            utils.log_info(f"Packing Remote files: {tar_file_name}")
+            self.update_link_status("Packing Remote files", True)
+            shutil.make_archive(tar_file_name, "tar", export_folder)
+            os.chdir(cwd)
+            tar_file_path = os.path.join(parent_folder, f"{tar_file_name}.tar")
+            if os.path.exists(tar_file_path):
+                self.update_link_status("Sending Remote files", True)
+                link_service.send_file(remote_id, tar_file_path)
+                self.update_link_status("Files Sent", True)
+            if os.path.exists(tar_file_path):
+                utils.log_info(f"Cleaning up remote export package: {tar_file_path}")
+                os.remove(tar_file_path)
+            if os.path.exists(export_folder):
+                utils.log_info(f"Cleaning up remote export folder: {export_folder}")
+                shutil.rmtree(export_folder)
+        return remote_id
 
     def get_selected_actors(self, of_types=None):
         selected = RScene.GetSelectedObjects()
@@ -2098,19 +2247,25 @@ class DataLink(QObject):
         """
         TODO: Send sub object link id's?
         """
-        self.update_link_status(f"Sending Avatar for Import: {actor.name}")
-        self.send_notify(f"Exporting: {actor.name}")
-        export_path = self.get_export_path(actor.name, actor.name + ".fbx")
+        self.update_link_status(f"Exporting Avatar: {actor.name}", True)
+        self.send_notify(f"Exporting Avatar: {actor.name}")
+        # Determine export path
+        export_folder = self.get_actor_export_folder(actor.name)
+        export_file = actor.name + ".fbx"
+        export_path = os.path.join(export_folder, export_file)
         if not export_path: return
-        utils.log_info(f"Exporting Character: {export_path}")
+        utils.log_info(f"Export Path: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export()
         export.do_export(file_path=export_path)
-        time.sleep(0.5)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send Avartar
         self.send_notify(f"Avatar Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
+            "remote_id": remote_id,
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
@@ -2119,18 +2274,27 @@ class DataLink(QObject):
             "set_keyframes": self.set_keyframes,
         })
         self.send(OpCodes.CHARACTER, export_data)
+        self.update_link_status(f"Avatar Sent: {actor.name}")
 
     def send_prop(self, actor: LinkActor):
-        self.update_link_status(f"Sending Prop for Import: {actor.name}")
-        self.send_notify(f"Exporting: {actor.name}")
-        export_path = self.get_export_path(actor.name, actor.name + ".fbx")
+        self.update_link_status(f"Exporting Prop: {actor.name}", True)
+        self.send_notify(f"Exporting Prop: {actor.name}")
+        # Determine export path
+        export_folder = self.get_actor_export_folder(actor.name)
+        export_file = actor.name + ".fbx"
+        export_path = os.path.join(export_folder, export_file)
         if not export_path: return
+        utils.log_info(f"Export Path: {export_path}")
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export()
         export.do_export(file_path=export_path)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send Prop
         self.send_notify(f"Prop Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
+            "remote_id": remote_id,
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
@@ -2139,6 +2303,7 @@ class DataLink(QObject):
             "set_keyframes": self.set_keyframes,
         })
         self.send(OpCodes.PROP, export_data)
+        self.update_link_status(f"Prop Sent: {actor.name}")
 
 
     def send_light(self, actor: LinkActor):
@@ -2211,14 +2376,24 @@ class DataLink(QObject):
             avatar = avatars[id]["avatar"]
             actor = LinkActor(avatar)
             objects = [ cc.safe_export_name(o.GetName()) for o in avatars[id]["objects"] ]
-            export_path = self.get_export_path(actor.name + "_Update", actor.name + "_Update.fbx")
-            if not export_path: return
+            self.update_link_status(f"Exporting Update: {actor.name}", True)
+            self.send_notify(f"Exporting Update: {actor.name}")
+            # Determine export path
+            export_folder = self.get_actor_export_folder(actor.name + "_Update")
+            export_file = actor.name + "_Update.fbx"
+            export_path = os.path.join(export_folder, export_file)
+            if not export_path: continue
+            utils.log_info(f"Export Path: {export_path}")
             export = exporter.Exporter(actor.object, no_window=True)
             export.set_update_replace_export(full_avatar=not objects)
             export.do_export(file_path=export_path)
+            # Send Remote Files First
+            remote_id = self.send_remote_files(export_folder)
+            # Send Update/Replace
             self.send_notify(f"Update / Replace Import: {actor.name}")
             update_data = encode_from_json({
                 "path": export_path,
+                "remote_id": remote_id,
                 "name": actor.name,
                 "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
@@ -2226,22 +2401,28 @@ class DataLink(QObject):
                 "objects": objects,
             })
             self.send(OpCodes.UPDATE_REPLACE, update_data)
+            self.update_link_status(f"Update Sent: {actor.name}")
 
     def send_motion_export(self):
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
             motion_name = actor.name + "_motion"
-            self.update_link_status(f"Sending Animation: {motion_name}")
+            self.update_link_status(f"Exporting Motion: {motion_name}", True)
             self.send_notify(f"Exporting Motion: {motion_name}")
-            export_path = self.get_export_path(motion_name, motion_name + ".fbx")
+            # Determine export path
+            export_folder = self.get_actor_export_folder(motion_name)
+            export_file = motion_name + ".fbx"
+            export_path = os.path.join(export_folder, export_file)
             if not export_path: return
-            utils.log_info(f"Exporting Character: {export_path}")
+            utils.log_info(f"Export Path: {export_path}")
             #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
             export = exporter.Exporter(actor.object, no_window=True)
             export.set_datalink_motion_export()
             export.do_export(export_path)
-            time.sleep(0.5)
+            # Send Remote Files First
+            remote_id = self.send_remote_files(export_folder)
+            # Send Motion
             self.send_notify(f"Motion Import: {motion_name}")
             fps = get_fps()
             start_time: RTime = RGlobal.GetStartTime()
@@ -2252,6 +2433,7 @@ class DataLink(QObject):
             current_frame = fps.GetFrameIndex(current_time)
             export_data = encode_from_json({
                 "path": export_path,
+                "remote_id": remote_id,
                 "name": actor.name,
                 "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
@@ -2267,12 +2449,18 @@ class DataLink(QObject):
                 "set_keyframes": self.set_keyframes,
             })
             self.send(OpCodes.MOTION, export_data)
+            self.update_link_status(f"Motion Sent: {motion_name}")
 
     def send_avatar_morph(self, actor: LinkActor, update=False):
-        self.update_link_status(f"Sending Character for Morph: {actor.name}")
+        self.update_link_status(f"Exporting Morph: {actor.name}", True)
         self.send_notify(f"Exporting Morph: {actor.name}")
-        export_path = self.get_export_path(actor.name, actor.name + ".obj")
+        # Determine export path
+        export_folder = self.get_actor_export_folder(actor.name)
+        export_file = actor.name + ".obj"
+        export_path = os.path.join(export_folder, export_file)
         if not export_path: return
+        utils.log_info(f"Export Path: {export_path}")
+        # Export Morph Obj
         obj_options = (EExport3DFileOption_ResetToBindPose |
                        EExport3DFileOption_FullBodyPart |
                        EExport3DFileOption_AxisYUp |
@@ -2283,9 +2471,13 @@ class DataLink(QObject):
         if not update and prefs.EXPORT_MORPH_MATERIALS:
             obj_options |= EExport3DFileOption_ExportMaterial
         RFileIO.ExportObjFile(actor.object, export_path, obj_options)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send Morph
         self.send_notify(f"Morph Import: {actor.name}")
         export_data = encode_from_json({
             "path": export_path,
+            "remote_id": remote_id,
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
@@ -2294,6 +2486,7 @@ class DataLink(QObject):
             self.send(OpCodes.MORPH_UPDATE, export_data)
         else:
             self.send(OpCodes.MORPH, export_data)
+        self.update_link_status(f"Morph Sent: {actor.name}")
 
     def send_morph(self):
         actors = self.get_selected_actors()
@@ -2310,27 +2503,30 @@ class DataLink(QObject):
                 self.send_avatar_morph(actor, update=True)
 
     def send_morph_exported(self, avatar=None, obj_path=None):
-        """Send a pre-exported avatar obj through the DataLink"""
+        """Send a pre-exported avatar obj through the DataLink (Go-Morph, Local Only)"""
 
         actor = LinkActor(avatar)
-        self.update_link_status(f"Sending Character for Morph: {actor.name}")
+        self.update_link_status(f"Exporting Morph: {actor.name}", True)
         self.send_notify(f"Character Morph: {actor.name}")
         export_data = encode_from_json({
             "path": obj_path,
+            "remote_id": "",
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
         })
         self.send(OpCodes.MORPH, export_data)
+        self.update_link_status(f"Morph Sent: {actor.name}")
 
     def send_actor_exported(self, avatar=None, fbx_path=None, save_after_import=False):
-        """Send a pre-exported avatar/actor through the DataLink"""
+        """Send a pre-exported avatar/actor through the DataLink (Go-B, Local Only)"""
 
         actor = LinkActor(avatar)
-        self.update_link_status(f"Sending Character for Import: {actor.name}")
-        self.send_notify(f"Character Import: {actor.name}")
+        self.update_link_status(f"Exporting Avatar: {actor.name}", True)
+        self.send_notify(f"Exporting Avatar: {actor.name}")
         export_data = encode_from_json({
             "path": fbx_path,
+            "remote_id": "",
             "name": actor.name,
             "type": actor.get_type(),
             "link_id": actor.get_link_id(),
@@ -2340,12 +2536,13 @@ class DataLink(QObject):
             "save_after_import": save_after_import,
         })
         self.send(OpCodes.CHARACTER, export_data)
+        self.update_link_status(f"Avatar Sent: {actor.name}")
 
     def send_actor_update(self, actor, old_name, old_link_id):
         if not actor:
             actor = self.get_active_actor()
         if actor:
-            self.update_link_status(f"Updating Blender Character: {actor.name}")
+            self.update_link_status(f"Updating: {actor.name}", True)
             self.send_notify(f"Updating: {actor.name}")
             update_data = encode_from_json({
                 "old_name": old_name,
@@ -2355,13 +2552,14 @@ class DataLink(QObject):
                 "new_link_id": actor.get_link_id(),
             })
             self.send(OpCodes.CHARACTER_UPDATE, update_data)
+            self.update_link_status(f"Update Sent: {actor.name}")
 
     def send_rigify_request(self):
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
             if type(actor.object) is RIAvatar or type(actor.object) is RILightAvatar:
-                self.update_link_status(f"Requesting Rigify Character: {actor.name}")
+                self.update_link_status(f"Rigify: {actor.name}", True)
                 self.send_notify(f"Rigify: {actor.name}")
                 rigify_data = encode_from_json({
                     "name": actor.name,
@@ -2369,6 +2567,7 @@ class DataLink(QObject):
                     "link_id": actor.get_link_id(),
                 })
                 self.send(OpCodes.RIGIFY, rigify_data)
+                self.update_link_status(f"Rigify Sent: {actor.name}")
 
     def encode_light_data(self, actors: list):
         return
@@ -2658,8 +2857,13 @@ class DataLink(QObject):
         except:
             ambient_color = RRgb(0.2,0.2,0.2)
         if use_ibl:
-            export_path = self.get_export_path("Lighting Settings", "RL_Scene_HDRI.hdr", unique=False)
+            # Determine export path
+            export_folder = self.get_actor_export_folder("Lighting Settings", unique=False)
+            export_file = "RL_Scene_HDRI.hdr"
+            export_path = os.path.join(export_folder, export_file)
             if not export_path: return
+            utils.log_info(f"Export Path: {export_path}")
+            #
             if os.path.exists(export_path):
                 try:
                     os.remove(export_path)
@@ -2667,7 +2871,10 @@ class DataLink(QObject):
                     pass
             utils.log_info(f"Export HDRI: {export_path}")
             VSC.SaveIBLImage(export_path)
+            # Send Remote Files First
+            remote_id = self.send_remote_files(export_folder)
             lights_data["ibl_path"] = export_path
+            lights_data["ibl_remote_id"] = remote_id
             # TODO need API to get IBl strength (and blur)
             # ibl_strength = VSC.GetIBLStrength()
             # for now set to ambient color average
@@ -2821,6 +3028,7 @@ class DataLink(QObject):
             "set_keyframes": self.set_keyframes,
         }
         self.send(OpCodes.FRAME_SYNC, encode_from_json(frame_data))
+        self.update_link_status(f"Frame Sync Sent")
 
     def receive_frame_sync(self, data):
         self.update_link_status(f"Frame Sync Receveived")
@@ -2845,7 +3053,8 @@ class DataLink(QObject):
         # get actors
         actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
         if actors:
-            self.update_link_status(f"Sending Current Pose Set")
+            self.update_link_status(f"Sending Pose Set")
+            utils.log_info(f"Sending Pose Set")
             self.send_notify(f"Pose Set")
             # send pose info
             pose_data = self.encode_pose_data(actors)
@@ -2876,7 +3085,7 @@ class DataLink(QObject):
         self.data.stored_selection = RScene.GetSelectedObjects()
         RScene.ClearSelectObjects()
         if actors:
-            self.update_link_status(f"Sending Animation Sequence")
+            self.update_link_status(f"Sending Sequence", True)
             self.send_notify(f"Animation Sequence")
             # reset animation to start
             if self.set_keyframes:
@@ -3158,10 +3367,11 @@ class DataLink(QObject):
         self.send_sequence_ack(frame)
 
     def send_sequence_ack(self, frame):
+        link_service = self.get_link_service()
         # encode sequence ack
         data = encode_from_json({
             "frame": frame,
-            "rate": self.service.loop_rate,
+            "rate": link_service.loop_rate,
         })
         # send sequence ack
         self.send(OpCodes.SEQUENCE_ACK, data)
@@ -3227,24 +3437,47 @@ class DataLink(QObject):
     def receive_character_import(self,data):
         json_data = decode_to_json(data)
         fbx_path = json_data["path"]
+        remote_id = json_data.get("remote_id")
+        fbx_path = self.get_remote_file(remote_id, fbx_path)
         name = json_data["name"]
         character_type = json_data["type"]
         link_id = json_data["link_id"]
-        self.update_link_status(f"Receving Character Import: {name}")
+        self.update_link_status(f"Receving Character Import: {name}", True)
         if os.path.exists(fbx_path):
             imp = importer.Importer(fbx_path, no_window=True)
             imp.set_datalink_import()
             imported_objects = imp.import_fbx()
             if imported_objects:
-                self.update_link_status(f"Character Imported: {name}")
+                self.update_link_status(f"Character Imported: {name}", True)
                 utils.log_info(f"Looking for imported Actor: {link_id} / {name} / {character_type}")
                 actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
                 if actor and (actor.get_link_id() != link_id or actor.name != name):
                     # sometimes CC or Blender will change the name or link_id, so let Blender know of the change
                     utils.log_info(f"Imported Actor has different ID: {link_id} != {actor.get_link_id()} or {name} != {actor.name} / {character_type}")
                     # now tell Blender of the new avatar ID
-                    self.update_link_status(f"Updating Blender: {actor.name}")
+                    self.update_link_status(f"Updating Blender: {actor.name}", True)
                     self.send_actor_update(actor, name, link_id)
+            self.clean_up_remote_file(remote_id)
+
+    def get_remote_file(self, remote_id, source_path):
+        link_service = self.get_link_service()
+        if link_service and remote_id:
+            remote_files_folder = link_service.get_unpacked_tar_file_folder(remote_id)
+            source_folder, source_file = os.path.split(source_path)
+            source_path = os.path.join(remote_files_folder, source_file)
+        return source_path
+
+    def clean_up_remote_file(self, remote_id):
+        link_service = self.get_link_service()
+        if link_service and remote_id:
+            remote_tar_file = link_service.get_remote_tar_file_path(remote_id)
+            remote_files_folder = link_service.get_unpacked_tar_file_folder(remote_id)
+            if os.path.exists(remote_tar_file):
+                utils.log_info(f"Cleaning up remote file package: {remote_tar_file}")
+                os.remove(remote_tar_file)
+            if os.path.exists(remote_files_folder):
+                utils.log_info(f"Cleaning up remote file folder: {remote_files_folder}")
+                shutil.rmtree(remote_files_folder)
 
     def receive_morph(self, data):
         json_data = decode_to_json(data)
@@ -3339,3 +3572,21 @@ def test():
     utils.log_always("TEST")
     utils.log_always("====")
     tests.test()
+
+
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(0)
+    try:
+        # doesn't even have to be reachable
+        s.connect(("10.254.254.254", 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = "127.0.0.1"
+    finally:
+        s.close()
+    return IP
+
+
+def get_hostname():
+    return socket.gethostname()
