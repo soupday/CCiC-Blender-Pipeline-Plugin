@@ -3483,6 +3483,9 @@ class DataLink(QObject):
         json_data = decode_to_json(data)
         obj_path = json_data["path"]
         key_path = json_data["key_path"]
+        remote_id = json_data.get("remote_id")
+        obj_path = self.get_remote_file(remote_id, obj_path)
+        key_path = self.get_remote_file(remote_id, key_path)
         name = json_data["name"]
         character_type = json_data["type"]
         link_id = json_data["link_id"]
@@ -3492,6 +3495,13 @@ class DataLink(QObject):
         if actor:
             avatar: RIAvatar = actor.object
         morph_slider = morph.MorphSlider(obj_path, key_path)
+        # deal with remote files after morph slider finishes
+        link_service = self.get_link_service()
+        if link_service and remote_id:
+            remote_tar_file = link_service.get_remote_tar_file_path(remote_id)
+            remote_files_folder = link_service.get_unpacked_tar_file_folder(remote_id)
+            morph_slider.add_clean_up(remote_tar_file)
+            morph_slider.add_clean_up(remote_files_folder)
 
     def receive_replace_mesh(self, data):
         json_data = decode_to_json(data)
