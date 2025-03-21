@@ -1,5 +1,5 @@
 # Copyright (C) 2023 Victor Soupday
-# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CC/iC-Blender-Pipeline-Plugin>
+# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CCiC-Blender-Pipeline-Plugin>
 #
 # CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

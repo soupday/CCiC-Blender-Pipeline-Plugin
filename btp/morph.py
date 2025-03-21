@@ -1,5 +1,5 @@
 # Copyright (C) 2023 Victor Soupday
-# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CC/iC-Blender-Pipeline-Plugin>
+# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CCiC-Blender-Pipeline-Plugin>
 #
 # CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os, socket, select, struct, time, json, random, atexit
+import os, shutil, socket, select, struct, time, json, random, atexit
 from . import blender, importer, exporter, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 
@@ -61,6 +61,7 @@ class MorphSlider(QObject):
     adjust_bones = True
     morph_min_value = 0
     morph_max_value = 100
+    clean_up: list = None
 
 
     def __init__(self, target_path, key_path):
@@ -230,6 +231,22 @@ class MorphSlider(QObject):
             return
         self.auto_apply = self.checkbox_auto_apply.isChecked()
 
+    def add_clean_up(self, file_or_dir):
+        if self.clean_up is None:
+            self.clean_up = []
+        self.clean_up.append(file_or_dir)
+
+    def clean_up_files(self):
+        if self.clean_up:
+            for f in self.clean_up:
+                if os.path.exists(f):
+                    if os.path.isdir(f):
+                        utils.log_info(f"Cleaning up folder: {f}")
+                        shutil.rmtree(f)
+                    else:
+                        utils.log_info(f"Cleaning up file: {f}")
+                        os.remove(f)
+
     def check_morph_name(self, name):
         avatar = cc.get_first_avatar()
         ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
@@ -279,6 +296,7 @@ class MorphSlider(QObject):
                     ASC.SetShapingMorphWeight(morph_id, min_max[1])
                     avatar.Update()
 
+        self.clean_up_files()
         self.window.Close()
 
 

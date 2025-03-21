@@ -1,5 +1,5 @@
 # Copyright (C) 2023 Victor Soupday
-# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CC/iC-Blender-Pipeline-Plugin>
+# This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CCiC-Blender-Pipeline-Plugin>
 #
 # CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,6 +41,7 @@ STYLE_BLENDER_TOGGLE = """QPushButton { border: 1px solid #505050; }
                           """
 STYLE_BUTTON_WAITING = "background-color: #505050; color: white; font: bold"
 STYLE_BUTTON_ACTIVE = "background-color: #82be0f; color: black; font: bold"
+STYLE_BUTTON_ACTIVE_ALT = "background-color: #dfdf12; color: black; font: bold"
 STYLE_BUTTON_BOLD = "color: white; font: bold 14px"
 STYLE_RL_DESC = "color: #d2ff7b; font: italic 13px"
 STYLE_RL_TITLEBAR = "background-color: #82be0f; color: black; font: bold"
@@ -236,6 +237,26 @@ def get_icon(file_name):
     return QIcon(icon_path)
 
 
+def get_pixmap(file_name):
+    pixmap_path = utils.get_resource_path("icons", file_name)
+    return QPixmap(pixmap_path)
+
+
+def add_toolbar_label(toolbar: QToolBar, icon=None, text=None):
+    if text:
+        l = QLabel()
+        l.setText(text)
+        toolbar.addWidget(l)
+    if icon:
+        if type(icon) is str:
+            pixmap = get_pixmap(utils.get_resource_path("icons", icon))
+        else:
+            pixmap = icon.pixmap(QSize(16, 16))
+        l = QLabel()
+        l.setPixmap(pixmap)
+        toolbar.addWidget(l)
+
+
 def add_toolbar_action(toolbar: QToolBar, icon, text, action=None, toggle=False):
     icon_path = utils.get_resource_path("icons", "BlenderLogo.png")
     if text:
@@ -265,7 +286,7 @@ class QLabelClickable(QLabel):
 def label(layout: QLayout, text, style = STYLE_NONE,
           row=-1, col=-1, row_span=1, col_span=1,
           align=None, wrap=False, dblclick = None, no_size=False,
-          width=-1):
+          width=-1, height=-1):
 
     w = QLabelClickable()
     w.setText(text)
@@ -284,6 +305,8 @@ def label(layout: QLayout, text, style = STYLE_NONE,
         w.setWordWrap(True)
     if width >= 0:
         w.setFixedWidth(width)
+    if height >= 0:
+        w.setFixedHeight(height)
     if dblclick:
         w.clicked.connect(dblclick)
     return w
@@ -363,6 +386,43 @@ def column(layout):
     l = QVBoxLayout()
     layout.addLayout(l)
     return l
+
+
+TAB_STYLE = """
+QTabWidget::pane {
+    border: 1px solid #505050;
+}
+
+QTabWidget::tab-bar {
+}
+
+QTabBar::tab {
+    border: 1px solid #373737;
+    height: 24px;
+    min-height: 24px;
+    min-width: 44px;
+    padding: 6px 12px 6px 12px;
+}
+
+QTabBar::tab:selected {
+    border: 1px solid #a0a0a0;
+}
+"""
+
+
+def tab(layout):
+    t = QTabWidget()
+    t.setStyleSheet(TAB_STYLE)
+    layout.addWidget(t)
+    return t
+
+
+def page(tab_widget: QTabWidget, name: str):
+    p = QWidget()
+    tab_widget.addTab(p, name)
+    layout = QVBoxLayout()
+    p.setLayout(layout)
+    return layout
 
 
 def checkbox(layout: QLayout, label, checked, style = STYLE_NONE,
@@ -496,6 +556,289 @@ def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_onl
     return w
 
 
+class DComboBox(QWidget):
+    combo: QComboBox = None
+    obj = None
+    prop = None
+    default_value = None
+    valueChanged = Signal()
+    no_update: bool = False
+    options: list = None
+
+    def __init__(self, layout: QLayout, obj, prop, value, options: list,
+                       row=-1, col=-1, row_span=1, col_span=1, style="",
+                       update=None):
+        super().__init__()
+        self.obj = obj
+        self.prop = prop
+        value = self.get_value()
+        self.default_value = value
+        self.options = options
+
+        self.combo = QComboBox()
+        self.combo.setStyleSheet(style)
+        if row >= 0 and col >= 0:
+            layout.addWidget(self.combo, row, col, row_span, col_span)
+        else:
+            layout.addWidget(self.combo)
+        if options:
+            for i, option in enumerate(options):
+                if type(option) is list:
+                    self.combo.addItem(option[1])
+                else:
+                    self.combo.addItem(option)
+                    if value == option:
+                        self.combo.setCurrentIndex(i)
+        if update:
+            value.valueChanged.connect(update)
+        self.combo.currentIndexChanged.connect(self.combo_value_changed)
+
+    def update_value(self):
+        value = self.get_value()
+        us = self.no_update
+        self.no_update = True
+        for i, option in enumerate(self.options):
+            if type(option) is list:
+                if value == option[0]:
+                    self.combo.setCurrentIndex(i)
+            else:
+                if value == option:
+                    self.combo.setCurrentIndex(i)
+        self.no_update = us
+
+    def set_value(self, value: float):
+        setattr(self.obj, self.prop, value)
+        us = self.no_update
+        self.no_update = True
+        for i, option in enumerate(self.options):
+            if type(option) is list:
+                if value == option[1]:
+                    self.combo.setCurrentIndex(i)
+            else:
+                if value == option:
+                    self.combo.setCurrentIndex(i)
+        self.no_update = us
+
+    def get_value(self):
+        value = None
+        if self.obj and self.prop:
+            if hasattr(self.obj, self.prop):
+                value = getattr(self.obj, self.prop)
+            else:
+                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+        return value
+
+    def combo_value_changed(self):
+        if not self.no_update:
+            self.no_update = True
+            index = self.combo.currentIndex()
+            option = self.options[index]
+            if type(option) is list:
+                value = option[0]
+            else:
+                value = option
+            setattr(self.obj, self.prop, value)
+            self.valueChanged.emit()
+            self.no_update = False
+
+
+class DFQSliderSpin(QWidget):
+    spinbox: QSpinBox = None
+    label: QLabel = None
+    slider: QSlider = None
+    obj = None
+    prop = None
+    scale: float = 100
+    min: float = 0
+    max: float = 1
+    step: float = 0.01
+    default_value: int = 0
+    clicked = Signal()
+    valueChanged = Signal()
+    no_update: bool = False
+
+    def __init__(self, layout: QLayout, label, obj, prop, min, max, step, scale=100,
+                 readOnly=False, row=-1, col=-1, skip=0, label_style="", slider_style="", spinbox_style="",
+                 update=None, clicked=None):
+        super().__init__()
+        self.obj = obj
+        self.prop = prop
+        self.scale = scale
+        self.min = min
+        self.max = max
+        self.step = step
+        value = self.get_value()
+        self.default_value = value
+        min *= scale
+        max *= scale
+        step *= scale
+        value *= self.scale
+        #
+        self.label = QLabelClickable()
+        self.label.setText(label)
+        self.label.setStyleSheet(label_style)
+        #
+        self.slider = QSlider(HORIZONTAL)
+        self.slider.setRange(min, max)
+        self.slider.setSingleStep(step)
+        self.slider.setStyleSheet(slider_style)
+        self.slider.setValue(value)
+        #
+        self.spinbox = QSpinBox(readOnly=readOnly)
+        self.spinbox.setRange(min, max)
+        self.spinbox.setValue(value)
+        self.spinbox.setSingleStep(step)
+        self.spinbox.setStyleSheet(spinbox_style)
+        #
+        if row >= 0 and col >= 0:
+            layout.addWidget(self.label, row, col)
+            col += 1 + skip
+            layout.addWidget(self.slider, row, col)
+            col += 1 + skip
+            layout.addWidget(self.spinbox, row, col)
+        else:
+            layout.addWidget(self.label)
+            layout.addWidget(self.slider)
+            layout.addWidget(self.spinbox)
+        #
+        if update:
+            self.valueChanged.connect(update)
+        if clicked:
+            self.clicked.connect(clicked)
+        self.label.clicked.connect(self.label_clicked)
+        self.slider.valueChanged.connect(self.slider_value_changed)
+        self.spinbox.valueChanged.connect(self.spinbox_value_changed)
+
+    def update_value(self):
+        value = self.get_value()
+        scaled = value * self.scale
+        us = self.no_update
+        self.no_update = True
+        self.slider.setValue(scaled)
+        self.spinbox.setValue(scaled)
+        self.no_update = us
+
+    def set_value(self, value: float):
+        setattr(self.obj, self.prop, value)
+        scaled = value * self.scale
+        us = self.no_update
+        self.no_update = True
+        self.slider.setValue(scaled)
+        self.spinbox.setValue(scaled)
+        self.no_update = us
+
+    def get_value(self):
+        value = None
+        if self.obj and self.prop:
+            if hasattr(self.obj, self.prop):
+                value = getattr(self.obj, self.prop)
+            else:
+                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+        return value
+
+    def label_clicked(self):
+        self.set_value(self.default_value)
+        self.clicked.emit()
+
+    def spinbox_value_changed(self):
+        if not self.no_update:
+            self.no_update = True
+            value = self.spinbox.value()
+            descaled = value / self.scale
+            self.slider.setValue(value)
+            setattr(self.obj, self.prop, descaled)
+            self.valueChanged.emit()
+            self.no_update = False
+
+    def slider_value_changed(self):
+        if not self.no_update:
+            self.no_update = True
+            value = self.slider.value()
+            descaled = value / self.scale
+            self.spinbox.setValue(value)
+            setattr(self.obj, self.prop, descaled)
+            self.valueChanged.emit()
+            self.no_update = False
+
+
+class DColorPicker(QWidget):
+    button: QPushButton = None
+    label: QLabel = None
+    obj = None
+    prop = None
+    default_color = QColor(255,255,255)
+    valueChanged = Signal()
+
+    def __init__(self, layout, label, obj, prop, text="", width=0, height=0,
+                 row=-1, col=-1, skip=0, update=None, label_style="", tooltip=""):
+        super().__init__()
+        self.obj = obj
+        self.prop = prop
+        color = self.get_color()
+        self.default_color = color
+        self.button = QPushButton(text, minimumHeight=height, minimumWidth=width)
+        self.button.setStyleSheet(f"background-color: {color.name()}")
+        if tooltip:
+            self.button.setToolTip(tooltip)
+        if label:
+            self.label = QLabelClickable()
+            self.label.setText(label)
+            self.label.setStyleSheet(label_style)
+        if width:
+            self.button.setFixedWidth(width)
+        if height:
+            self.button.setFixedHeight(height)
+        if row >= 0 and col >= 0:
+            if label:
+                layout.addWidget(self.label, row, col)
+                col += 1 + skip
+            layout.addWidget(self.button, row, col)
+        else:
+            if label:
+                layout.addWidget(self.label)
+            layout.addWidget(self.button)
+        if update:
+            self.valueChanged.connect(update)
+        #
+        self.button.clicked.connect(self.button_clicked)
+        if label:
+            self.label.clicked.connect(self.label_clicked)
+        print("DONE")
+
+    def update_color(self):
+        color = self.get_color()
+        self.button.setStyleSheet(f"background-color: {color.name()}")
+
+    def get_color(self):
+        color = None
+        if self.obj and self.prop:
+            if hasattr(self.obj, self.prop):
+                color = getattr(self.obj, self.prop)
+            else:
+                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+        return color
+
+    def set_color(self, color):
+        if self.obj and self.prop:
+            setattr(self.obj, self.prop, color)
+            self.button.setStyleSheet(f"background-color: {color.name()}")
+
+    def label_clicked(self):
+        print("LABEL CLICKED")
+        self.set_color(self.default_color)
+
+    def button_clicked(self):
+        print("BUTTON CLICKED")
+        color = self.get_color()
+        color: QColor = QColorDialog.getColor(initial=color)
+        if color.isValid():
+            self.set_color(color)
+            self.valueChanged.emit()
+
+
+
+
+
 def button(layout: QLayout, text, func=None, icon = None, style="",
            width=0, height=BUTTON_HEIGHT, row=-1, col=-1, row_span=1, col_span=1, icon_size=0,
            align=None, toggle=False, value=False, fixed=False, tooltip=None):
@@ -595,6 +938,30 @@ def icon_button(layout: QLayout, text, func=None, icon = None,
     if func:
         w.clicked.connect(func)
     return w
+
+
+def color_button(layout: QLayout, text, color: QColor, func=None,
+                 width=0, height=BUTTON_HEIGHT, row=-1, col=-1, row_span=1, col_span=1, icon_size=0,
+                 fixed=False):
+
+    w = QPushButton(text, minimumHeight=height, minimumWidth=width)
+    w.setStyleSheet(f"background-color: {color.name()}")
+    if fixed:
+        if width:
+            w.setFixedWidth(width)
+        if height:
+            w.setFixedHeight(height)
+    if row >= 0 and col >= 0:
+        layout.addWidget(w, row, col, row_span, col_span)
+    else:
+        layout.addWidget(w)
+    if func:
+        w.clicked.connect(func)
+    return w
+
+
+def set_button_color(w: QPushButton, color: QColor):
+    w.setStyleSheet(f"background-color: {color.name()}")
 
 
 def slider(layout: QLayout, min, max, step, value, style = STYLE_NONE,
@@ -707,6 +1074,48 @@ def wait(t, force = False):
             time.sleep(0.025)
             QApplication.processEvents()
             total += 0.025
+
+
+def array_to_color(c: list):
+    return QColor(int(max(min(c[0]*256, 255),0)),
+                  int(max(min(c[1]*256, 255),0)),
+                  int(max(min(c[2]*256, 255),0)),
+                  255)
+
+
+def calc_target_color(color: QColor, target: QColor):
+    cr = color.redF()
+    cg = color.greenF()
+    cb = color.blueF()
+    tr = target.redF()
+    tg = target.greenF()
+    tb = target.blueF()
+    brightness = max(tr/cr, tg/cg, tb/cb)
+    cr *= brightness
+    cg *= brightness
+    cb *= brightness
+    tint = QColor.fromRgbF(tr/cr, tg/cg, tb/cb)
+    return tint, brightness
+
+
+def calc_target_intensity(color: QColor, target: QColor):
+    c = (color.redF() + color.greenF() + color.blueF()) / 3
+    t = (target.redF() + target.greenF() + target.blueF()) / 3
+    brightness = t / c
+    return brightness
+
+
+def color_to_array(c: QColor):
+    if type(c) is str:
+        c = QColor(c)
+    return [c.redF(), c.greenF(), c.blueF()]
+
+
+def linear_to_srgb(c: QColor):
+    return QColor(int(max(min(utils.linear_to_srgbx(c.redF())*256, 255),0)),
+                  int(max(min(utils.linear_to_srgbx(c.greenF())*256, 255),0)),
+                  int(max(min(utils.linear_to_srgbx(c.blueF())*256, 255),0)),
+                  255)
 
 
 def message_box(title, msg):
