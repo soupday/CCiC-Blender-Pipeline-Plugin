@@ -591,7 +591,7 @@ class DComboBox(QWidget):
                         self.combo.setCurrentIndex(i)
         if update:
             value.valueChanged.connect(update)
-        self.combo.currentTextChanged.conenct(self.combo_value_changed)
+        self.combo.currentIndexChanged.connect(self.combo_value_changed)
 
     def update_value(self):
         value = self.get_value()
