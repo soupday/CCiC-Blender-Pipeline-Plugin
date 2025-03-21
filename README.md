@@ -71,8 +71,8 @@ Known Issues
 Changelog
 =========
 
-### 2.2.5 (In Progress)
-- Added selection box for available Blender versions to Go-B to.
+### 2.2.5
+- Remote file transfer over datalink, to and from Blender on remote machine.
 
 ### 2.2.4
 - Set keyframes option, when toggled off Send Pose and Sequence will not create an action or set any keyframes.
