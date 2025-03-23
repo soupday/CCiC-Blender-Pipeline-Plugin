@@ -1178,7 +1178,12 @@ class LinkService(QObject):
 
     def accept(self):
         if self.server_sock and self.is_listening:
-            r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
+            try:
+                r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
+            except Exception as e:
+                utils.log_error("Server socket accept:select failed!", e)
+                self.service_lost()
+                return
             while r:
                 try:
                     sock, address = self.server_sock.accept()
@@ -1201,7 +1206,12 @@ class LinkService(QObject):
                 self.send_hello()
                 self.accepted.emit(self.client_ip, self.client_port)
                 self.changed.emit()
-                r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
+                try:
+                    r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
+                except Exception as e:
+                    utils.log_error("Server socket accept:select failed!", e)
+                    self.service_lost()
+                    return
 
     def parse(self, op_code, data):
         self.keepalive_timer = KEEPALIVE_TIMEOUT_S
@@ -1238,8 +1248,11 @@ class LinkService(QObject):
         parent_path = os.path.dirname(tar_file_path)
         unpack_folder = utils.make_sub_folder(parent_path, remote_id)
         utils.log_info(f"Receive Remote Files: {remote_id} / {unpack_folder}")
-        shutil.unpack_archive(tar_file_path, unpack_folder, "tar")
-        os.remove(tar_file_path)
+        if os.path.exists(tar_file_path):
+            shutil.unpack_archive(tar_file_path, unpack_folder, "tar")
+            os.remove(tar_file_path)
+        else:
+            utils.log_error(f"Receiving Remote Files: {tar_file_path}")
 
     def service_start(self, host, port):
         if not self.is_listening:
@@ -1896,11 +1909,12 @@ class DataLink(QObject):
 
         return
 
-    def update_link_status(self, text, events=False):
+    def update_link_status(self, text, events=False, log=True):
         self.label_status.setText(text)
+        if log:
+            utils.log_info(text)
         if events:
             qt.do_events()
-        #utils.log_info(text)
 
     def update_version(self):
         if self.combobox_version:
@@ -2183,7 +2197,7 @@ class DataLink(QObject):
             tar_file_name = remote_id
             os.chdir(parent_folder)
             utils.log_info(f"Packing Remote files: {tar_file_name}")
-            self.update_link_status("Packing Remote files", True)
+            self.update_link_status("Packing Remote files", True, log=False)
             shutil.make_archive(tar_file_name, "tar", export_folder)
             os.chdir(cwd)
             tar_file_path = os.path.join(parent_folder, f"{tar_file_name}.tar")
@@ -2256,6 +2270,7 @@ class DataLink(QObject):
         if not export_path: return
         utils.log_info(f"Export Path: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
+        # Export Avatar
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export()
         export.do_export(file_path=export_path)
@@ -2285,6 +2300,7 @@ class DataLink(QObject):
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
         utils.log_info(f"Export Path: {export_path}")
+        # Export Prop
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export()
         export.do_export(file_path=export_path)
@@ -2414,7 +2430,7 @@ class DataLink(QObject):
             export_folder = self.get_actor_export_folder(motion_name)
             export_file = motion_name + ".fbx"
             export_path = os.path.join(export_folder, export_file)
-            if not export_path: return
+            if not export_path: continue
             utils.log_info(f"Export Path: {export_path}")
             #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
             export = exporter.Exporter(actor.object, no_window=True)
@@ -3054,7 +3070,6 @@ class DataLink(QObject):
         actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
         if actors:
             self.update_link_status(f"Sending Pose Set")
-            utils.log_info(f"Sending Pose Set")
             self.send_notify(f"Pose Set")
             # send pose info
             pose_data = self.encode_pose_data(actors)
@@ -3118,7 +3133,7 @@ class DataLink(QObject):
             RScene.ClearSelectObjects()
         current_frame = get_current_frame()
         self.data.sequence_current_frame = current_frame
-        self.update_link_status(f"Sending Sequence Frame: {current_frame}")
+        self.update_link_status(f"Sending Sequence Frame: {current_frame}", log=False)
         num_frames = current_frame - self.data.sequence_start_frame
         # send current sequence frame actor poses
         pose_data = self.encode_pose_frame_data(self.data.sequence_actors)
@@ -3133,12 +3148,14 @@ class DataLink(QObject):
 
     def send_sequence_end(self):
         actors = self.data.sequence_actors
+        num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         if actors:
             sequence_data = self.encode_sequence_data(actors)
             self.send(OpCodes.SEQUENCE_END, sequence_data)
             self.data.sequence_actors = None
         if self.data.stored_selection:
             RScene.SelectObjects(self.data.stored_selection)
+        self.update_link_status(f"Sequence Send: {num_frames} frames")
 
     def prep_actor_clip(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
         """Creates an empty clip and grabs the t-pose data for the character"""
@@ -3282,7 +3299,7 @@ class DataLink(QObject):
             RGlobal.SetEndTime(scene_time2)
         if scene_time < RGlobal.GetStartTime():
             RGlobal.SetStartTime(scene_time)
-        self.update_link_status(f"Pose Data Recevied: {frame}")
+        self.update_link_status(f"Pose Data Recevied: {frame}", log=False)
         # update all actor poses
         RScene.ClearSelectObjects()
         for actor_data in pose_frame_data["actors"]:
@@ -3357,7 +3374,7 @@ class DataLink(QObject):
             RGlobal.SetStartTime(scene_time)
         self.data.sequence_current_frame_time = scene_time
         self.data.sequence_current_frame = frame
-        self.update_link_status(f"Sequence Frame: {frame} Received")
+        self.update_link_status(f"Sequence Frame: {frame} Received", log=False)
         # update all actor poses
         for actor_data in sequence_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
