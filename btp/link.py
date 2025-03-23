@@ -3109,6 +3109,8 @@ class DataLink(QObject):
                 self.data.sequence_current_frame_time = RGlobal.GetTime()
             current_frame = get_current_frame()
             self.data.sequence_current_frame = current_frame
+            self.data.sequence_start_frame = current_frame
+            self.data.sequence_end_frame = get_end_frame()
             # send animation meta data
             sequence_data = self.encode_sequence_data(actors)
             self.send(OpCodes.SEQUENCE, sequence_data)
@@ -3140,8 +3142,8 @@ class DataLink(QObject):
         self.send(OpCodes.SEQUENCE_FRAME, pose_data)
         # check for end
         if current_frame >= get_end_frame():
-            self.stop_sequence()
             self.send_sequence_end()
+            self.stop_sequence()
             return
         # advance to next frame
         self.data.sequence_current_frame_time = next_frame(self.data.sequence_current_frame_time)
@@ -3155,7 +3157,7 @@ class DataLink(QObject):
             self.data.sequence_actors = None
         if self.data.stored_selection:
             RScene.SelectObjects(self.data.stored_selection)
-        self.update_link_status(f"Sequence Send: {num_frames} frames")
+        self.update_link_status(f"Sequence Sent: {num_frames} frames")
 
     def prep_actor_clip(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
         """Creates an empty clip and grabs the t-pose data for the character"""
