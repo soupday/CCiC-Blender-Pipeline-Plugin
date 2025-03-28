@@ -22,7 +22,7 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, random, atexit, traceback, shutil
-from . import gob, blender, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
+from . import gob, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 import math
 
@@ -47,6 +47,7 @@ class OpCodes(IntEnum):
     DISCONNECT = 11
     DEBUG = 15
     NOTIFY = 50
+    INVALID = 55
     SAVE = 60
     FILE = 75
     MORPH = 90
@@ -57,6 +58,10 @@ class OpCodes(IntEnum):
     CHARACTER_UPDATE = 101
     PROP = 102
     PROP_UPDATE = 103
+    LIGHTS = 104
+    LIGHTS_UPDATE = 105
+    CAMERA = 106
+    CAMERA_UPDATE = 107
     UPDATE_REPLACE = 108
     RIGIFY = 110
     TEMPLATE = 200
@@ -66,7 +71,7 @@ class OpCodes(IntEnum):
     SEQUENCE_FRAME = 221
     SEQUENCE_END = 222
     SEQUENCE_ACK = 223
-    LIGHTS = 230
+    LIGHTING = 230
     CAMERA_SYNC = 231
     FRAME_SYNC = 232
     MOTION = 240
@@ -171,6 +176,12 @@ class LinkActor():
         return self.object
 
     def get_prop(self) -> RIProp:
+        return self.object
+
+    def get_light(self) -> RILight:
+        return self.object
+
+    def get_camera(self) -> RICamera:
         return self.object
 
     def get_object(self) -> RIObject:
@@ -347,17 +358,7 @@ class LinkActor():
 
     @staticmethod
     def get_actor_type(obj):
-        T = type(obj)
-        if T is RIAvatar or T is RILightAvatar:
-            return "AVATAR"
-        elif T is RIProp or T is RIMDProp:
-            return "PROP"
-        elif T is RILight:
-            return "LIGHT"
-        elif T is RICamera:
-            return "CAMERA"
-        else:
-            return "NONE"
+        return cc.get_object_type(obj)
 
     def get_type(self):
         return self.get_actor_type(self.object)
@@ -369,10 +370,10 @@ class LinkActor():
         return cc.is_prop(self.object)
 
     def is_light(self):
-        return type(self.object) is RILight
+        return cc.is_light(self.object)
 
     def is_camera(self):
-        return type(self.object) is RICamera
+        return cc.is_camera(self.object)
 
     def is_standard(self):
         if self.is_avatar():
@@ -436,13 +437,13 @@ def unpack_string(buffer, offset=0):
     return offset, string.decode(encoding="utf-8")
 
 
-def encode_from_json(json_data):
+def encode_from_json(json_data) -> bytearray:
     json_string = json.dumps(json_data)
     json_bytes = bytearray(json_string, "utf-8")
     return json_bytes
 
 
-def decode_to_json(data):
+def decode_to_json(data) -> dict:
     text = data.decode("utf-8")
     json_data = json.loads(text)
     return json_data
@@ -920,10 +921,6 @@ def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data, t_pose_da
             res = VC.AddVisemeKey(viseme_key)
             if res.IsError():
                 utils.log_error("Failed to set visemes")
-
-
-
-
 
 
 class LinkService(QObject):
@@ -1647,7 +1644,7 @@ class DataLink(QObject):
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
         grid.setColumnStretch(1,1)
-        self.button_sync_lights = qt.icon_button(grid, "Sync Lights", self.sync_lights,
+        self.button_sync_lights = qt.icon_button(grid, "Sync Lighting", self.sync_lighting,
                                             row=0, col=0, icon=self.icon_light,
                                             width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                             icon_size=48, align_width=align_width)
@@ -1657,6 +1654,10 @@ class DataLink(QObject):
                                             icon_size=48, align_width=align_width)
 
         qt.stretch(layout, 20)
+
+        if vars.DEV:
+            qt.button(layout, "DEBUG", self.send_debug)
+            qt.button(layout, "TEST", test)
 
         self.context_frame, frame_layout = qt.frame(layout)
         grid = qt.grid(frame_layout)
@@ -1668,16 +1669,6 @@ class DataLink(QObject):
         self.info_label_type = qt.label(grid, "", row=0, col=3, no_size=True)
         qt.label(grid, "Link ID", style=qt.STYLE_BOLD, row=1, col=0)
         self.info_label_link_id = qt.label(grid, "", row=1, col=1, no_size=True)
-
-        if vars.DEV:
-            qt.button(layout, "DEBUG", self.send_debug)
-            qt.button(layout, "TEST", test)
-            #
-            #qt.button(layout, "Load Test", tests.load_test)
-            #qt.button(layout, "IK Effectors", tests.end_effectors)
-            #qt.button(layout, "Print", tests.bone_tree)
-            #qt.button(layout, "Clip Name", tests.clip_test)
-            #qt.button(layout, "Prop Clip", tests.prop_clip_test)
 
         self.show_link_state()
 
@@ -1723,21 +1714,16 @@ class DataLink(QObject):
         num_rigable = 0
 
         selected = RScene.GetSelectedObjects()
-        cc.get_selected_actor_objects()
         if selected:
-            first = selected[0]
-            prop_or_avatar = cc.find_parent_avatar_or_prop(first)
-            T = type(first)
-            if prop_or_avatar:
-                T = type(prop_or_avatar)
-            if T is RIAvatar or T is RILightAvatar:
-                avatar = prop_or_avatar
-            elif T is RIProp or T is RIMDProp:
-                prop = prop_or_avatar
-            elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
+            first, T = cc.get_selected_sendable(selected[0])
+            if T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
                 light = first
             elif T is RICamera:
                 camera = first
+            elif T is RIAvatar or T is RILightAvatar:
+                avatar = first
+            elif T is RIProp or T is RIMDProp:
+                prop = first
             else:
                 first = None
 
@@ -1745,22 +1731,23 @@ class DataLink(QObject):
         avatars = []
         props = []
         for obj in selected:
-            T = type(obj)
-            prop_or_avatar = cc.find_parent_avatar_or_prop(obj)
-            if prop_or_avatar:
-                T = type(prop_or_avatar)
-            if (T is RIAvatar or T is RILightAvatar) and prop_or_avatar not in props_and_avatars:
+            obj, T = cc.get_selected_sendable(obj)
+            if T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
+                num_lights += 1
+            elif T is RICamera:
+                num_cameras += 1
+            elif (T is RIAvatar or T is RILightAvatar) and obj not in props_and_avatars:
                 num_avatars += 1
-                props_and_avatars.append(prop_or_avatar)
-                avatars.append(prop_or_avatar)
-                if (prop_or_avatar.GetAvatarType() == EAvatarType_Standard or
-                    prop_or_avatar.GetAvatarType() == EAvatarType_StandardSeries):
+                props_and_avatars.append(obj)
+                avatars.append(obj)
+                if (obj.GetAvatarType() == EAvatarType_Standard or
+                    obj.GetAvatarType() == EAvatarType_StandardSeries):
                     num_standard += 1
                 else:
                     num_nonstandard += 1
-                generation = prop_or_avatar.GetGeneration()
-                if (prop_or_avatar.GetAvatarType() == EAvatarType_Standard or
-                    prop_or_avatar.GetAvatarType() == EAvatarType_StandardSeries or
+                generation = obj.GetGeneration()
+                if (obj.GetAvatarType() == EAvatarType_Standard or
+                    obj.GetAvatarType() == EAvatarType_StandardSeries or
                     generation == EAvatarGeneration_AccuRig or
                     generation == EAvatarGeneration_ActorBuild or
                     generation == EAvatarGeneration_ActorScan or
@@ -1770,18 +1757,14 @@ class DataLink(QObject):
                     generation == EAvatarGeneration_CC_Game_Base_One):
                     num_rigable += 1
 
-            elif (T is RIProp or T is RIMDProp) and prop_or_avatar not in props_and_avatars:
-                props_and_avatars.append(prop_or_avatar)
-                props.append(prop_or_avatar)
+            elif (T is RIProp or T is RIMDProp) and obj not in props_and_avatars:
+                props_and_avatars.append(obj)
+                props.append(obj)
                 num_props += 1
-            elif T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
-                num_lights += 1
-            elif T is RICamera:
-                num_cameras += 1
 
         num_total = num_avatars + num_props + num_lights + num_cameras
-        num_posable = num_avatars + num_props
-        num_sendable = num_avatars + num_props
+        num_posable = num_avatars + num_props + num_lights + num_cameras
+        num_sendable = num_avatars + num_props + num_lights + num_cameras
         num_types = min(1,num_avatars) + min(1, num_props) + min(1, num_lights) + min(1, num_cameras)
 
         # button text
@@ -2018,6 +2001,9 @@ class DataLink(QObject):
         if op_code == OpCodes.NOTIFY:
             self.receive_notify(data)
 
+        if op_code == OpCodes.INVALID:
+            self.receive_invalid(data)
+
         if op_code == OpCodes.TEMPLATE:
             self.receive_character_template(data)
 
@@ -2093,12 +2079,21 @@ class DataLink(QObject):
         notify_json = { "message": message }
         self.send(OpCodes.NOTIFY, encode_from_json(notify_json))
 
+    def send_invalid(self, message):
+        invalid_json = { "message": message }
+        self.send(OpCodes.INVALID, encode_from_json(invalid_json))
+
     def send_debug(self):
         self.send(OpCodes.DEBUG)
 
     def receive_notify(self, data):
         notify_json = decode_to_json(data)
         self.update_link_status(notify_json["message"])
+
+    def receive_invalid(self, data):
+        invalid_json = decode_to_json(data)
+        self.update_link_status(invalid_json["message"])
+        self.abort_sequence()
 
     def receive_debug(self, data):
         debug_json = None
@@ -2192,7 +2187,7 @@ class DataLink(QObject):
         remote_id = ""
         if link_service.is_remote():
             parent_folder = os.path.dirname(export_folder)
-            remote_id = str(time.time_ns())
+            remote_id = utils.timestamps()
             cwd = os.getcwd()
             tar_file_name = remote_id
             os.chdir(parent_folder)
@@ -2229,9 +2224,8 @@ class DataLink(QObject):
                     actors.append(actor)
         else:
             for obj in selected:
-                actor_object = cc.find_parent_avatar_or_prop(obj)
+                actor_object, T = cc.get_selected_sendable(obj)
                 if actor_object and actor_object not in selected_actor_objects:
-                    SC: RISkeletonComponent = actor_object.GetSkeletonComponent()
                     actor = LinkActor(actor_object)
                     if actor:
                         if (not of_types or
@@ -2321,19 +2315,76 @@ class DataLink(QObject):
         self.send(OpCodes.PROP, export_data)
         self.update_link_status(f"Prop Sent: {actor.name}")
 
-
-    def send_light(self, actor: LinkActor):
-        return
-
+    def send_lights(self, actors: list):
+        lights = [ actor.object for actor in actors ]
+        names = [ actor.name for actor in actors ]
+        link_ids = [ actor.get_link_id() for actor in actors ]
+        types = [ actor.get_type() for actor in actors ]
+        self.update_link_status(f"Exporting Lights: {names}", True)
+        self.send_notify(f"Exporting Lights: {names}")
+        # Determine export path
+        folder_name = "Lights_" + utils.timestamps()
+        export_folder = self.get_actor_export_folder(folder_name)
+        export_file = names[0] + ".rlx"
+        export_path = os.path.join(export_folder, export_file)
+        if not export_path: return
+        utils.log_info(f"Export Path: {export_path}")
+        # Export Light
+        export = exporter.Exporter(lights, no_window=True)
+        export.set_datalink_export()
+        export.do_export(file_path=export_path, no_base_folder=True)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send Lights
+        self.send_notify(f"Lights Import: {names}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "remote_id": remote_id,
+            "names": names,
+            "types": types,
+            "link_ids": link_ids,
+            "motion_prefix": self.motion_prefix,
+            "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
+        })
+        self.send(OpCodes.LIGHTS, export_data)
+        self.update_link_status(f"Lights Sent: {names}")
 
     def send_camera(self, actor: LinkActor):
-        return
-
+        self.update_link_status(f"Exporting Canera: {actor.name}", True)
+        self.send_notify(f"Exporting Camera: {actor.name}")
+        # Determine export path
+        export_folder = self.get_actor_export_folder(actor.name)
+        export_file = actor.name + ".fbx"
+        export_path = os.path.join(export_folder, export_file)
+        if not export_path: return
+        utils.log_info(f"Export Path: {export_path}")
+        # Export Camera
+        export = exporter.Exporter(actor.object, no_window=True)
+        export.set_datalink_export()
+        export.do_export(file_path=export_path)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send Camera
+        self.send_notify(f"Camera Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "remote_id": remote_id,
+            "name": actor.name,
+            "type": actor.get_type(),
+            "link_id": actor.get_link_id(),
+            "motion_prefix": self.motion_prefix,
+            "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
+        })
+        self.send(OpCodes.CAMERA, export_data)
+        self.update_link_status(f"Camera Sent: {actor.name}")
 
     def send_attached_actors(self, actor: LinkActor):
         """Send attached lights and cameras.
            Attached props are sent as part of the parent prop.
            (Avatars can only be linked, not attached)
+           TODO: something ...
         """
         objects = RScene.FindChildObjects(EObjectType_Prop | EObjectType_MDProp |
                                           EObjectType_Light |
@@ -2346,13 +2397,16 @@ class DataLink(QObject):
                 self.send_avatar(actor)
             elif actor.is_prop():
                 self.send_prop(actor)
-            elif actor.is_light():
-                self.send_light()
             elif actor.is_camera():
-                self.send_camera()
+                self.send_camera(actor)
             else:
                 utils.log_error("Unknown Actor type!")
-        return
+
+        # because it is faster to send all the lights at once (because only one scene scan)
+        lights = [ o for o in objects if cc.is_light(o) ]
+        if lights:
+            selection = [ LinkActor(o) for o in lights ]
+            self.send_lights(selection)
 
     def send_actor(self):
         if not self.is_connected():
@@ -2366,10 +2420,13 @@ class DataLink(QObject):
                     self.send_avatar(actor)
                 elif actor.is_prop():
                     self.send_prop(actor)
-                elif actor.is_light():
-                    self.send_light()
                 elif actor.is_camera():
-                    self.send_camera()
+                    self.send_camera(actor)
+
+            # because it is faster to send all the lights at once (because only one scene scan)
+            lights = [ actor for actor in actors if actor.is_light() ]
+            if lights:
+                self.send_lights(lights)
 
     def send_update_replace(self):
         avatars = {}
@@ -2554,6 +2611,29 @@ class DataLink(QObject):
         self.send(OpCodes.CHARACTER, export_data)
         self.update_link_status(f"Avatar Sent: {actor.name}")
 
+    def send_lights_exported(self, lights, fbx_path):
+        """Send pre-exported lights through the DataLink (Go-B, Local Only)"""
+
+        actors = [ LinkActor(light) for light in lights ]
+        names = [ actor.name for actor in actors ]
+        link_ids = [ actor.get_link_id() for actor in actors ]
+        types = [ actor.get_type() for actor in actors ]
+        self.update_link_status(f"Sending Lights: {names}", True)
+        self.send_notify(f"Lights Import: {names}")
+        export_data = encode_from_json({
+            "path": fbx_path,
+            "remote_id": "",
+            "names": names,
+            "types": types,
+            "link_ids": link_ids,
+            "motion_prefix": self.motion_prefix,
+            "use_fake_user": self.use_fake_user,
+            "set_keyframes": self.set_keyframes,
+            "save_after_import": False,
+        })
+        self.send(OpCodes.LIGHTS, export_data)
+        self.update_link_status(f"Lights Sent: {names}")
+
     def send_actor_update(self, actor, old_name, old_link_id):
         if not actor:
             actor = self.get_active_actor()
@@ -2584,9 +2664,6 @@ class DataLink(QObject):
                 })
                 self.send(OpCodes.RIGIFY, rigify_data)
                 self.update_link_status(f"Rigify Sent: {actor.name}")
-
-    def encode_light_data(self, actors: list):
-        return
 
     def encode_character_templates(self, actors: list):
         actor_data = []
@@ -2732,7 +2809,7 @@ class DataLink(QObject):
 
         return data
 
-    def encode_sequence_data(self, actors):
+    def encode_sequence_data(self, actors, aborted=False):
         fps = get_fps()
         start_time: RTime = RGlobal.GetStartTime()
         end_time: RTime = RGlobal.GetEndTime()
@@ -2753,6 +2830,7 @@ class DataLink(QObject):
             "use_fake_user": self.use_fake_user,
             "set_keyframes": self.set_keyframes,
             "actors": actors_data,
+            "aborted": aborted,
         }
         actor: LinkActor
         for actor in actors:
@@ -2763,7 +2841,7 @@ class DataLink(QObject):
             })
         return encode_from_json(data)
 
-    def get_lights_data(self, lights):
+    def get_lights_data(self, actors):
 
         all_lights = RScene.FindObjects(EObjectType_Light)
         all_light_id = []
@@ -2778,91 +2856,26 @@ class DataLink(QObject):
 
         data = {
             "lights": [],
-            "count": len(lights),
+            "count": len(actors),
             "scene_lights": all_light_id,
             "ambient_color": [ambient_color.R(), ambient_color.G(), ambient_color.B()],
         }
 
-        light: RILight
-        for light in lights:
-
-            is_spot = type(light) is RISpotLight
-            is_point = type(light) is RIPointLight
-            is_dir = type(light) is RIDirectionalLight
-
-            T = light.WorldTransform()
-            t: RVector3 = T.T()
-            r: RQuaternion = T.R()
-            s: RVector3 = T.S()
-
-            link_id: str = cc.get_link_id(light, add_if_missing=True)
-            active: bool = light.GetActive()
-            color: RRgb = light.GetColor()
-            multiplier: float = light.GetMultiplier()
-
-            light_type = "SPOT" if is_spot else "POINT" if is_point else "DIR"
-            angle: float = 0
-            falloff: float = 100
-            attenuation: float = 100
-            light_range: float = 1000
-            transmission: bool = False
-            is_tube: bool = False
-            tube_length: float = 0
-            tube_radius: float = 0
-            tube_soft_radius: float = 0
-            is_rectangle: bool = False
-            rect: RVector2 = RVector2(0,0)
-            cast_shadow: bool = False
-            inverse_square: bool = False
-
-            if is_spot or is_point:
-                light_range = light.GetRange()
-            if is_spot:
-                status, angle, falloff, attenuation = light.GetSpotLightBeam(angle, falloff, attenuation)
-            if is_spot or is_dir:
-                transmission = light.GetTransmission()
-            if is_spot or is_point:
-                inverse_square = light.GetInverseSquare()
-                is_tube = light.IsTubeShape()
-                tube_length = light.GetTubeLength()
-                tube_radius = light.GetTubeRadius()
-                tube_soft_radius = light.GetTubeSoftRadius()
-                is_rectangle = light.IsRectangleShape()
-                rect = light.GetRectWidthHeight()
-            cast_shadow = light.IsCastShadow()
-
-            light_data = {
-                "link_id": link_id,
-                "name": light.GetName(),
-                "loc": [t.x, t.y, t.z],
-                "rot": [r.x, r.y, r.z, r.w],
-                "sca": [s.x, s.y, s.z],
-                "active": active,
-                "color": [color.R(), color.G(), color.B()],
-                "multiplier": multiplier,
-                "type": light_type,
-                "range": light_range,
-                "angle": angle,
-                "falloff": falloff,
-                "attenuation": attenuation,
-                "inverse_square": inverse_square,
-                "transmission": transmission,
-                "is_tube": is_tube,
-                "tube_length": tube_length,
-                "tube_radius": tube_radius,
-                "tube_soft_radius": tube_soft_radius,
-                "is_rectangle": is_rectangle,
-                "rect": [rect.x, rect.y],
-                "cast_shadow": cast_shadow,
-            }
-
+        actor: LinkActor = None
+        for actor in actors:
+            if actor.is_light():
+                light_data = cc.get_light_data(actor.get_light())
             data["lights"].append(light_data)
 
         return data
 
     def get_all_lights(self):
         lights = RScene.FindObjects(EObjectType_Light)
-        return lights
+        actors = []
+        for light in lights:
+            actor = LinkActor(light)
+            actors.append(actor)
+        return actors
 
     def export_hdri(self, lights_data):
         VSC: RIVisualSettingComponent = RGlobal.GetVisualSettingComponent()
@@ -2923,13 +2936,14 @@ class DataLink(QObject):
             lights_data["ibl_rotation"] = ibl_rotation
             lights_data["ibl_scale"] = ibl_scale.x
 
-    def sync_lights(self):
+    def sync_lighting(self, include_lights=True):
         self.update_link_status(f"Synchronizing Lights")
-        self.send_notify(f"Sync Lights")
-        lights = self.get_all_lights()
-        lights_data = self.get_lights_data(lights)
-        self.export_hdri(lights_data)
-        self.send(OpCodes.LIGHTS, encode_from_json(lights_data))
+        self.send_notify(f"Sync Lighting")
+        actors = self.get_all_lights()
+        light_actors_data = self.get_lights_data(actors)
+        light_actors_data["use_lights"] = include_lights
+        self.export_hdri(light_actors_data)
+        self.send(OpCodes.LIGHTING, encode_from_json(light_actors_data))
 
     def get_camera_data(self, camera: RICamera):
         link_id = cc.get_link_id(camera, add_if_missing=True)
@@ -3083,16 +3097,20 @@ class DataLink(QObject):
             pose_frame_data = self.encode_pose_frame_data(actors)
             self.send(OpCodes.POSE_FRAME, pose_frame_data)
 
-    def send_sequence(self):
-
-        # stop the sequence if running...
+    def abort_sequence(self):
         if self.is_sequence_running():
             # as the next frame was never sent
             self.data.sequence_current_frame_time = prev_frame(self.data.sequence_current_frame_time)
             self.data.sequence_current_frame -= 1
             self.update_link_status(f"Sequence Aborted: {self.data.sequence_current_frame}")
             self.stop_sequence()
-            self.send_sequence_end()
+            self.send_sequence_end(aborted=True)
+            return True
+        return False
+
+    def send_sequence(self):
+
+        if self.abort_sequence():
             return
 
         # get actors
@@ -3148,11 +3166,11 @@ class DataLink(QObject):
         # advance to next frame
         self.data.sequence_current_frame_time = next_frame(self.data.sequence_current_frame_time)
 
-    def send_sequence_end(self):
+    def send_sequence_end(self, aborted=False):
         actors = self.data.sequence_actors
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         if actors:
-            sequence_data = self.encode_sequence_data(actors)
+            sequence_data = self.encode_sequence_data(actors, aborted=aborted)
             self.send(OpCodes.SEQUENCE_END, sequence_data)
             self.data.sequence_actors = None
         if self.data.stored_selection:
@@ -3251,9 +3269,9 @@ class DataLink(QObject):
             if actor:
                 utils.log_info(f"Character Template Received: {name}")
                 actor.set_template(actor_data)
+                utils.log_info(f" - character using expression drivers: {actor.use_drivers}")
             else:
                 utils.log_error(f"Unable to find actor: {name} ({link_id})")
-            utils.log_info(f" - character using expression drivers: {actor.use_drivers}")
 
     def receive_pose(self, data):
         self.update_link_status(f"Receiving Pose ...")
@@ -3351,6 +3369,8 @@ class DataLink(QObject):
                 actor.begin_editing()
                 actors.append(actor)
         self.data.sequence_actors = actors
+        if not actors:
+            self.send_invalid("No valid sequence Actors!")
         # refresh actor timelines
         refresh_timeline(actors)
         # move to end of range
@@ -3398,6 +3418,7 @@ class DataLink(QObject):
     def receive_sequence_end(self, data):
         json_data = decode_to_json(data)
         frame = json_data["frame"]
+        aborted = json_data.get("aborted", False)
         self.data.sequence_end_frame = frame
         num_frames = self.data.sequence_end_frame - self.data.sequence_start_frame
         self.stop_sequence()
@@ -3409,8 +3430,11 @@ class DataLink(QObject):
             actor.end_editing(scene_start_time)
             RScene.SelectObject(actor.object)
         self.data.sequence_actors = None
-        self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
-        RGlobal.Play(scene_start_time, scene_end_time)
+        if not aborted:
+            self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
+            RGlobal.Play(scene_start_time, scene_end_time)
+        else:
+            self.update_link_status(f"Live Sequence Aborted!")
         #utils.log_timer("apply_world_fk_pose", name="apply_world_fk_pose")
         #utils.log_timer("try_get_pose_bone", name="try_get_pose_bone")
         #utils.log_timer("fetch_transforms", name="fetch_transforms")

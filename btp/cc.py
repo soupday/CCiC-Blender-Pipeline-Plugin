@@ -1126,13 +1126,30 @@ def get_selected_avatars():
     return avatars
 
 
+def get_selected_sendable(obj: RIObject):
+    """Returns the sendable object from the selection object"""
+    T = type(obj)
+    prop_or_avatar = find_parent_avatar_or_prop(obj)
+    if T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
+        return obj, T
+    elif T is RICamera:
+        return obj, T
+    elif prop_or_avatar:
+        T = type(prop_or_avatar)
+        if (T is RIAvatar or T is RILightAvatar):
+            return prop_or_avatar, T
+        elif (T is RIProp or T is RIMDProp):
+            return prop_or_avatar, T
+    return None, None
+
+
 def get_selected_actor_objects():
     selected = RScene.GetSelectedObjects()
     actor_objects = []
     for obj in selected:
-        actor_object = find_parent_avatar_or_prop(obj)
-        if actor_object and actor_object not in actor_objects:
-            actor_objects.append(actor_object)
+        send_object, T = get_selected_sendable(obj)
+        if send_object and send_object not in actor_objects:
+            actor_objects.append(send_object)
     return actor_objects
 
 
@@ -1250,6 +1267,7 @@ def find_parent_avatar_or_prop(obj: RIObject):
     md_props = RScene.GetMDProps()
     root: RINode = RScene.GetRootNode()
     node = find_node(root, obj.GetID())
+    avatar: RIAvatar = None
     while node:
         node_id = node.GetID()
         for avatar in avatars:
@@ -1262,6 +1280,11 @@ def find_parent_avatar_or_prop(obj: RIObject):
             if prop.GetID() == node_id:
                 return prop
         node = node.GetParent()
+    #for avatar in avatars:
+    #    print(obj)
+    #    print(avatar.GetClothes())
+    #    if obj in avatar.GetAccessories() or obj in avatar.GetClothes():
+    #        return avatar
     return None
 
 
@@ -1358,7 +1381,7 @@ def find_object_by_link_id(link_id):
     return None
 
 
-def find_object_by_name_and_type(search_name, search_type=None):
+def find_object_by_name_and_type(search_name, search_type=None) -> RIObject:
     objects = RScene.FindObjects(EObjectType_Avatar |
                                       EObjectType_Prop |
                                       EObjectType_Light |
@@ -1426,7 +1449,7 @@ def get_object_type(obj):
         return "PROP"
     elif T is RIAccessory:
         return "ACCESSORY"
-    elif T is RILight:
+    elif T is RILight or T is RIDirectionalLight or T is RISpotLight or T is RIPointLight:
         return "LIGHT"
     elif T is RICamera:
         return "CAMERA"
@@ -1789,13 +1812,81 @@ def print_node_tree(obj):
 
 
 def is_prop(obj):
-    T = type(obj)
-    return (T is RIProp or T is RIMDProp)
+    if obj:
+        T = type(obj)
+        return (T is RIProp or T is RIMDProp)
+    return False
 
 
 def is_avatar(obj):
-    T = type(obj)
-    return (T is RIAvatar or T is RILightAvatar)
+    if obj:
+        T = type(obj)
+        return (T is RIAvatar or T is RILightAvatar)
+    return False
+
+
+def is_light(obj):
+    if obj:
+        T = type(obj)
+        return (T is RILight or T is RIDirectionalLight or T is RIPointLight or T is RISpotLight)
+    return False
+
+
+def is_camera(obj):
+    if obj:
+        T = type(obj)
+        return (T is RICamera)
+    return False
+
+
+def begin_timeline_scan():
+    start_time: RTime = RGlobal.GetStartTime()
+    RGlobal.SetTime(start_time)
+    current_time: RTime = RGlobal.GetTime()
+    fps: RFps = RGlobal.GetFps()
+    current_frame = fps.GetFrameIndex(current_time)
+    return current_time, current_frame
+
+
+def next_timeline_scan():
+    end_time: RTime = RGlobal.GetEndTime()
+    current_time: RTime = RGlobal.GetTime()
+    fps: RFps = RGlobal.GetFps()
+    if current_time.ToFloat() < end_time.ToFloat():
+        next_time = fps.GetNextFrameTime(current_time)
+        next_frame = fps.GetFrameIndex(next_time)
+        RGlobal.SetTime(next_time)
+        current_time = next_time
+        return True, next_time, next_frame
+    current_frame = fps.GetFrameIndex(current_time)
+    return False, current_time, current_frame
+
+
+def end_timeline_scan(current_time):
+    RGlobal.SetTime(current_time)
+
+
+def get_all_light_data():
+    lights = RScene.FindObjects(EObjectType_Light)
+    all_lights_data = []
+    if lights:
+        time, frame = begin_timeline_scan()
+        start_time = time
+        is_next = True
+        while is_next:
+            frame_lights = []
+            frame_data = {
+                "time": time.ToFloat(),
+                "frame": int(frame),
+                "lights": frame_lights
+            }
+            for light in lights:
+                light_data = get_light_data(light)
+                frame_lights.append(light_data)
+            all_lights_data.append(frame_data)
+            is_next, time, frame = next_timeline_scan()
+        end_timeline_scan(start_time)
+    return all_lights_data
 
 
 IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
@@ -1903,6 +1994,107 @@ def get_full_path(rel_path, folder):
             return os.path.normpath(rel_path)
         return os.path.normpath(os.path.join(folder, rel_path))
     return None
+
+
+def get_light_data(light: RILight):
+    spot_light: RISpotLight = None
+    dir_light: RIDirectionalLight = None
+    point_light: RIPointLight = None
+    light_type = "NONE"
+    if type(light) is RISpotLight:
+        spot_light = light
+        light_type = "SPOT"
+    elif type(light) is RIPointLight:
+        point_light = light
+        light_type = "POINT"
+    elif type(light) is RIDirectionalLight:
+        dir_light = light
+        light_type = "DIR"
+    else:
+        return None
+
+    T:RTransform = light.WorldTransform()
+    t: RVector3 = T.T()
+    r: RQuaternion = T.R()
+    s: RVector3 = T.S()
+
+    link_id: str = get_link_id(light, add_if_missing=True)
+    active: bool = light.GetActive()
+    color: RRgb = light.GetColor()
+    multiplier: float = light.GetMultiplier()
+    current_time = RGlobal.GetTime()
+
+    light_range: float = 1000
+    angle: float = 0
+    falloff: float = 100
+    attenuation: float = 100
+    transmission: bool = False
+    is_tube: bool = False
+    tube_length: float = 0
+    tube_radius: float = 0
+    tube_soft_radius: float = 0
+    is_rectangle: bool = False
+    rect: RVector2 = RVector2(0,0)
+    cast_shadow: bool = False
+    inverse_square: bool = False
+    darkness: float = 0.0
+
+    if spot_light:
+        light_range = spot_light.GetRange()
+        status, angle, falloff, attenuation = spot_light.GetSpotLightBeam(angle, falloff, attenuation)
+        transmission = spot_light.GetTransmission()
+        inverse_square = spot_light.GetInverseSquare()
+        is_tube = spot_light.IsTubeShape()
+        tube_length = spot_light.GetTubeLength()
+        tube_radius = spot_light.GetTubeRadius()
+        tube_soft_radius = spot_light.GetTubeSoftRadius()
+        is_rectangle = spot_light.IsRectangleShape()
+        rect = spot_light.GetRectWidthHeight()
+        darkness = spot_light.GetDarkenShadowStrength()
+
+    if point_light:
+        light_range = point_light.GetRange()
+        inverse_square = point_light.GetInverseSquare()
+        is_tube = point_light.IsTubeShape()
+        tube_length = point_light.GetTubeLength()
+        tube_radius = point_light.GetTubeRadius()
+        tube_soft_radius = point_light.GetTubeSoftRadius()
+        is_rectangle = point_light.IsRectangleShape()
+        rect = point_light.GetRectWidthHeight()
+
+    elif dir_light:
+        transmission = dir_light.GetTransmission()
+        darkness = dir_light.GetDarkenShadowStrength()
+
+    cast_shadow = light.IsCastShadow()
+
+    light_data = {
+        "link_id": link_id,
+        "name": light.GetName(),
+        "loc": [t.x, t.y, t.z],
+        "rot": [r.x, r.y, r.z, r.w],
+        "sca": [s.x, s.y, s.z],
+        "active": active,
+        "color": [color.R(), color.G(), color.B()],
+        "multiplier": multiplier,
+        "type": light_type,
+        "range": light_range,
+        "angle": angle,
+        "falloff": falloff,
+        "attenuation": attenuation,
+        "inverse_square": inverse_square,
+        "transmission": transmission,
+        "is_tube": is_tube,
+        "tube_length": tube_length,
+        "tube_radius": tube_radius,
+        "tube_soft_radius": tube_soft_radius,
+        "is_rectangle": is_rectangle,
+        "rect": [rect.x, rect.y],
+        "cast_shadow": cast_shadow,
+        "darkness": darkness,
+    }
+
+    return light_data
 
 
 def RGB_color(RGB):
@@ -2099,3 +2291,25 @@ def project_vector_around_axis(v: RVector3, axis: RVector3):
     v_perpendicular = v - v_a
     return v_perpendicular
 
+
+def generate_base_json_data(path, name, generation):
+    json_data = {
+        name: {
+            "Version": "1.10.1822.1",
+            "Scene": {
+                "Name": True,
+                "SupportShaderSelect": True
+            },
+            "Object": {
+                name: {
+                    "Generation": generation,
+                    "Meshes": {
+                    },
+                },
+            },
+        }
+    }
+    json_string = json.dumps(json_data, indent = 4)
+    with open(path, "w") as write_file:
+        write_file.write(json_string)
+    return json_data

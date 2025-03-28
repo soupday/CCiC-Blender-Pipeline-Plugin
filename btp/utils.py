@@ -366,6 +366,10 @@ def make_sub_folder(parent_folder, folder_name):
         return None
 
 
+def timestamps():
+    return str(time.time_ns())
+
+
 def contains_path(path1, path2):
     """Returns True if path2 is a parent path of path1"""
     if not os.path.isdir(path1):
