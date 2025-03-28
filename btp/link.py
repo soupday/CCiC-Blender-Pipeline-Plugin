@@ -2334,7 +2334,6 @@ class DataLink(QObject):
         export.set_datalink_export()
         exported_paths = export.do_export(file_path=export_path, no_base_folder=True)
         names = [ os.path.splitext(os.path.split(p)[1])[0] for p in exported_paths ]
-        print(names)
         # Send Remote Files First
         remote_id = self.send_remote_files(export_folder)
         # Send Lights
