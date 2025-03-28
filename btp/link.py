@@ -461,7 +461,7 @@ def prep_timeline_old(SC: RISkeletonComponent, start_frame, end_frame):
     end_time: fps.IndexedFrameTime(end_frame)
     RGlobal.SetStartTime(start_time)
     RGlobal.SetEndTime(end_time)
-    utils.log_info(f"start: {start_time.ToFloat()}, end: {end_time.ToFloat()}")
+    utils.log_info(f"start: {start_time.ToInt()}, end: {end_time.ToInt()}")
     num_clips = SC.GetClipCount()
     if num_clips == 0:
         clip = SC.AddClip(start_time)
@@ -553,15 +553,15 @@ def update_timeline(to_time=None):
 
 def extend_project_range(end_time: RTime, min_time = 0):
     proj_length: RTime = RGlobal.GetProjectLength()
-    if end_time.ToFloat() > proj_length.ToFloat():
-        utils.log_info(f"Extending Project Range: {end_time.ToFloat()}")
+    if end_time.ToInt() > proj_length.ToInt():
+        utils.log_info(f"Extending Project Range: {end_time.ToInt()}")
         RGlobal.SetProjectLength(end_time)
     else:
         RGlobal.SetProjectLength(proj_length)
 
 
 def set_project_range(end_time: RTime):
-    utils.log_info(f"Setting Project Range: {end_time.ToFloat()}")
+    utils.log_info(f"Setting Project Range: {end_time.ToInt()}")
     RGlobal.SetProjectLength(end_time)
 
 
@@ -2332,13 +2332,15 @@ class DataLink(QObject):
         # Export Light
         export = exporter.Exporter(lights, no_window=True)
         export.set_datalink_export()
-        export.do_export(file_path=export_path, no_base_folder=True)
+        exported_paths = export.do_export(file_path=export_path, no_base_folder=True)
+        names = [ os.path.splitext(os.path.split(p)[1])[0] for p in exported_paths ]
+        print(names)
         # Send Remote Files First
         remote_id = self.send_remote_files(export_folder)
         # Send Lights
         self.send_notify(f"Lights Import: {names}")
         export_data = encode_from_json({
-            "path": export_path,
+            "path": exported_paths[0],
             "remote_id": remote_id,
             "names": names,
             "types": types,
@@ -2511,11 +2513,11 @@ class DataLink(QObject):
                 "type": actor.get_type(),
                 "link_id": actor.get_link_id(),
                 "fps": fps.ToFloat(),
-                "start_time": start_time.ToFloat(),
-                "end_time": end_time.ToFloat(),
+                "start_time": start_time.ToInt(),
+                "end_time": end_time.ToInt(),
                 "start_frame": start_frame,
                 "end_frame": end_frame,
-                "time": current_time.ToFloat(),
+                "time": current_time.ToInt(),
                 "frame": current_frame,
                 "motion_prefix": self.motion_prefix,
                 "use_fake_user": self.use_fake_user,
@@ -2719,11 +2721,11 @@ class DataLink(QObject):
         actors_data = []
         data = {
             "fps": fps.ToFloat(),
-            "start_time": start_time.ToFloat(),
-            "end_time": end_time.ToFloat(),
+            "start_time": start_time.ToInt(),
+            "end_time": end_time.ToInt(),
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "time": current_time.ToFloat(),
+            "time": current_time.ToInt(),
             "frame": current_frame,
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
@@ -2820,11 +2822,11 @@ class DataLink(QObject):
         actors_data = []
         data = {
             "fps": fps.ToFloat(),
-            "start_time": start_time.ToFloat(),
-            "end_time": end_time.ToFloat(),
+            "start_time": start_time.ToInt(),
+            "end_time": end_time.ToInt(),
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "time": current_time.ToFloat(),
+            "time": current_time.ToInt(),
             "frame": current_frame,
             "motion_prefix": self.motion_prefix,
             "use_fake_user": self.use_fake_user,
@@ -3047,9 +3049,9 @@ class DataLink(QObject):
         current_frame = fps.GetFrameIndex(current_time)
         frame_data = {
             "fps": fps.ToFloat(),
-            "start_time": start_time.ToFloat(),
-            "end_time": end_time.ToFloat(),
-            "current_time": current_time.ToFloat(),
+            "start_time": start_time.ToInt(),
+            "end_time": end_time.ToInt(),
+            "current_time": current_time.ToInt(),
             "start_frame": start_frame,
             "end_frame": end_frame,
             "current_frame": current_frame,

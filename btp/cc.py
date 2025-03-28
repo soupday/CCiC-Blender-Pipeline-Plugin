@@ -1852,7 +1852,7 @@ def next_timeline_scan():
     end_time: RTime = RGlobal.GetEndTime()
     current_time: RTime = RGlobal.GetTime()
     fps: RFps = RGlobal.GetFps()
-    if current_time.ToFloat() < end_time.ToFloat():
+    if current_time.ToInt() < end_time.ToInt():
         next_time = fps.GetNextFrameTime(current_time)
         next_frame = fps.GetFrameIndex(next_time)
         RGlobal.SetTime(next_time)
@@ -1876,7 +1876,7 @@ def get_all_light_data():
         while is_next:
             frame_lights = []
             frame_data = {
-                "time": time.ToFloat(),
+                "time": time.ToInt(),
                 "frame": int(frame),
                 "lights": frame_lights
             }

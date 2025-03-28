@@ -433,7 +433,7 @@ def test_frame_scan():
 
     print("START")
 
-    while current_time.ToFloat() < end_time.ToFloat():
+    while current_time.ToInt() < end_time.ToInt():
         next_time = fps.GetNextFrameTime(current_time)
         RGlobal.SetTime(next_time)
         current_time = next_time
@@ -442,5 +442,6 @@ def test_frame_scan():
 
 
 def test():
-    test_frame_scan()
+    t: RTime = RGlobal.GetTime()
+    print(t.ToInt())
     return
