@@ -366,8 +366,12 @@ def make_sub_folder(parent_folder, folder_name):
         return None
 
 
-def timestamps():
+def timestampns():
     return str(time.time_ns())
+
+
+def datetimes():
+    return time.strftime("%Y%m%d%H%M%S")
 
 
 def contains_path(path1, path2):

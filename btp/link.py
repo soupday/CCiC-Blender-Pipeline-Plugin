@@ -58,8 +58,8 @@ class OpCodes(IntEnum):
     CHARACTER_UPDATE = 101
     PROP = 102
     PROP_UPDATE = 103
-    LIGHTS = 104
-    LIGHTS_UPDATE = 105
+    STAGING = 104
+    STAGING_UPDATE = 105
     CAMERA = 106
     CAMERA_UPDATE = 107
     UPDATE_REPLACE = 108
@@ -2187,7 +2187,7 @@ class DataLink(QObject):
         remote_id = ""
         if link_service.is_remote():
             parent_folder = os.path.dirname(export_folder)
-            remote_id = utils.timestamps()
+            remote_id = utils.timestampns()
             cwd = os.getcwd()
             tar_file_name = remote_id
             os.chdir(parent_folder)
@@ -2315,29 +2315,29 @@ class DataLink(QObject):
         self.send(OpCodes.PROP, export_data)
         self.update_link_status(f"Prop Sent: {actor.name}")
 
-    def send_lights(self, actors: list):
-        lights = [ actor.object for actor in actors ]
+    def send_lights_cameras(self, actors: list):
+        lights_cameras = [ actor.object for actor in actors ]
         names = [ actor.name for actor in actors ]
         link_ids = [ actor.get_link_id() for actor in actors ]
         types = [ actor.get_type() for actor in actors ]
-        self.update_link_status(f"Exporting Lights: {names}", True)
-        self.send_notify(f"Exporting Lights: {names}")
+        self.update_link_status(f"Exporting Lights / Cameras: {names}", True)
+        self.send_notify(f"Exporting Lights / Cameras: {names}")
         # Determine export path
-        folder_name = "Lights_" + utils.timestamps()
+        folder_name = "Staging_" + utils.timestampns()
         export_folder = self.get_actor_export_folder(folder_name)
         export_file = names[0] + ".rlx"
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
         utils.log_info(f"Export Path: {export_path}")
         # Export Light
-        export = exporter.Exporter(lights, no_window=True)
+        export = exporter.Exporter(lights_cameras, no_window=True)
         export.set_datalink_export()
         exported_paths = export.do_export(file_path=export_path, no_base_folder=True)
         names = [ os.path.splitext(os.path.split(p)[1])[0] for p in exported_paths ]
         # Send Remote Files First
         remote_id = self.send_remote_files(export_folder)
-        # Send Lights
-        self.send_notify(f"Lights Import: {names}")
+        # Send Lights and Cameras
+        self.send_notify(f"Lights / Cameras Import: {names}")
         export_data = encode_from_json({
             "path": exported_paths[0],
             "remote_id": remote_id,
@@ -2348,10 +2348,12 @@ class DataLink(QObject):
             "use_fake_user": self.use_fake_user,
             "set_keyframes": self.set_keyframes,
         })
-        self.send(OpCodes.LIGHTS, export_data)
-        self.update_link_status(f"Lights Sent: {names}")
+        self.send(OpCodes.STAGING, export_data)
+        self.update_link_status(f"Lights / Cameras Sent: {names}")
 
     def send_camera(self, actor: LinkActor):
+        """Used for Camera FBX export (which does not contain all animateable data)
+           Not currently used."""
         self.update_link_status(f"Exporting Canera: {actor.name}", True)
         self.send_notify(f"Exporting Camera: {actor.name}")
         # Determine export path
@@ -2398,16 +2400,14 @@ class DataLink(QObject):
                 self.send_avatar(actor)
             elif actor.is_prop():
                 self.send_prop(actor)
-            elif actor.is_camera():
-                self.send_camera(actor)
             else:
                 utils.log_error("Unknown Actor type!")
 
-        # because it is faster to send all the lights at once (because only one scene scan)
-        lights = [ o for o in objects if cc.is_light(o) ]
-        if lights:
-            selection = [ LinkActor(o) for o in lights ]
-            self.send_lights(selection)
+        # because it is faster to send all the lights and cameras at once (because only one scene scan)
+        lights_cameras = [ o for o in objects if (cc.is_light(o) or cc.is_camera(o)) ]
+        if lights_cameras:
+            selection = [ LinkActor(o) for o in lights_cameras ]
+            self.send_lights_cameras(selection)
 
     def send_actor(self):
         if not self.is_connected():
@@ -2421,13 +2421,13 @@ class DataLink(QObject):
                     self.send_avatar(actor)
                 elif actor.is_prop():
                     self.send_prop(actor)
-                elif actor.is_camera():
-                    self.send_camera(actor)
+                else:
+                    utils.log_error("Unknown Actor type!")
 
-            # because it is faster to send all the lights at once (because only one scene scan)
-            lights = [ actor for actor in actors if actor.is_light() ]
-            if lights:
-                self.send_lights(lights)
+            # because it is faster to send all the lights and cameras at once (because only one scene scan)
+            lights_cameras = [ actor for actor in actors if (actor.is_light() or actor.is_camera()) ]
+            if lights_cameras:
+                self.send_lights_cameras(lights_cameras)
 
     def send_update_replace(self):
         avatars = {}
@@ -2612,15 +2612,15 @@ class DataLink(QObject):
         self.send(OpCodes.CHARACTER, export_data)
         self.update_link_status(f"Avatar Sent: {actor.name}")
 
-    def send_lights_exported(self, lights, fbx_path):
+    def send_lights_cameras_exported(self, lights_cameras, fbx_path):
         """Send pre-exported lights through the DataLink (Go-B, Local Only)"""
 
-        actors = [ LinkActor(light) for light in lights ]
+        actors = [ LinkActor(o) for o in lights_cameras ]
         names = [ actor.name for actor in actors ]
         link_ids = [ actor.get_link_id() for actor in actors ]
         types = [ actor.get_type() for actor in actors ]
-        self.update_link_status(f"Sending Lights: {names}", True)
-        self.send_notify(f"Lights Import: {names}")
+        self.update_link_status(f"Sending Lights /  Cameras: {names}", True)
+        self.send_notify(f"Lights / Cameras Import: {names}")
         export_data = encode_from_json({
             "path": fbx_path,
             "remote_id": "",
@@ -2632,8 +2632,8 @@ class DataLink(QObject):
             "set_keyframes": self.set_keyframes,
             "save_after_import": False,
         })
-        self.send(OpCodes.LIGHTS, export_data)
-        self.update_link_status(f"Lights Sent: {names}")
+        self.send(OpCodes.STAGING, export_data)
+        self.update_link_status(f"Lights / Cameras Sent: {names}")
 
     def send_actor_update(self, actor, old_name, old_link_id):
         if not actor:
@@ -2946,52 +2946,6 @@ class DataLink(QObject):
         self.export_hdri(light_actors_data)
         self.send(OpCodes.LIGHTING, encode_from_json(light_actors_data))
 
-    def get_camera_data(self, camera: RICamera):
-        link_id = cc.get_link_id(camera, add_if_missing=True)
-        name = camera.GetName()
-        time = RGlobal.GetTime()
-        width = 0
-        height = 0
-        camera.GetAperture(width, height)
-        # Get camera bounds
-        max = RVector3()
-        center = RVector3()
-        min = RVector3()
-        camera.GetBounds(max, center, min)
-        # Get the camera pivot transform values
-        pos = RVector3()
-        rot = RVector3()
-        camera.GetPivot(pos, rot)
-        focal_length = camera.GetFocalLength(time)
-        fov = camera.GetAngleOfView(time)
-        fit = ("HORIZONTAL" if camera.GetFitRenderRegionType() == ECameraFitResolution_Horizontal
-                            else "VERTICAL")
-        T: RTransform = camera.WorldTransform()
-        t: RVector3 = T.T()
-        r: RQuaternion = T.R()
-        s: RVector3 = T.S()
-        data = {
-            "link_id": link_id,
-            "name": name,
-            "loc": [t.x, t.y, t.z],
-            "rot": [r.x, r.y, r.z, r.w],
-            "sca": [s.x, s.y, s.z],
-            "fov": fov,
-            "fit": fit,
-            "width": width,
-            "height": height,
-            "focal_length": focal_length,
-            "min": [min.x, min.y, min.z],
-            "max": [max.x, max.y, max.z],
-            "center": [center.x, center.y, center.z],
-            "pos": [pos.x, pos.y, pos.z],
-        }
-        return data
-
-    def encode_camera_data(self, camera):
-        data = self.get_camera_data(camera)
-        return encode_from_json(data)
-
     def get_selection_pivot(self) -> RVector3:
         selected_objects = RScene.GetSelectedObjects()
         obj: RIObject
@@ -3011,7 +2965,7 @@ class DataLink(QObject):
         self.update_link_status(f"Synchronizing View Camera")
         self.send_notify(f"Sync View Camera")
         view_camera: RICamera = RScene.GetCurrentCamera()
-        camera_data = self.get_camera_data(view_camera)
+        camera_data = cc.get_camera_data(view_camera)
         pivot = self.get_selection_pivot()
         data = {
             "view_camera": camera_data,

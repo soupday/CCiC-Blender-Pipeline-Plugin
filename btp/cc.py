@@ -1866,27 +1866,53 @@ def end_timeline_scan(current_time):
     RGlobal.SetTime(current_time)
 
 
-def get_all_light_data():
+def get_all_camera_light_data(no_animation=False):
     lights = RScene.FindObjects(EObjectType_Light)
-    all_lights_data = []
-    if lights:
-        time, frame = begin_timeline_scan()
-        start_time = time
-        is_next = True
-        while is_next:
+    cameras = RScene.FindObjects(EObjectType_Camera)
+    all_data = []
+    if lights or cameras:
+        if no_animation:
+            time = RGlobal.GetTime()
+            fps: RFps = RGlobal.GetFps()
+            frame = fps.GetFrameIndex(time)
             frame_lights = []
+            frame_cameras = []
             frame_data = {
                 "time": time.ToInt(),
                 "frame": int(frame),
-                "lights": frame_lights
+                "lights": frame_lights,
+                "cameras": frame_cameras,
             }
             for light in lights:
                 light_data = get_light_data(light)
                 frame_lights.append(light_data)
-            all_lights_data.append(frame_data)
-            is_next, time, frame = next_timeline_scan()
-        end_timeline_scan(start_time)
-    return all_lights_data
+            for camera in cameras:
+                camera_data = get_camera_data(camera)
+                frame_cameras.append(camera_data)
+            all_data.append(frame_data)
+        else:
+            time, frame = begin_timeline_scan()
+            start_time = time
+            is_next = True
+            while is_next:
+                frame_lights = []
+                frame_cameras = []
+                frame_data = {
+                    "time": time.ToInt(),
+                    "frame": int(frame),
+                    "lights": frame_lights,
+                    "cameras": frame_cameras,
+                }
+                for light in lights:
+                    light_data = get_light_data(light)
+                    frame_lights.append(light_data)
+                for camera in cameras:
+                    camera_data = get_camera_data(camera)
+                    frame_cameras.append(camera_data)
+                all_data.append(frame_data)
+                is_next, time, frame = next_timeline_scan()
+            end_timeline_scan(start_time)
+    return all_data
 
 
 IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
@@ -2095,6 +2121,69 @@ def get_light_data(light: RILight):
     }
 
     return light_data
+
+
+def get_camera_data(camera: RICamera):
+        link_id = get_link_id(camera, add_if_missing=True)
+        name = camera.GetName()
+        time = RGlobal.GetTime()
+        width = 0
+        height = 0
+        res = camera.GetAperture(width, height)
+        width = res[1]
+        height = res[2]
+        # Get the camera pivot transform values
+        pos = RVector3()
+        rot = RVector3()
+        camera.GetPivot(pos, rot)
+        focal_length = camera.GetFocalLength(time)
+        fov = camera.GetAngleOfView(time)
+        fit = ("HORIZONTAL" if camera.GetFitRenderRegionType() == ECameraFitResolution_Horizontal
+                            else "VERTICAL")
+        far_clip = camera.GetFarClippingPlane()
+        near_clip = camera.GetNearClippingPlane()
+        is_look_at = camera.IsLookAtMode(time)
+        dof_data: RCameraDofData = camera.GetDOFData()
+        dof_enable = dof_data.GetEnable()
+        dof_weight = dof_data.GetCenterColorWeight()
+        dof_decay = dof_data.GetEdgeDecayPower()
+        dof_far_blur = dof_data.GetFarBlurScale()
+        dof_near_blur = dof_data.GetNearBlurScale()
+        dof_far_transition = dof_data.GetFarTransitionRegion()
+        dof_near_transition = dof_data.GetNearTransitionRegion()
+        dof_focus = dof_data.GetFocus()
+        dof_min_blend_distance = dof_data.GetMinBlendDistance()
+        dof_range = dof_data.GetRange()
+        T: RTransform = camera.WorldTransform()
+        t: RVector3 = T.T()
+        r: RQuaternion = T.R()
+        s: RVector3 = T.S()
+        camera_data = {
+            "link_id": link_id,
+            "name": name,
+            "loc": [t.x, t.y, t.z],
+            "rot": [r.x, r.y, r.z, r.w],
+            "sca": [s.x, s.y, s.z],
+            "fov": fov,
+            "fit": fit,
+            "width": width,
+            "height": height,
+            "focal_length": focal_length,
+            "far_clip": far_clip,
+            "near_clip": near_clip,
+            "pos": [pos.x, pos.y, pos.z],
+            "dof_enable": dof_enable,
+            "dof_weight": dof_weight,           # Unknown?
+            "dof_decay": dof_decay,             # Unknown?
+            "dof_focus": dof_focus,             # Focus Distance
+            "dof_range": dof_range,             # Perfect Focus Range
+            "dof_far_blur": dof_far_blur,
+            "dof_near_blur": dof_near_blur,
+            "dof_far_transition": dof_far_transition,
+            "dof_near_transition": dof_near_transition,
+            "dof_min_blend_distance": dof_min_blend_distance, # Blur Edge Sampling Scale
+        }
+        return camera_data
 
 
 def RGB_color(RGB):

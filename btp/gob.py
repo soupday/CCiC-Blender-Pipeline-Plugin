@@ -75,7 +75,7 @@ def go_b():
     for gob_data in GOB_OBJECTS:
         name = gob_data["name"]
         obj = gob_data["object"]
-        if gob_data["type"] != "LIGHT":
+        if gob_data["type"] == "PROP" or gob_data["type"] == "AVATAR":
             object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
             fbx_path = os.path.join(object_folder, name + ".fbx")
             gob_data["path"] = fbx_path
@@ -85,19 +85,19 @@ def go_b():
             GOB_QUEUE.append(gob_data)
             go_b_send()
 
-    lights = [ gob_data["object"] for gob_data in GOB_OBJECTS if gob_data["type"] == "LIGHT"]
-    if lights:
-        folder_name = "Lights_" + utils.timestamps()
-        name = lights[0].GetName()
-        lights_folder = utils.get_unique_folder_path(import_folder, folder_name, create=True)
-        fbx_path = os.path.join(lights_folder, name + ".rlx")
+    lights_cameras = [ gob_data["object"] for gob_data in GOB_OBJECTS if (gob_data["type"] == "LIGHT" or gob_data["type"] == "CAMERA")]
+    if lights_cameras:
+        folder_name = "Staging_" + utils.timestampns()
+        name = lights_cameras[0].GetName()
+        staging_folder = utils.get_unique_folder_path(import_folder, folder_name, create=True)
+        fbx_path = os.path.join(staging_folder, name + ".rlx")
         gob_data = {
             "name": folder_name,
-            "objects": lights,
-            "type": "LIGHT",
+            "objects": lights_cameras,
+            "type": "STAGING",
             "path": fbx_path,
         }
-        export = exporter.Exporter(lights, no_window=True)
+        export = exporter.Exporter(lights_cameras, no_window=True)
         export.set_datalink_export()
         export.do_export(file_path=fbx_path, no_base_folder=True)
         GOB_QUEUE.append(gob_data)
@@ -125,10 +125,10 @@ def go_b_send():
             LINK = link.get_data_link()
             while GOB_QUEUE:
                 gob_data = GOB_QUEUE.pop(0)
-                if gob_data["type"] != "LIGHT":
+                if gob_data["type"] != "STAGING":
                     LINK.send_actor_exported(gob_data["object"], gob_data["path"])
                 else:
-                    LINK.send_lights_exported(gob_data["objects"], gob_data["path"])
+                    LINK.send_lights_cameras_exported(gob_data["objects"], gob_data["path"])
         if GOB_DONE:
             go_b_finish()
 

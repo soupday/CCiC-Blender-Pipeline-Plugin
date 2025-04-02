@@ -442,6 +442,7 @@ def test_frame_scan():
 
 
 def test():
-    t: RTime = RGlobal.GetTime()
-    print(t.ToInt())
+    for o in RScene.GetSelectedObjects():
+        if type(o) is RICamera:
+            print(cc.get_camera_data(o))
     return

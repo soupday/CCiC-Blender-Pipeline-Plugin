@@ -57,7 +57,7 @@ class Exporter:
     props = None
     lights = None
     cameras = None
-    all_light_data = None
+    all_camera_light_data = None
     window: RIDockWidget = None
     window_progress: RIDockWidget = None
     progress_count = 0
@@ -165,7 +165,7 @@ class Exporter:
                     self.avatars.append(o)
                 elif cc.is_prop(o) and o not in self.props:
                     self.props.append(o)
-        self.all_light_data = None
+        self.all_camera_light_data = None
 
     def clear_objects(self):
         self.avatars = []
@@ -176,7 +176,7 @@ class Exporter:
         self.prop = None
         self.light = None
         self.camera = None
-        self.all_light_data = None
+        self.all_camera_light_data = None
 
     def show(self):
         if not self.has_window():
@@ -245,24 +245,29 @@ class Exporter:
         if show:
             os.startfile(base_path)
 
-    def set_multi_paths(self, object, motion_only=False):
-        base_path = self.base_path
-        ext = ".Fbx"
-        if cc.is_light(object):
-            ext = ".rlx"
-        name = object.GetName()
-        # ensure unique path names for each export
+    def get_unique_path(self, base_path, name, ext, is_motion=False):
+        """Ensure unique path names for each export"""
         attempt = 0
+        fbx_path = ""
         while True:
             suffix = "" if attempt == 0 else f"_{attempt:03d}"
-            if motion_only:
-                self.fbx_path = os.path.join(base_path, f"{name}{suffix}_motion{ext}")
+            if is_motion:
+                fbx_path = os.path.join(base_path, f"{name}{suffix}_motion{ext}")
             else:
-                self.fbx_path = os.path.join(base_path, f"{name}{suffix}{ext}")
-            if os.path.exists(self.fbx_path):
+                fbx_path = os.path.join(base_path, f"{name}{suffix}{ext}")
+            if os.path.exists(fbx_path):
                 attempt += 1
             else:
                 break
+        return fbx_path
+
+    def set_multi_paths(self, object, motion_only=False):
+        base_path = self.base_path
+        ext = ".Fbx"
+        if cc.is_light(object) or cc.is_camera(object):
+            ext = ".rlx"
+        name = object.GetName()
+        self.fbx_path = self.get_unique_path(base_path, name, ext, is_motion=motion_only)
         self.fbx_file = os.path.basename(self.fbx_path)
         self.folder = os.path.dirname(self.fbx_path)
         self.character_id = os.path.splitext(self.fbx_file)[0]
@@ -702,7 +707,7 @@ class Exporter:
                     utils.log_info(f"Exporting Camera: {self.cameras[0].GetName()}")
                     self.set_camera(self.cameras[0])
                     self.set_paths(file_path, self.option_animation_only)
-                    self.export_fbx()
+                    self.export_camera()
             elif multi_export:
                 # set the base path and create a folder
                 self.set_base_path(file_path, create=True, show=True, no_base_folder=no_base_folder)
@@ -725,7 +730,7 @@ class Exporter:
                     utils.log_info(f"Exporting Cameras ...")
                     self.set_camera(camera)
                     self.set_multi_paths(camera, self.option_animation_only)
-                    self.export_fbx()
+                    self.export_camera()
             utils.log("Done!")
             self.clean_up_globals()
 
@@ -1087,15 +1092,15 @@ class Exporter:
                             utils.log(f"Unable to save missing weightmap: {weight_map_path}")
 
     def export_light(self):
-        if not self.all_light_data:
-            self.all_light_data = cc.get_all_light_data()
+        if not self.all_camera_light_data:
+            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
 
         frame = 0
         link_id = cc.get_link_id(self.light)
         light_index = -1
         light_data = None
-        num_frames = len(self.all_light_data)
-        for i, data in enumerate(self.all_light_data[frame]["lights"]):
+        num_frames = len(self.all_camera_light_data)
+        for i, data in enumerate(self.all_camera_light_data[frame]["lights"]):
             if data["link_id"] == link_id:
                 light_data = data
                 light_index = i
@@ -1121,7 +1126,7 @@ class Exporter:
         utils.log_info(f"Packing Light Frames: {num_frames} ...")
 
         frames_bytes = bytearray()
-        for frame_data in self.all_light_data:
+        for frame_data in self.all_camera_light_data:
             time = frame_data["time"]
             frame = frame_data["frame"]
             light_data = frame_data["lights"][light_index]
@@ -1165,7 +1170,81 @@ class Exporter:
         return True
 
     def export_camera(self):
-        return
+        if not self.all_camera_light_data:
+            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
+
+        frame = 0
+        link_id = cc.get_link_id(self.camera)
+        camera_index = -1
+        camera_data = None
+        num_frames = len(self.all_camera_light_data)
+        for i, data in enumerate(self.all_camera_light_data[frame]["cameras"]):
+            if data["link_id"] == link_id:
+                camera_data = data
+                camera_index = i
+
+        if not camera_data:
+            utils.log_error(f"Unable to find camera in camera data: {self.camera}")
+            return False
+
+        camera_data["frame_count"] = num_frames
+
+        utils.log_info(f"Exporting Camera: {self.camera.GetName()}")
+
+        binary_bytes = bytearray()
+
+        utils.log_info(f"Packing Camera Json ...")
+
+        json_string = json.dumps(camera_data)
+        json_bytes = bytearray(json_string, "utf-8")
+        json_header = struct.pack("!II", RLX_ID_CAMERA, len(json_bytes))
+        binary_bytes.extend(json_header)
+        binary_bytes.extend(json_bytes)
+
+        utils.log_info(f"Packing Camera Frames: {num_frames} ...")
+
+        frames_bytes = bytearray()
+        for frame_data in self.all_camera_light_data:
+            time = frame_data["time"]
+            frame = frame_data["frame"]
+            camera_data = frame_data["cameras"][camera_index]
+            frame_bytes = struct.pack("!IIfffffffffff?fffffff",
+                                     time,
+                                     frame,
+                                     camera_data["loc"][0],
+                                     camera_data["loc"][1],
+                                     camera_data["loc"][2],
+                                     camera_data["rot"][0],
+                                     camera_data["rot"][1],
+                                     camera_data["rot"][2],
+                                     camera_data["rot"][3],
+                                     camera_data["sca"][0],
+                                     camera_data["sca"][1],
+                                     camera_data["sca"][2],
+                                     camera_data["focal_length"],
+                                     camera_data["dof_enable"],
+                                     camera_data["dof_focus"], # Focus Distance
+                                     camera_data["dof_range"], # Perfect Focus Range
+                                     camera_data["dof_far_blur"],
+                                     camera_data["dof_near_blur"],
+                                     camera_data["dof_far_transition"],
+                                     camera_data["dof_near_transition"],
+                                     camera_data["dof_min_blend_distance"]) # Blur Edge Sampling Scale
+            frames_bytes.extend(frame_bytes)
+        frames_header = struct.pack("!I", len(frames_bytes))
+        binary_bytes.extend(frames_header)
+        binary_bytes.extend(frames_bytes)
+
+        utils.log_info(f"Writing Binary File: {self.fbx_path}")
+
+        with open(self.fbx_path, 'wb') as binary_file:
+            binary_file.write(binary_bytes)
+
+        self.exported_paths.append(self.fbx_path)
+
+        self.export_extra_data()
+
+        return True
 
 
 EXPORTER: Exporter = None
