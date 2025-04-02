@@ -50,6 +50,8 @@ class Exporter:
     json_path = "C:/folder/dummy.json"
     hik_path = "C:/folder/dummy.3dxProfile"
     profile_path = "C:/folder/dummy.ccFacialProfile"
+    light_ies_path = ""
+    light_cookie_path = ""
     json_data = None
     avatar: RIAvatar = None # type: ignore
     prop: RIProp = None # type: ignore
@@ -275,6 +277,9 @@ class Exporter:
         self.json_path = os.path.join(self.folder, self.character_id + ".json")
         self.hik_path = os.path.join(self.folder, self.character_id + ".3dxProfile")
         self.profile_path = os.path.join(self.folder, self.character_id + ".ccFacialProfile")
+        if cc.is_light(object):
+            self.light_ies_path = os.path.join(self.folder, self.character_id + ".ies")
+            self.light_cookie_path = os.path.join(self.folder, self.character_id + ".png")
 
     def set_paths(self, file_path, motion_only=False):
         file_path = os.path.normpath(file_path)
@@ -291,6 +296,9 @@ class Exporter:
         self.json_path = os.path.join(self.folder, self.character_id + ".json")
         self.hik_path = os.path.join(self.folder, self.character_id + ".3dxProfile")
         self.profile_path = os.path.join(self.folder, self.character_id + ".ccFacialProfile")
+        if self.light:
+            self.light_ies_path = os.path.join(self.folder, self.character_id + ".ies")
+            self.light_cookie_path = os.path.join(self.folder, self.character_id + ".png")
 
     def create_options_window(self):
         W = 400
@@ -1095,8 +1103,10 @@ class Exporter:
         if not self.all_camera_light_data:
             self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
 
+        light: RILight = self.light
+
         frame = 0
-        link_id = cc.get_link_id(self.light)
+        link_id = cc.get_link_id(light)
         light_index = -1
         light_data = None
         num_frames = len(self.all_camera_light_data)
@@ -1106,12 +1116,12 @@ class Exporter:
                 light_index = i
 
         if not light_data:
-            utils.log_error(f"Unable to find light in light data: {self.light}")
+            utils.log_error(f"Unable to find light in light data: {light}")
             return False
 
         light_data["frame_count"] = num_frames
 
-        utils.log_info(f"Exporting Light: {self.light.GetName()}")
+        utils.log_info(f"Exporting Light: {light.GetName()}")
 
         binary_bytes = bytearray()
 
@@ -1163,9 +1173,19 @@ class Exporter:
         with open(self.fbx_path, 'wb') as binary_file:
             binary_file.write(binary_bytes)
 
-        self.exported_paths.append(self.fbx_path)
+        T = type(light)
+        if T is RISpotLight or T is RIPointLight:
+            if light.IsRectangleShape():
+                # saves rect texture (only if there is one).
+                light.SaveRectTexture(self.light_cookie_path)
+            # always saves an IES, empty file if there isn't one.
+            light.SaveIes(self.light_ies_path)
+            # remove the IES file if it is empty
+            if os.path.exists(self.light_ies_path) and os.stat(self.light_ies_path).st_size == 0:
+                os.remove(self.light_ies_path)
 
         self.export_extra_data()
+        self.exported_paths.append(self.fbx_path)
 
         return True
 
