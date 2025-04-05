@@ -2674,39 +2674,50 @@ class DataLink(QObject):
         }
         actor: LinkActor
         for actor in actors:
-            SC: RISkeletonComponent = actor.get_skeleton_component()
-            FC: RIFaceComponent = actor.get_face_component()
-            VC: RIVisemeComponent = actor.get_viseme_component()
-            MC: RIMorphComponent = actor.get_morph_component()
-            skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
-            is_prop = actor.get_type() == "PROP"
-            skin_bones, skin_meshes = cc.extract_skin_bones_from_tree(skin_bone_tree, extract_mesh=is_prop)
-            actor.skin_bones = skin_bones
-            actor.skin_meshes = skin_meshes
-            bones = []
-            meshes = []
-            expressions = []
-            visemes = []
-            morphs = []
-            if SC:
-                for bone_node in skin_bones:
-                    bones.append(bone_node.GetName())
-                for mesh_obj in skin_meshes:
-                    meshes.append(mesh_obj.GetName())
-            if FC:
-                expressions = FC.GetExpressionNames("")
-            if VC:
-                visemes = VC.GetVisemeNames()
-            actor_data.append({
-                "name": actor.name,
-                "type": actor.get_type(),
-                "link_id": actor.get_link_id(),
-                "bones": bones,
-                "meshes": meshes,
-                "expressions": expressions,
-                "visemes": visemes,
-                "morphs": morphs,
-            })
+            actor_type = actor.get_type()
+            if actor_type == "PROP" or actor_type == "AVATAR":
+                SC: RISkeletonComponent = actor.get_skeleton_component()
+                FC: RIFaceComponent = actor.get_face_component()
+                VC: RIVisemeComponent = actor.get_viseme_component()
+                MC: RIMorphComponent = actor.get_morph_component()
+                skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
+                is_prop = actor.get_type() == "PROP"
+                skin_bones, skin_meshes = cc.extract_skin_bones_from_tree(skin_bone_tree, extract_mesh=is_prop)
+                actor.skin_bones = skin_bones
+                actor.skin_meshes = skin_meshes
+                bones = []
+                meshes = []
+                expressions = []
+                visemes = []
+                morphs = []
+                if SC:
+                    for bone_node in skin_bones:
+                        bones.append(bone_node.GetName())
+                    for mesh_obj in skin_meshes:
+                        meshes.append(mesh_obj.GetName())
+                if FC:
+                    expressions = FC.GetExpressionNames("")
+                if VC:
+                    visemes = VC.GetVisemeNames()
+                actor_data.append({
+                    "name": actor.name,
+                    "type": actor_type,
+                    "link_id": actor.get_link_id(),
+                    "bones": bones,
+                    "meshes": meshes,
+                    "expressions": expressions,
+                    "visemes": visemes,
+                    "morphs": morphs,
+                })
+            else: #if actor_type == "LIGHT" or actor_type == "CAMERA":
+                # lights and cameras just have root transforms to animate
+                # and fixed properties
+                actor_data.append({
+                    "name": actor.name,
+                    "type": actor_type,
+                    "link_id": actor.get_link_id(),
+                })
+
         return encode_from_json(character_template)
 
     def encode_pose_data(self, actors):
@@ -2745,16 +2756,11 @@ class DataLink(QObject):
         data += struct.pack("!II", len(actors), get_current_frame())
         actor: LinkActor
         for actor in actors:
-            SC: RISkeletonComponent = actor.get_skeleton_component()
-            FC: RIFaceComponent = actor.get_face_component()
-            VC: RIVisemeComponent = actor.get_viseme_component()
-            MC: RIMorphComponent = actor.get_morph_component()
 
-            skin_bones = actor.skin_bones
-            skin_meshes = actor.skin_meshes
-
+            # pack actor info
+            actor_type = actor.get_type()
             data += pack_string(actor.name)
-            data += pack_string(actor.get_type())
+            data += pack_string(actor_type)
             data += pack_string(actor.get_link_id())
 
             # pack object transform
@@ -2764,49 +2770,89 @@ class DataLink(QObject):
             s: RVector3 = T.S()
             data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
 
-            # pack bone transforms
-            data += struct.pack("!I", len(skin_bones))
-            bone: RIObject
-            for bone in skin_bones:
-                T: RTransform = bone.WorldTransform()
-                t: RVector3 = T.T()
-                r: RQuaternion = T.R()
-                s: RVector3 = T.S()
-                data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+            if actor_type == "PROP" or actor_type == "AVATAR":
+                SC: RISkeletonComponent = actor.get_skeleton_component()
+                FC: RIFaceComponent = actor.get_face_component()
+                VC: RIVisemeComponent = actor.get_viseme_component()
+                MC: RIMorphComponent = actor.get_morph_component()
 
-            # pack mesh transforms
-            data += struct.pack("!I", len(skin_meshes))
-            bone: RIObject
-            for bone in skin_meshes:
-                T: RTransform = bone.WorldTransform()
-                t: RVector3 = T.T()
-                r: RQuaternion = T.R()
-                s: RVector3 = T.S()
-                data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
+                skin_bones = actor.skin_bones
+                skin_meshes = actor.skin_meshes
 
-            # pack facial expressions
-            if FC:
-                names = FC.GetExpressionNames("")
-                weights = FC.GetExpressionWeights(RGlobal.GetTime(), names)
-                data += struct.pack("!I", len(names))
-                for weight in weights:
-                    data += struct.pack("!f", weight)
-            else:
-                data += struct.pack("!I", 0)
+                # pack bone transforms
+                data += struct.pack("!I", len(skin_bones))
+                bone: RIObject
+                for bone in skin_bones:
+                    T: RTransform = bone.WorldTransform()
+                    t: RVector3 = T.T()
+                    r: RQuaternion = T.R()
+                    s: RVector3 = T.S()
+                    data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
 
-            # pack visemes
-            if VC:
-                names = VC.GetVisemeNames()
-                weights = VC.GetVisemeMorphWeights()
-                data += struct.pack("!I", len(weights))
-                for weight in weights:
-                    data += struct.pack("!f", weight)
-            else:
-                data += struct.pack("!I", 0)
+                # pack mesh transforms
+                data += struct.pack("!I", len(skin_meshes))
+                bone: RIObject
+                for bone in skin_meshes:
+                    T: RTransform = bone.WorldTransform()
+                    t: RVector3 = T.T()
+                    r: RQuaternion = T.R()
+                    s: RVector3 = T.S()
+                    data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
 
-            # TODO: pack morphs
-            if MC:
-                pass
+                # pack facial expressions
+                if FC:
+                    names = FC.GetExpressionNames("")
+                    weights = FC.GetExpressionWeights(RGlobal.GetTime(), names)
+                    data += struct.pack("!I", len(names))
+                    for weight in weights:
+                        data += struct.pack("!f", weight)
+                else:
+                    data += struct.pack("!I", 0)
+
+                # pack visemes
+                if VC:
+                    names = VC.GetVisemeNames()
+                    weights = VC.GetVisemeMorphWeights()
+                    data += struct.pack("!I", len(weights))
+                    for weight in weights:
+                        data += struct.pack("!f", weight)
+                else:
+                    data += struct.pack("!I", 0)
+
+                # TODO: pack morphs
+                if MC:
+                    pass
+
+            elif actor_type == "LIGHT":
+
+                # pack animateable light data
+                light_data = cc.get_light_data(actor.object)
+                data += struct.pack("!?fffffffff",
+                                    light_data["active"],
+                                    light_data["color"][0],
+                                    light_data["color"][1],
+                                    light_data["color"][2],
+                                    light_data["multiplier"],
+                                    light_data["range"],
+                                    light_data["angle"],
+                                    light_data["falloff"],
+                                    light_data["attenuation"],
+                                    light_data["darkness"])
+
+            elif actor_type == "CAMERA":
+
+                # pack animateable camera data
+                camera_data = cc.get_camera_data(actor.object)
+                data += struct.pack("!f?fffffff",
+                                     camera_data["focal_length"],
+                                     camera_data["dof_enable"],
+                                     camera_data["dof_focus"], # Focus Distance
+                                     camera_data["dof_range"], # Perfect Focus Range
+                                     camera_data["dof_far_blur"],
+                                     camera_data["dof_near_blur"],
+                                     camera_data["dof_far_transition"],
+                                     camera_data["dof_near_transition"],
+                                     camera_data["dof_min_blend_distance"])
 
         return data
 
@@ -3036,7 +3082,7 @@ class DataLink(QObject):
 
     def send_pose(self):
         # get actors
-        actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
+        actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
         if actors:
             self.update_link_status(f"Sending Pose Set")
             self.send_notify(f"Pose Set")
@@ -3069,7 +3115,7 @@ class DataLink(QObject):
             return
 
         # get actors
-        actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
+        actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
         self.data.stored_selection = RScene.GetSelectedObjects()
         RScene.ClearSelectObjects()
         if actors:
