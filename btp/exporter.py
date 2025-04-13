@@ -750,47 +750,30 @@ class Exporter:
         return self.exported_paths
 
     def export_fbx(self):
-        obj = None
-        if self.avatar:
-            if self.option_animation_only:
-                self.export_motion_fbx()
-                return
-            is_avatar = True
-            is_prop = False
-            is_camera = False
-            obj = self.avatar
-        elif self.prop:
-            if self.option_animation_only:
-                self.export_motion_fbx()
-                return
-            is_avatar = False
-            is_prop = True
-            is_camera = False
-            obj = self.prop
-        elif self.camera:
-            is_avatar = False
-            is_prop = False
-            is_camera = True
-            obj = self.camera
-        else:
+        if self.option_animation_only:
+            self.export_motion_fbx()
+            return
+        obj = utils.first(self.avatar, self.prop, self.camera, self.light)
+        if not obj:
             utils.log_error("No avatar, prop or camera to export!")
             return
 
         file_path = self.fbx_path
-        if is_avatar:
+        if self.avatar:
             self.update_progress(0, f"Exporting Avatar: {obj.GetName()} ...", True)
-        elif is_prop:
+        elif self.prop:
             self.update_progress(0, f"Exporting Prop: {obj.GetName()} ...", True)
         else:
             self.update_progress(0, f"Exporting Camera: {obj.GetName()} ...", True)
 
-        utils.log(f"Exporting {('Avatar' if is_avatar else 'Prop' if is_prop else 'Camera')} - {obj.GetName()} - FBX: {file_path}")
+
+        utils.log(f"Exporting {cc.get_object_type(obj)} - {obj.GetName()} - FBX: {file_path}")
 
         options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
                                             | EExportFbxOptions_RemoveAllUnused
                                             | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
                                             | EExportFbxOptions_ExportRootMotion)
-        if is_avatar:
+        if self.avatar:
             if self.option_remove_hidden:
                 options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
             else:
@@ -808,12 +791,12 @@ class Exporter:
         export_fbx_setting.SetOption2(options2)
         export_fbx_setting.SetOption3(options3)
 
-        if is_avatar:
+        if self.avatar:
             export_fbx_setting.EnableBakeDiffuseSpecularFromShader(self.option_bakehair)
             export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
             export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
 
-        if is_avatar or is_prop:
+        if self.avatar or self.prop:
             export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
             export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
@@ -855,9 +838,9 @@ class Exporter:
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
 
-        if is_avatar:
+        if self.avatar:
             self.update_progress(3, f"Exported Avatar Fbx - {obj.GetName()}", True)
-        elif is_prop:
+        elif self.prop:
             self.update_progress(3, f"Exported Prop Fbx - {obj.GetName()}", True)
         else:
             self.update_progress(3, f"Exported Camera Fbx - {obj.GetName()}", True)
@@ -871,21 +854,7 @@ class Exporter:
         if not name.lower().endswith("_motion"):
             file_path = os.path.join(dir, f"{name}_Motion{ext}")
 
-        if self.avatar:
-            obj = self.avatar
-            is_avatar = True
-            is_prop = False
-            is_camera = False
-        elif self.prop:
-            obj = self.prop
-            is_avatar = False
-            is_prop = True
-            is_camera = False
-        elif self.camera:
-            obj = self.camera
-            is_avatar = False
-            is_prop = False
-            is_camera = True
+        obj = utils.first(self.avatar, self.prop, self.camera)
 
         self.update_progress(0, f"Exporting Motion - {obj.GetName()}", True)
         utils.log(f"Exporting Motion FBX: {file_path}")
@@ -894,7 +863,7 @@ class Exporter:
                                             | EExportFbxOptions_RemoveAllUnused
                                             | EExportFbxOptions_ExportRootMotion
                                             | EExportFbxOptions_RemoveUnusedMorph)
-        if is_avatar:
+        if self.avatar:
             options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
 
         options2 = (EExportFbxOptions2__None | EExportFbxOptions2_ResetBoneScale
@@ -910,7 +879,7 @@ class Exporter:
 
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
-        if is_avatar:
+        if self.avatar:
             export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
         else:
             export_fbx_setting.EnableBasicBindPose(True)
@@ -1050,8 +1019,8 @@ class Exporter:
             child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
             objects = [obj]
             objects.extend(child_objects)
-            root_def = cc.get_extended_skin_bones_tree(obj)
-            root_json["Root Bones"] = cc.extract_root_bones_from_tree(root_def)
+            skin_tree = cc.get_extended_skin_bones_tree(obj)
+            root_json["Root Bones"] = cc.extract_root_bones_from_tree(skin_tree)
             for obj in objects:
                 obj_name = obj.GetName()
                 SC: RISkeletonComponent = obj.GetSkeletonComponent()

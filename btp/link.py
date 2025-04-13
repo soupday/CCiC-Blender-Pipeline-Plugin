@@ -38,6 +38,7 @@ MAX_RECEIVE = 24
 USE_PING = False
 USE_KEEPALIVE = False
 SOCKET_TIMEOUT = 5.0
+INCLUDE_POSE_MESHES = False
 
 class OpCodes(IntEnum):
     NONE = 0
@@ -75,6 +76,8 @@ class OpCodes(IntEnum):
     CAMERA_SYNC = 231
     FRAME_SYNC = 232
     MOTION = 240
+    REQUEST = 250
+    CONFIRM = 251
 
 
 VISEME_NAME_MAP = {
@@ -142,7 +145,10 @@ class LinkActor():
     object: RIObject = None
     bones: list = None
     shapes: list = None
+    id_tree: dict = None
     skin_bones: list = None
+    skin_tree: dict = None
+    skin_objects: dict = None
     skin_meshes: list = None
     expressions: dict = None
     expression_rotations: dict = None
@@ -158,7 +164,10 @@ class LinkActor():
         self.name = object.GetName()
         self.object = object
         self.bones = []
+        self.id_tree = {}
         self.shapes = []
+        self.skin_tree = {}
+        self.skin_objects = {}
         self.skin_bones = []
         self.skin_meshes = []
         self.expressions = {}
@@ -201,7 +210,8 @@ class LinkActor():
         if FC:
             FC.EndKeyEditing()
         SC = self.get_skeleton_component()
-        SC.BakeFkToIk(time, True)
+        if SC:
+            SC.BakeFkToIk(time, True)
 
     def get_skeleton_component(self) -> RISkeletonComponent:
         if self.object:
@@ -285,8 +295,12 @@ class LinkActor():
         self.face_drivers = face_drivers
 
     def set_template(self, actor_data: dict):
-        self.bones = actor_data["bones"]
-        self.shapes = actor_data["shapes"]
+        self.bones = actor_data.get("bones")
+        self.bone_ids = actor_data.get("bone_ids")
+        if INCLUDE_POSE_MESHES:
+            self.bones.extend(actor_data.get("meshes"))
+            self.bone_ids.extend(actor_data.get("mesh_ids"))
+        self.shapes = actor_data.get("shapes")
         self.use_drivers = actor_data.get("drivers", "EXPRESSION") == "BONE"
         FC = self.get_face_component()
         VC = self.get_viseme_component()
@@ -299,6 +313,7 @@ class LinkActor():
             for i, name in enumerate(self.shapes):
                 if name in names:
                     self.expressions[name] = i
+            self.get_expression_bone_rotations(self.expressions)
         if VC:
             for i, name in enumerate(self.shapes):
                 if name in VISEME_NAME_MAP:
@@ -306,7 +321,6 @@ class LinkActor():
                     self.visemes[viseme_id] = i
         if MC:
             pass
-        self.get_expression_bone_rotations(self.expressions)
 
     def set_t_pose(self, t_pose):
         self.t_pose = t_pose
@@ -403,6 +417,7 @@ class LinkData():
     sequence_current_frame: int = 0
     sequence_actors: list = None
     sequence_active: bool = False
+    sequence_type: str = None
     #
     ack_rate: float = 0.0
     ack_time: float = 0.0
@@ -607,36 +622,37 @@ def decompose_transform(T: RTransform):
     return t, r, s
 
 
-def apply_pose(actor: LinkActor, time: RTime, pose_data, shape_data, t_pose_data):
-    SC = actor.get_skeleton_component()
-    if SC:
+def apply_pose(actor: LinkActor, time: RTime, pose_data, shape_data):
+
+    all_clips = True
+    for obj_id, obj_def in actor.skin_objects.items():
+        SC: RISkeletonComponent = obj_def["SC"]
         clip: RIClip = SC.GetClipByTime(time)
         if clip:
             clip_time = clip.SceneTimeToClipTime(time)
-            if len(actor.bones) != len(pose_data):
-                utils.log_error("Bones do not match!")
-                return
-            root_bone: RINode = SC.GetRootBone()
-            root_rot = RQuaternion(RVector4(0,0,0,1))
-            root_tra = RVector3(0,0,0)
-            root_sca = RVector3(1,1,1)
-            apply_world_fk_pose(actor, SC, clip, clip_time,
-                                root_bone, pose_data, shape_data,
-                                t_pose_data, root_rot, root_tra, root_sca)
-            scene_time = clip.ClipTimeToSceneTime(clip_time)
-            SC.BakeFkToIk(scene_time, False)
+        else:
+            all_clips = False
+
+    if all_clips:
+        root_rot = RQuaternion(RVector4(0,0,0,1))
+        root_tra = RVector3(0,0,0)
+        root_sca = RVector3(1,1,1)
+        apply_world_fk_pose(actor, clip_time,
+                            actor.skin_tree, pose_data, shape_data,
+                            root_rot, root_tra, root_sca)
+        scene_time = clip.ClipTimeToSceneTime(clip_time)
+        SC.BakeFkToIk(scene_time, False)
 
 
-def get_pose_local(avatar: RIAvatar):
-    SC: RISkeletonComponent = avatar.GetSkeletonComponent()
-    skin_bones = SC.GetSkinBones()
+def get_pose_local(actor: LinkActor):
     pose = {}
-    for bone in skin_bones:
+    bone: RINode = None
+    for bone in actor.skin_bones:
         T: RTransform = bone.LocalTransform()
         t: RVector3 = T.T()
         r: RQuaternion = T.R()
         s: RVector3 = T.S()
-        pose[bone.GetName()] = [
+        pose[bone.GetID()] = [
             t.x, t.y, t.z,
             r.x, r.y, r.z, r.w,
             s.x, s.y, s.z,
@@ -676,33 +692,8 @@ def fetch_transform(D):
     return tra, rot, sca
 
 
-def fetch_pose_root_transform(actor: LinkActor, pose_data):
-    SC = actor.get_skeleton_component()
-    root_bone = SC.GetRootBone()
-    source_name = root_bone.GetName()
-    root_bone_name = try_get_pose_bone(source_name, actor.bones)
-    if root_bone_name in actor.bones:
-        bone_index = actor.bones.index(root_bone_name)
-        return fetch_transform(pose_data[bone_index])
-    else:
-        return fetch_transform([0,0,0,0,0,0,1,1,1,1])
-
-
 def log_transform(name, rot, tra, sca):
     utils.log_info(f" - {name}: ({utils.fd2(tra.x)}, {utils.fd2(tra.y)}, {utils.fd2(tra.z)}) - ({utils.fd2(rot.x)}, {utils.fd2(rot.x)}, {utils.fd2(rot.z)}, {utils.fd2(rot.w)}) - ({utils.fd2(sca.x)}, {utils.fd2(sca.y)}, {utils.fd2(sca.z)})")
-
-
-TRY_BONES = {
-    "RL_BoneRoot": ["CC_Base_BoneRoot", "Rigify_BoneRoot", "BoneRoot", "root"],
-}
-
-def try_get_pose_bone(name, bones: list):
-    if name not in bones and name in TRY_BONES:
-        names = TRY_BONES[name]
-        for n in names:
-            if n in bones:
-                return n
-    return name
 
 
 def get_expression_counter_rotation(actor: LinkActor, bone_name, expression_weights) -> RQuaternion:
@@ -731,16 +722,30 @@ def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTim
     set_ik_effector(SC, clip, EHikEffector_RightFoot, time,  rot, tra, sca)
 
 
-def apply_world_fk_pose(actor, SC: RISkeletonComponent, clip, time, bone: RINode, pose_data, shape_data, t_pose_data,
+def apply_world_fk_pose(actor: LinkActor, time, skin_tree_def: dict,
+                        pose_data, shape_data,
                         parent_world_rot, parent_world_tra, parent_world_sca):
-    source_name = bone.GetName()
-    bone_name = try_get_pose_bone(source_name, actor.bones)
 
-    if bone_name in actor.bones:
+    obj = skin_tree_def["object"]
+    obj_def = actor.skin_objects[obj.GetID()]
+    SC = obj_def["SC"]
+    clip = obj_def["clip"]
+    skin_bone = skin_tree_def["bone"]
+    bone_name = skin_bone.GetName()
+    bone_id = skin_bone.GetID()
+    try:
+        bone_index = actor.bone_ids.index(bone_id)
+    except:
+        bone_index = -1
 
-        bone_index = actor.bones.index(bone_name)
+    if bone_id not in actor.t_pose:
+        utils.log_error(f"Bone {bone_name} not in t-pose data!")
+        return
+
+    if bone_index > -1:
+
         world_tra, world_rot, world_sca = fetch_pose_transform(pose_data, bone_index)
-        t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
+        t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(actor.t_pose, bone_id)
         local_rot, local_tra, local_sca = calc_local(world_rot, world_tra, world_sca,
                                                      parent_world_rot, parent_world_tra, parent_world_sca)
         # don't apply any translation to twist or share bones
@@ -749,28 +754,28 @@ def apply_world_fk_pose(actor, SC: RISkeletonComponent, clip, time, bone: RINode
         if actor.use_drivers and bone_name in actor.face_drivers:
             apply_face_drivers(actor, bone_name, shape_data, local_rot, parent_world_rot, t_pose_rot)
         ec_rot = get_expression_counter_rotation(actor, bone_name, shape_data)
-        set_bone_control(SC, clip, bone, time, ec_rot,
+        set_bone_control(SC, clip, skin_bone, time, ec_rot,
                          t_pose_rot, t_pose_tra, t_pose_sca,
                          local_rot, local_tra, local_sca)
 
-        children = bone.GetChildren()
-        for child in children:
-            apply_world_fk_pose(actor, SC, clip, time, child, pose_data, shape_data,
-                                t_pose_data, world_rot, world_tra, world_sca)
+        for child_def in skin_tree_def["children"]:
+            apply_world_fk_pose(actor, time, child_def,
+                                pose_data, shape_data,
+                                world_rot, world_tra, world_sca)
     else:
 
         # don't follow twist or share bones
         if "Twist" in bone_name or "Share" in bone_name:
             return
 
-        t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(t_pose_data, source_name)
+        t_pose_tra, t_pose_rot, t_pose_sca = fetch_pose_transform(actor.t_pose, bone_id)
         world_rot, world_tra, world_sca = calc_world(t_pose_rot, t_pose_tra, t_pose_sca,
                                                      parent_world_rot, parent_world_tra, parent_world_sca)
 
-        children = bone.GetChildren()
-        for child in children:
-            apply_world_fk_pose(actor, SC, clip, time, child, pose_data, shape_data,
-                                t_pose_data, world_rot, world_tra, world_sca)
+        for child_def in skin_tree_def["children"]:
+            apply_world_fk_pose(actor, time, child_def,
+                                pose_data, shape_data,
+                                world_rot, world_tra, world_sca)
 
 
 def calc_world(local_rot: RQuaternion, local_tra: RVector3, local_sca: RVector3,
@@ -887,7 +892,7 @@ def apply_face_drivers(actor: LinkActor, bone_name, shape_data,
             #print(f"{bone_name}:{expr} {cc.dumps_quaternion_xyz(local_pose)} / {cc.dumps_quaternion_xyz(ERQ)} // {cc.dumps_vector3(pose_dir)} / {cc.dumps_vector3(expr_dir)} - {angle_pose:.3f} / {angle_expr:.3f} / {angle_fac:.3f}")
 
 
-def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data, t_pose_data):
+def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data):
     FC = actor.get_face_component()
     VC = actor.get_viseme_component()
     MC = actor.get_morph_component()
@@ -921,6 +926,41 @@ def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data, t_pose_da
             res = VC.AddVisemeKey(viseme_key)
             if res.IsError():
                 utils.log_error("Failed to set visemes")
+
+
+def apply_transform(actor, scene_time, transform_data):
+    loc: RVector3 = RVector3(transform_data[0], transform_data[1], transform_data[2])
+    rot: RQuaternion = RQuaternion(RVector4(transform_data[3], transform_data[4], transform_data[5], transform_data[6]))
+    sca: RVector3 = RVector3(transform_data[7], transform_data[8], transform_data[9])
+    set_transform_control(scene_time, actor.object, loc, rot, sca)
+
+
+def apply_light(actor, scene_time, light_data):
+    LIGHT_ENERGY_SCALE = 35
+    LIGHT_DIR_SCALE = 2
+    light: RISpotLight = actor.object
+    light.SetActive(scene_time, light_data["active"])
+    light.SetColor(scene_time, light_data["color"])
+    T = type(light)
+    if T is RIDirectionalLight:
+        light.SetMultiplier(scene_time, light_data["energy"] / LIGHT_DIR_SCALE)
+    else:
+        light.SetMultiplier(scene_time, light_data["energy"] / LIGHT_ENERGY_SCALE)
+    light.SetRange(scene_time, light_data["range"])
+    if T is RISpotLight:
+        angle = light_data["angle"] * 180/math.pi
+        spot_blend = light_data["blend"]
+        af = 100 * (-1 + pow(1 + 8 * spot_blend, 0.5)) / 2
+        light.SetSpotLightBeam(scene_time, angle, af, af)
+
+
+def apply_camera(actor, scene_time, camera_data):
+    camera: RICamera = actor.object
+    camera.SetFocalLength(scene_time, camera_data["lens"])
+    dof: RCameraDofData = camera.GetDOFData()
+    dof.SetEnable(camera_data["use_dof"])
+    dof.SetFocus(camera_data["focus_distance"])
+    f_stop = camera_data["f_stop"]
 
 
 class LinkService(QObject):
@@ -1607,7 +1647,7 @@ class DataLink(QObject):
                                        row=0, col=1, icon="PostEffect.png",
                                        width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                        icon_size=48, align_width=align_width)
-        self.button_pose = qt.icon_button(grid, "Send Pose", self.send_pose,
+        self.button_pose = qt.icon_button(grid, "Send Pose", self.send_pose_request,
                                      row=1, col=0, icon="Pose.png",
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
@@ -1615,7 +1655,7 @@ class DataLink(QObject):
                                           row=1, col=1, icon="Animation.png",
                                           width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                           icon_size=48, align_width=align_width)
-        self.button_sequence = qt.icon_button(grid, "Live Sequence", self.send_sequence,
+        self.button_sequence = qt.icon_button(grid, "Live Sequence", self.send_sequence_request,
                                          row=2, col=0, icon="Motion.png",
                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                          icon_size=48, align_width=align_width)
@@ -2005,7 +2045,7 @@ class DataLink(QObject):
             self.receive_invalid(data)
 
         if op_code == OpCodes.TEMPLATE:
-            self.receive_character_template(data)
+            self.receive_actor_templates(data)
 
         if op_code == OpCodes.POSE:
             self.receive_pose(data)
@@ -2040,8 +2080,12 @@ class DataLink(QObject):
         if op_code == OpCodes.CAMERA_SYNC:
             self.receive_camera_sync(data)
 
-        if op_code == OpCodes.FRAME_SYNC:
-            self.receive_frame_sync(data)
+        if op_code == OpCodes.REQUEST:
+            self.receive_request(data)
+
+        if op_code == OpCodes.CONFIRM:
+            self.receive_confirm(data)
+
 
     def on_connected(self):
         self.update_ui()
@@ -2666,9 +2710,9 @@ class DataLink(QObject):
                 self.send(OpCodes.RIGIFY, rigify_data)
                 self.update_link_status(f"Rigify Sent: {actor.name}")
 
-    def encode_character_templates(self, actors: list):
+    def encode_actor_templates(self, actors: list):
         actor_data = []
-        character_template = {
+        actor_template = {
             "count": len(actors),
             "actors": actor_data
         }
@@ -2680,21 +2724,13 @@ class DataLink(QObject):
                 FC: RIFaceComponent = actor.get_face_component()
                 VC: RIVisemeComponent = actor.get_viseme_component()
                 MC: RIMorphComponent = actor.get_morph_component()
-                skin_bone_tree = cc.get_extended_skin_bones_tree(actor.object)
-                is_prop = actor.get_type() == "PROP"
-                skin_bones, skin_meshes = cc.extract_skin_bones_from_tree(skin_bone_tree, extract_mesh=is_prop)
-                actor.skin_bones = skin_bones
-                actor.skin_meshes = skin_meshes
-                bones = []
-                meshes = []
+                actor.skin_tree = cc.get_extended_skin_bones_tree(actor.object)
+                actor.skin_bones, actor.id_tree = cc.extract_extended_skin_bones(actor.skin_tree)
+                ids = [ b.GetID() for b in actor.skin_bones ]
+                bones = [ b.GetName() for b in actor.skin_bones ]
                 expressions = []
                 visemes = []
                 morphs = []
-                if SC:
-                    for bone_node in skin_bones:
-                        bones.append(bone_node.GetName())
-                    for mesh_obj in skin_meshes:
-                        meshes.append(mesh_obj.GetName())
                 if FC:
                     expressions = FC.GetExpressionNames("")
                 if VC:
@@ -2704,7 +2740,8 @@ class DataLink(QObject):
                     "type": actor_type,
                     "link_id": actor.get_link_id(),
                     "bones": bones,
-                    "meshes": meshes,
+                    "ids": ids,
+                    "id_tree": actor.id_tree,
                     "expressions": expressions,
                     "visemes": visemes,
                     "morphs": morphs,
@@ -2718,7 +2755,7 @@ class DataLink(QObject):
                     "link_id": actor.get_link_id(),
                 })
 
-        return encode_from_json(character_template)
+        return encode_from_json(actor_template)
 
     def encode_pose_data(self, actors):
         fps = get_fps()
@@ -2771,28 +2808,18 @@ class DataLink(QObject):
             data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
 
             if actor_type == "PROP" or actor_type == "AVATAR":
+
                 SC: RISkeletonComponent = actor.get_skeleton_component()
                 FC: RIFaceComponent = actor.get_face_component()
                 VC: RIVisemeComponent = actor.get_viseme_component()
                 MC: RIMorphComponent = actor.get_morph_component()
 
                 skin_bones = actor.skin_bones
-                skin_meshes = actor.skin_meshes
 
                 # pack bone transforms
                 data += struct.pack("!I", len(skin_bones))
                 bone: RIObject
                 for bone in skin_bones:
-                    T: RTransform = bone.WorldTransform()
-                    t: RVector3 = T.T()
-                    r: RQuaternion = T.R()
-                    s: RVector3 = T.S()
-                    data += struct.pack("!ffffffffff", t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z)
-
-                # pack mesh transforms
-                data += struct.pack("!I", len(skin_meshes))
-                bone: RIObject
-                for bone in skin_meshes:
                     T: RTransform = bone.WorldTransform()
                     t: RVector3 = T.T()
                     r: RQuaternion = T.R()
@@ -3081,8 +3108,12 @@ class DataLink(QObject):
     #
 
     def send_pose(self):
+        # store selection
+        self.data.stored_selection = RScene.GetSelectedObjects()
         # get actors
-        actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+        if not self.data.sequence_actors:
+            self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+        actors = self.data.sequence_actors
         if actors:
             self.update_link_status(f"Sending Pose Set")
             self.send_notify(f"Pose Set")
@@ -3090,13 +3121,17 @@ class DataLink(QObject):
             pose_data = self.encode_pose_data(actors)
             self.send(OpCodes.POSE, pose_data)
             # send template data
-            template_data = self.encode_character_templates(actors)
+            template_data = self.encode_actor_templates(actors)
             self.send(OpCodes.TEMPLATE, template_data)
             # store the actors
             self.data.sequence_actors = actors
+            self.data.sequence_type = "POSE"
             # send pose frame data
             pose_frame_data = self.encode_pose_frame_data(actors)
             self.send(OpCodes.POSE_FRAME, pose_frame_data)
+        # restore selection
+        if self.data.stored_selection:
+            RScene.SelectObjects(self.data.stored_selection)
 
     def abort_sequence(self):
         if self.is_sequence_running():
@@ -3114,9 +3149,12 @@ class DataLink(QObject):
         if self.abort_sequence():
             return
 
-        # get actors
-        actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+        # store selection
         self.data.stored_selection = RScene.GetSelectedObjects()
+        # get actors
+        if not self.data.sequence_actors:
+            self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+        actors = self.data.sequence_actors
         RScene.ClearSelectObjects()
         if actors:
             self.update_link_status(f"Sending Sequence", True)
@@ -3134,10 +3172,11 @@ class DataLink(QObject):
             sequence_data = self.encode_sequence_data(actors)
             self.send(OpCodes.SEQUENCE, sequence_data)
             # send template data first
-            template_data = self.encode_character_templates(actors)
+            template_data = self.encode_actor_templates(actors)
             self.send(OpCodes.TEMPLATE, template_data)
             # start the sending sequence
             self.data.sequence_actors = actors
+            self.data.sequence_type = "SEQUENCE"
             self.start_sequence(func=self.send_sequence_frame)
             self.data.ack_rate = 60
             self.data.ack_time = 0
@@ -3174,40 +3213,59 @@ class DataLink(QObject):
             sequence_data = self.encode_sequence_data(actors, aborted=aborted)
             self.send(OpCodes.SEQUENCE_END, sequence_data)
             self.data.sequence_actors = None
+            self.data.sequence_type = None
+        self.update_link_status(f"Sequence Sent: {num_frames} frames")
+        # restore selection
         if self.data.stored_selection:
             RScene.SelectObjects(self.data.stored_selection)
-        self.update_link_status(f"Sequence Sent: {num_frames} frames")
 
-    def prep_actor_clip(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
+    def prep_pose_actor(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
         """Creates an empty clip and grabs the t-pose data for the character"""
 
+        # fetch the extended skin bone tree
+        actor.skin_tree = cc.get_extended_skin_bones_tree(actor.object)
+        actor.skin_bones, actor.id_tree = cc.extract_extended_skin_bones(actor.skin_tree)
+        actor.skin_objects = cc.extract_extended_skin_objects(actor.skin_tree)
+
         fps = get_fps()
-        RGlobal.RemoveAllAnimations(actor.object)
 
         clip: RIClip
         t0 = RTime.FromValue(0)
         length = fps.IndexedFrameTime(end_frame)
 
-        SC = actor.get_skeleton_component()
-        clip = SC.AddClip(t0)
-        clip.SetLength(length)
+        if actor.get_type() == "PROP" or actor.get_type() == "AVATAR":
 
-        FC = actor.get_face_component()
-        FC.AddClip(t0, "Expressions", length)
-        FC.AddExpressivenessKey(t0, 1.0)
-        clip = FC.GetClip(0)
-        clip.SetLength(length)
+            for obj_id, skin_def in actor.skin_objects.items():
+                obj = skin_def["object"]
+                SC: RISkeletonComponent = skin_def["SC"]
+                RGlobal.RemoveAllAnimations(obj)
+                clip = SC.AddClip(t0)
+                clip.SetLength(length)
+                skin_def["clip"] = clip
 
-        VC = actor.get_viseme_component()
-        VC.AddVisemesClip(t0, "Visemes", length)
-        clip = VC.GetClip(0)
-        clip.SetLength(length)
+        if actor.get_type() == "AVATAR":
 
-        set_transform_control(t0, actor.object, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
-        RGlobal.ObjectModified(actor.object, EObjectModifiedType_Transform)
-        actor.object.Update()
-        t_pose = get_pose_local(actor.object) if actor.is_avatar() else None
-        actor.set_t_pose(t_pose)
+            FC = actor.get_face_component()
+            FC.AddClip(t0, "Expressions", length)
+            FC.AddExpressivenessKey(t0, 1.0)
+            clip = FC.GetClip(0)
+            clip.SetLength(length)
+
+            VC = actor.get_viseme_component()
+            VC.AddVisemesClip(t0, "Visemes", length)
+            clip = VC.GetClip(0)
+            clip.SetLength(length)
+
+        if actor.get_type() == "PROP" or actor.get_type() == "AVATAR":
+
+            for obj_id, obj_def in actor.skin_objects.items():
+                obj = obj_def["object"]
+                set_transform_control(t0, obj, RVector3(0,0,0), RQuaternion(RVector4(0,0,0,1)), RVector3(1,1,1))
+                RGlobal.ObjectModified(obj, EObjectModifiedType_Transform)
+                obj.Update()
+
+            t_pose = get_pose_local(actor)
+            actor.set_t_pose(t_pose)
 
     def decode_pose_frame_data(self, pose_data):
         count, frame = struct.unpack_from("!II", pose_data)
@@ -3220,8 +3278,6 @@ class DataLink(QObject):
         }
 
         for i in range(0, count):
-            pose = []
-            shapes = []
             offset, name = unpack_string(pose_data, offset)
             offset, character_type = unpack_string(pose_data, offset)
             offset, link_id = unpack_string(pose_data, offset)
@@ -3232,8 +3288,6 @@ class DataLink(QObject):
                 "link_id": link_id,
                 "actor": actor,
                 "transform": None,
-                "pose": pose,
-                "shapes": shapes,
             }
 
             if actor:
@@ -3242,37 +3296,157 @@ class DataLink(QObject):
             offset += 40
             actor_data["transform"] = [tx,ty,tz,rx,ry,rz,rw,sx,sy,sz]
 
-            num_bones = struct.unpack_from("!I", pose_data, offset)[0]
-            offset += 4
-            for i in range(0, num_bones):
-                tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
-                offset += 40
-                pose.append([tx,ty,tz,rx,ry,rz,rw,sx,sy,sz])
+            if character_type == "PROP" or character_type == "AVATAR":
 
-            num_shapes = struct.unpack_from("!I", pose_data, offset)[0]
-            offset += 4
-            for i in range(0, num_shapes):
-                weight = struct.unpack_from("!f", pose_data, offset)[0]
+                pose = []
+                shapes = []
+                actor_data["pose"] = pose
+                actor_data["shapes"] = shapes
+
+                num_bones = struct.unpack_from("!I", pose_data, offset)[0]
                 offset += 4
-                shapes.append(weight)
+                for i in range(0, num_bones):
+                    tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
+                    offset += 40
+                    pose.append([tx,ty,tz,rx,ry,rz,rw,sx,sy,sz])
+
+                if INCLUDE_POSE_MESHES:
+                    num_meshes = struct.unpack_from("!I", pose_data, offset)[0]
+                    offset += 4
+                    for i in range(0, num_meshes):
+                        tx,ty,tz,rx,ry,rz,rw,sx,sy,sz = struct.unpack_from("!ffffffffff", pose_data, offset)
+                        offset += 40
+                        pose.append([tx,ty,tz,rx,ry,rz,rw,sx,sy,sz])
+
+                num_shapes = struct.unpack_from("!I", pose_data, offset)[0]
+                offset += 4
+                for i in range(0, num_shapes):
+                    weight = struct.unpack_from("!f", pose_data, offset)[0]
+                    offset += 4
+                    shapes.append(weight)
+
+            elif character_type == "LIGHT":
+
+                active, col_r, col_g, col_b, energy, rng, angle, blend = struct.unpack_from("!?fffffff", pose_data, offset)
+                offset += 37
+                light_data = {
+                    "active": active,
+                    "color": RRgb(col_r, col_g, col_b),
+                    "energy": energy,
+                    "range": rng,
+                    "angle": angle,
+                    "blend": blend
+                }
+                actor_data["light"] = light_data
+
+            elif character_type == "CAMERA":
+
+                lens, use_dof, focus_distance, f_stop = struct.unpack_from("!f?ff", pose_data, offset)
+                offset += 37
+                camera_data = {
+                    "focal_length": lens,
+                    "use_dof": use_dof,
+                    "focus_distance": focus_distance,
+                    "f_stop": f_stop,
+                }
+                actor_data["camera"] = camera_data
 
         return pose_json
 
-    def receive_character_template(self, data):
+    def receive_actor_templates(self, data):
         self.update_link_status(f"Character Templates Received")
         template_json = decode_to_json(data)
         count = template_json["count"]
+        actor_data: dict = None
         for actor_data in template_json["actors"]:
-            name = actor_data["name"]
-            character_type = actor_data["type"]
-            link_id = actor_data["link_id"]
+            name = actor_data.get("name")
+            character_type = actor_data.get("type")
+            link_id = actor_data.get("link_id")
             actor = self.data.find_sequence_actor(link_id)
             if actor:
                 utils.log_info(f"Character Template Received: {name}")
-                actor.set_template(actor_data)
-                utils.log_info(f" - character using expression drivers: {actor.use_drivers}")
+                if actor.get_type() == "PROP" or actor.get_type() == "AVATAR":
+                    actor.set_template(actor_data)
+                    utils.log_info(f" - character using expression drivers: {actor.use_drivers}")
             else:
                 utils.log_error(f"Unable to find actor: {name} ({link_id})")
+
+    def encode_request_data(self, actors, request_type):
+        actors_data = []
+        data = {
+            "type": request_type,
+            "actors": actors_data,
+        }
+        actor: LinkActor
+        for actor in actors:
+            actors_data.append({
+                "name": actor.name,
+                "type": actor.get_type(),
+                "link_id": actor.get_link_id(),
+            })
+        return encode_from_json(data)
+
+    def send_request(self, request_type):
+        # get actors
+        actors = self.get_selected_actors()
+        if actors:
+            self.update_link_status(f"Sending Request")
+            self.send_notify(f"Request")
+            # send request
+            request_data = self.encode_request_data(actors, request_type)
+            self.send(OpCodes.REQUEST, request_data)
+            # store the actors
+            self.data.sequence_actors = actors
+            self.data.sequence_type = request_type
+
+    def send_pose_request(self):
+        self.send_request("POSE")
+
+    def send_sequence_request(self):
+        self.send_request("SEQUENCE")
+
+    def receive_request(self, data):
+        self.update_link_status(f"Receiving Request ...")
+        json_data = decode_to_json(data)
+        request_type = json_data["type"]
+        actors_data = json_data["actors"]
+        for actor_data in actors_data:
+            name = actor_data["name"]
+            link_id = actor_data["link_id"]
+            character_type = actor_data["type"]
+            actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
+            actor_data["confirm"] = actor is not None
+            utils.log_info(f"Actor: {name} " + ("Confirmed!" if actor_data["confirm"] else "Missing!"))
+            if actor:
+                actor_type = actor.get_type()
+                if actor.get_link_id() != link_id:
+                    actor_data["update_link_id"] = actor.get_link_id()
+                if actor.name != name:
+                    actor_data["update_name"] = actor.name
+                if actor_type != character_type:
+                    actor_data["update_type"] = actor_type
+                if actor_type == "PROP" or actor_type == "AVATAR":
+                    skin_tree = cc.get_extended_skin_bones_tree(actor.object)
+                    skin_bones, id_tree = cc.extract_extended_skin_bones(skin_tree)
+                    actor_data["bones"] = [ b.GetName() for b in skin_bones ]
+                    actor_data["ids"] = [ b.GetID() for b in skin_bones ]
+                    actor_data["id_tree"] = id_tree
+
+        self.send(OpCodes.CONFIRM, encode_from_json(json_data))
+
+    def receive_confirm(self, data):
+        json_data = decode_to_json(data)
+        request_type = json_data["type"]
+        actors_data = json_data["actors"]
+        for actor_data in actors_data:
+            new_link_id = actor_data.get("new_link_id")
+            new_name = actor_data.get("new_name")
+            id_tree = actor_data.get("id_tree")
+        if request_type == "POSE":
+            self.send_pose()
+        elif request_type == "SEQUENCE":
+            self.send_sequence()
+        return
 
     def receive_pose(self, data):
         self.update_link_status(f"Receiving Pose ...")
@@ -3303,9 +3477,10 @@ class DataLink(QObject):
             link_id = actor_data["link_id"]
             actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
             if actor:
-                self.prep_actor_clip(actor, frame_time, 1, start_frame, end_frame)
+                self.prep_pose_actor(actor, frame_time, 1, start_frame, end_frame)
                 actors.append(actor)
         self.data.sequence_actors = actors
+        self.data.sequence_type = "POSE"
         # refresh actor timelines
         refresh_timeline(actors)
 
@@ -3325,12 +3500,24 @@ class DataLink(QObject):
         RScene.ClearSelectObjects()
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
-            actor.begin_editing()
-            apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
-            apply_pose(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
-            apply_shapes(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
-            apply_shapes(actor, scene_time2, actor_data["pose"], actor_data["shapes"], actor.t_pose)
-            actor.end_editing(scene_time)
+            T = actor.get_type()
+            if T == "AVATAR" or T == "PROP":
+                actor.begin_editing()
+                apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"])
+                apply_pose(actor, scene_time2, actor_data["pose"], actor_data["shapes"])
+                apply_shapes(actor, scene_time, actor_data["pose"], actor_data["shapes"])
+                apply_shapes(actor, scene_time2, actor_data["pose"], actor_data["shapes"])
+                actor.end_editing(scene_time)
+            elif T == "LIGHT":
+                apply_transform(actor, scene_time, actor_data["transform"])
+                apply_transform(actor, scene_time2, actor_data["transform"])
+                apply_light(actor, scene_time, actor_data["light"])
+                apply_light(actor, scene_time2, actor_data["light"])
+            elif T == "CAMERA":
+                apply_transform(actor, scene_time, actor_data["transform"])
+                apply_transform(actor, scene_time2, actor_data["transform"])
+                apply_camera(actor, scene_time, actor_data["camera"])
+                apply_camera(actor, scene_time2, actor_data["camera"])
         for actor_data in pose_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
             RScene.SelectObject(actor.object)
@@ -3366,10 +3553,11 @@ class DataLink(QObject):
             link_id = actor_data["link_id"]
             actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
             if actor:
-                self.prep_actor_clip(actor, start_time, num_frames, start_frame, end_frame)
+                self.prep_pose_actor(actor, start_time, num_frames, start_frame, end_frame)
                 actor.begin_editing()
                 actors.append(actor)
         self.data.sequence_actors = actors
+        self.data.sequence_type = "SEQUENCE"
         if not actors:
             self.send_invalid("No valid sequence Actors!")
         # refresh actor timelines
@@ -3401,8 +3589,16 @@ class DataLink(QObject):
         # update all actor poses
         for actor_data in sequence_frame_data["actors"]:
             actor: LinkActor = actor_data["actor"]
-            apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
-            apply_shapes(actor, scene_time, actor_data["pose"], actor_data["shapes"], actor.t_pose)
+            T = actor.get_type()
+            if T == "AVATAR" or T == "PROP":
+                apply_pose(actor, scene_time, actor_data["pose"], actor_data["shapes"])
+                apply_shapes(actor, scene_time, actor_data["pose"], actor_data["shapes"])
+            elif T == "LIGHT":
+                apply_transform(actor, scene_time, actor_data["transform"])
+                apply_light(actor, scene_time, actor_data["light"])
+            elif T == "CAMERA":
+                apply_transform(actor, scene_time, actor_data["transform"])
+                apply_camera(actor, scene_time, actor_data["camera"])
         # send sequence frame ack
         self.send_sequence_ack(frame)
 
@@ -3431,6 +3627,7 @@ class DataLink(QObject):
             actor.end_editing(scene_start_time)
             RScene.SelectObject(actor.object)
         self.data.sequence_actors = None
+        self.data.sequence_type = None
         if not aborted:
             self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
             RGlobal.Play(scene_start_time, scene_end_time)

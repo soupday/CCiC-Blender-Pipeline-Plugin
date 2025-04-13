@@ -1574,10 +1574,10 @@ def get_extended_skin_bones(obj, skin_bones: list=None, ignore_pivot=False):
     return skin_bones
 
 
-def get_extended_skin_bones_tree(prop: RIObject):
+def get_extended_skin_bones_tree(avatar_or_prop: RIObject):
 
-    child_objects: list = RScene.FindChildObjects(prop, EObjectType_Prop | EObjectType_Accessory)
-    objects = [prop]
+    child_objects: list = RScene.FindChildObjects(avatar_or_prop, EObjectType_Prop | EObjectType_Accessory)
+    objects = [avatar_or_prop]
     objects.extend(child_objects)
 
     bone_defs = {}
@@ -1600,22 +1600,34 @@ def get_extended_skin_bones_tree(prop: RIObject):
                     if bone_name:
                         bone_def = {
                             "bone": bone,
+                            "id": bone.GetID(),
                             "object": obj,
                             "root": bone.GetID() == root.GetID(),
                             "name": bone_name,
                             "children": [],
+                            "parent": bone.GetParent(),
+                            "SC": SC,
                         }
                         bone_defs[bone.GetID()] = bone_def
                         defs.append(bone_def)
 
+    orphaned = []
     for bone_def in defs:
         bone = bone_def["bone"]
         bone_name = bone_def["name"]
-        parent = bone.GetParent()
+        parent = bone_def["parent"]
         if parent:
             if parent.GetID() in bone_defs:
                 parent_def = bone_defs[parent.GetID()]
                 parent_def["children"].append(bone_def)
+            else:
+                if bone_def != defs[0]:
+                    bone_def["parent"] = None
+                    orphaned.append(bone_def)
+
+    if orphaned:
+        orphaned_names = [ d["name"] for d in orphaned ]
+        utils.log_info(f"Orphaned bone defs: {orphaned_names}")
 
     if defs:
         return defs[0]
@@ -1623,59 +1635,39 @@ def get_extended_skin_bones_tree(prop: RIObject):
         return None
 
 
-def extract_mesh_bones_from_tree(bone_def, mesh_bones=None):
-    if mesh_bones is None:
-        mesh_bones = []
-    to_remove = []
-    for child_def in bone_def["children"]:
-        if child_def["children"]:
-            extract_mesh_bones_from_tree(child_def, mesh_bones)
-        else:
-            bone = child_def["bone"]
-            mesh_bones.append(bone)
-            to_remove.append(child_def)
-    for child_def in to_remove:
-        bone_def["children"].remove(child_def)
-    return mesh_bones
-
-
-def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None, mesh_bones=None, extract_mesh=True):
+def extract_extended_skin_bones(bone_def: dict, skin_bones: list=None):
     if skin_bones is None:
         skin_bones = []
-    if mesh_bones is None:
-        mesh_bones = []
-    to_remove = []
-    child_bone: RINode = bone_def["bone"]
-    skin_bones.append(child_bone)
-    children = child_bone.GetChildren()
-    # go through bones in the correct order
-    #       very important to recreate bone structure in Blender,
-    #       as it is impossible to match duplicate bone names
-    #       unless the order and hierarchy of the bones matches the
-    #       exported armature *exactly*.
-    done = []
-    for child in children:
-        for child_def in bone_def["children"]:
-            child_bone = child_def["bone"]
-            if child_def not in done and child_bone.GetID() == child.GetID():
-                if extract_mesh and not child_def["children"]:
-                    mesh_bones.append(child_bone)
-                    to_remove.append(child_def)
-                extract_skin_bones_from_tree(child_def, skin_bones)
-                done.append(child_def)
-                break
-        # bones not explicitly children of the node are sub props
-        for child_def in bone_def["children"]:
-            child_bone = child_def["bone"]
-            if child_def not in done:
-                if extract_mesh and not child_def["children"]:
-                    mesh_bones.append(child_bone)
-                    to_remove.append(child_def)
-                extract_skin_bones_from_tree(child_def, skin_bones)
-                done.append(child_def)
-    for child_def in to_remove:
-        bone_def["children"].remove(child_def)
-    return skin_bones, mesh_bones
+    bone: RINode = bone_def["bone"]
+    skin_bones.append(bone)
+    id_tree = {
+        "name": bone.GetName(),
+        "id": bone.GetID(),
+        "children": [],
+    }
+    for child_def in bone_def["children"]:
+        child_tree = extract_extended_skin_bones(child_def, skin_bones=skin_bones)[1]
+        if child_tree:
+            id_tree["children"].append(child_tree)
+    return skin_bones, id_tree
+
+
+def extract_extended_skin_objects(bone_def: dict, skin_objects: dict= None):
+    if skin_objects is None:
+        skin_objects = {}
+    obj = bone_def["object"]
+    obj_id = obj.GetID()
+    SC = bone_def["SC"]
+    if obj_id not in skin_objects:
+        skin_objects[obj_id] = {
+            "id": obj.GetID(),
+            "object": obj,
+            "SC": SC,
+            "clip": None,
+        }
+    for child_def in bone_def["children"]:
+        extract_extended_skin_objects(child_def, skin_objects=skin_objects)
+    return skin_objects
 
 
 def rl_export_bone_name(bone_name):
@@ -1691,7 +1683,6 @@ def extract_root_bones_from_tree(bone_def: dict, root_bones=None, names=None):
         root_bones = []
     if names is None:
         names = {}
-    bone: RINode = bone_def["bone"]
     name: str = bone_def["name"]
     if name not in names:
         names[name] = 0
@@ -1709,25 +1700,8 @@ def extract_root_bones_from_tree(bone_def: dict, root_bones=None, names=None):
             "Type": get_object_type(obj),
             "Link_ID": link_id,
         })
-    children = bone.GetChildren()
-    # go through bones in the correct order
-    #       very important to recreate bone structure in Blender,
-    #       as it is impossible to match duplicate bone names
-    #       unless the order and hierarchy of the bones matches the
-    #       exported armature *exactly*.
-    done = []
-    for child in children:
-        for child_def in bone_def["children"]:
-            child_bone = child_def["bone"]
-            if child_def not in done and child_bone.GetID() == child.GetID():
-                extract_root_bones_from_tree(child_def, root_bones, names)
-                done.append(child_def)
-                break
-        # bones not explicitly children of the node are sub props
-        for child_def in bone_def["children"]:
-            if child_def not in done:
-                extract_root_bones_from_tree(child_def, root_bones, names)
-                done.append(child_def)
+    for child_def in bone_def["children"]:
+        extract_root_bones_from_tree(child_def, root_bones, names)
     return root_bones
 
 
