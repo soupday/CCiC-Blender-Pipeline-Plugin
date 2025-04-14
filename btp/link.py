@@ -626,22 +626,24 @@ def apply_pose(actor: LinkActor, time: RTime, pose_data, shape_data):
 
     all_clips = True
     for obj_id, obj_def in actor.skin_objects.items():
-        SC: RISkeletonComponent = obj_def["SC"]
-        clip: RIClip = SC.GetClipByTime(time)
+        obj = obj_def["object"]
+        SC: RISkeletonComponent = obj.GetSkeletonComponent()
+        #clip: RIClip = SC.GetClipByTime(time)
+        clip = obj_def["clip"]
         if clip:
             clip_time = clip.SceneTimeToClipTime(time)
+            obj_def["clip_time"] = clip_time
         else:
             all_clips = False
 
-    if all_clips:
-        root_rot = RQuaternion(RVector4(0,0,0,1))
-        root_tra = RVector3(0,0,0)
-        root_sca = RVector3(1,1,1)
-        apply_world_fk_pose(actor, clip_time,
-                            actor.skin_tree, pose_data, shape_data,
-                            root_rot, root_tra, root_sca)
-        scene_time = clip.ClipTimeToSceneTime(clip_time)
-        SC.BakeFkToIk(scene_time, False)
+    root_rot = RQuaternion(RVector4(0,0,0,1))
+    root_tra = RVector3(0,0,0)
+    root_sca = RVector3(1,1,1)
+    apply_world_fk_pose(actor, actor.skin_tree,
+                        pose_data, shape_data,
+                        root_rot, root_tra, root_sca)
+    scene_time = clip.ClipTimeToSceneTime(clip_time)
+    SC.BakeFkToIk(scene_time, False)
 
 
 def get_pose_local(actor: LinkActor):
@@ -722,7 +724,7 @@ def apply_world_ik_pose(actor, SC: RISkeletonComponent, clip: RIClip, time: RTim
     set_ik_effector(SC, clip, EHikEffector_RightFoot, time,  rot, tra, sca)
 
 
-def apply_world_fk_pose(actor: LinkActor, time, skin_tree_def: dict,
+def apply_world_fk_pose(actor: LinkActor, skin_tree_def: dict,
                         pose_data, shape_data,
                         parent_world_rot, parent_world_tra, parent_world_sca):
 
@@ -730,6 +732,7 @@ def apply_world_fk_pose(actor: LinkActor, time, skin_tree_def: dict,
     obj_def = actor.skin_objects[obj.GetID()]
     SC = obj_def["SC"]
     clip = obj_def["clip"]
+    time = obj_def["clip_time"]
     skin_bone = skin_tree_def["bone"]
     bone_name = skin_bone.GetName()
     bone_id = skin_bone.GetID()
@@ -754,12 +757,13 @@ def apply_world_fk_pose(actor: LinkActor, time, skin_tree_def: dict,
         if actor.use_drivers and bone_name in actor.face_drivers:
             apply_face_drivers(actor, bone_name, shape_data, local_rot, parent_world_rot, t_pose_rot)
         ec_rot = get_expression_counter_rotation(actor, bone_name, shape_data)
-        set_bone_control(SC, clip, skin_bone, time, ec_rot,
-                         t_pose_rot, t_pose_tra, t_pose_sca,
-                         local_rot, local_tra, local_sca)
+        if SC and clip:
+            set_bone_control(SC, clip, skin_bone, time, ec_rot,
+                             t_pose_rot, t_pose_tra, t_pose_sca,
+                             local_rot, local_tra, local_sca)
 
         for child_def in skin_tree_def["children"]:
-            apply_world_fk_pose(actor, time, child_def,
+            apply_world_fk_pose(actor, child_def,
                                 pose_data, shape_data,
                                 world_rot, world_tra, world_sca)
     else:
@@ -773,7 +777,7 @@ def apply_world_fk_pose(actor: LinkActor, time, skin_tree_def: dict,
                                                      parent_world_rot, parent_world_tra, parent_world_sca)
 
         for child_def in skin_tree_def["children"]:
-            apply_world_fk_pose(actor, time, child_def,
+            apply_world_fk_pose(actor, child_def,
                                 pose_data, shape_data,
                                 world_rot, world_tra, world_sca)
 
@@ -3226,6 +3230,9 @@ class DataLink(QObject):
         actor.skin_tree = cc.get_extended_skin_bones_tree(actor.object)
         actor.skin_bones, actor.id_tree = cc.extract_extended_skin_bones(actor.skin_tree)
         actor.skin_objects = cc.extract_extended_skin_objects(actor.skin_tree)
+        print([ o.GetName() for o in actor.skin_bones ])
+        for skob in actor.skin_objects.values():
+            print(f"{skob['object'].GetName()} {skob['id']}")
 
         fps = get_fps()
 
@@ -3240,8 +3247,12 @@ class DataLink(QObject):
                 SC: RISkeletonComponent = skin_def["SC"]
                 RGlobal.RemoveAllAnimations(obj)
                 clip = SC.AddClip(t0)
-                clip.SetLength(length)
-                skin_def["clip"] = clip
+                if clip:
+                    clip.SetLength(length)
+                    skin_def["clip"] = clip
+                else:
+                    skin_def["clip"] = None
+                    utils.log_error(f"Unable to create animation clip: {obj.GetName()} ({obj_id})")
 
         if actor.get_type() == "AVATAR":
 
