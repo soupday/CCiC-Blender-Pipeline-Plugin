@@ -3599,6 +3599,7 @@ class DataLink(QObject):
             elif T == "CAMERA":
                 apply_transform(actor, scene_time, actor_data["transform"])
                 apply_camera(actor, scene_time, actor_data["camera"])
+        RGlobal.SetTime(scene_time)
         # send sequence frame ack
         self.send_sequence_ack(frame)
 
