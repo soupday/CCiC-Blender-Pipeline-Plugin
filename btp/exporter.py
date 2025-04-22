@@ -1092,6 +1092,22 @@ class Exporter:
 
         utils.log_info(f"Exporting Light: {light.GetName()}")
 
+        T = type(light)
+        if T is RISpotLight or T is RIPointLight:
+            if light.IsRectangleShape():
+                # saves rect texture (only if there is one).
+                light.SaveRectTexture(self.light_cookie_path)
+                if os.path.exists(self.light_cookie_path):
+                    light_data["cookie"] = self.light_cookie_path
+            # always saves an IES, empty file if there isn't one.
+            light.SaveIes(self.light_ies_path)
+            # remove the IES file if it is empty
+            if os.path.exists(self.light_ies_path):
+                if os.stat(self.light_ies_path).st_size == 0:
+                    os.remove(self.light_ies_path)
+                else:
+                    light_data["ies"] = self.light_ies_path
+
         binary_bytes = bytearray()
 
         utils.log_info(f"Packing Light Json ...")
@@ -1141,17 +1157,6 @@ class Exporter:
 
         with open(self.fbx_path, 'wb') as binary_file:
             binary_file.write(binary_bytes)
-
-        T = type(light)
-        if T is RISpotLight or T is RIPointLight:
-            if light.IsRectangleShape():
-                # saves rect texture (only if there is one).
-                light.SaveRectTexture(self.light_cookie_path)
-            # always saves an IES, empty file if there isn't one.
-            light.SaveIes(self.light_ies_path)
-            # remove the IES file if it is empty
-            if os.path.exists(self.light_ies_path) and os.stat(self.light_ies_path).st_size == 0:
-                os.remove(self.light_ies_path)
 
         self.export_extra_data()
         self.exported_paths.append(self.fbx_path)
