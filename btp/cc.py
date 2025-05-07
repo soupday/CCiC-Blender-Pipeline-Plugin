@@ -1126,13 +1126,30 @@ def get_selected_avatars():
     return avatars
 
 
+def get_selected_sendable(obj: RIObject):
+    """Returns the sendable object from the selection object"""
+    T = type(obj)
+    prop_or_avatar = find_parent_avatar_or_prop(obj)
+    if T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
+        return obj, T
+    elif T is RICamera:
+        return obj, T
+    elif prop_or_avatar:
+        T = type(prop_or_avatar)
+        if (T is RIAvatar or T is RILightAvatar):
+            return prop_or_avatar, T
+        elif (T is RIProp or T is RIMDProp):
+            return prop_or_avatar, T
+    return None, None
+
+
 def get_selected_actor_objects():
     selected = RScene.GetSelectedObjects()
     actor_objects = []
     for obj in selected:
-        actor_object = find_parent_avatar_or_prop(obj)
-        if actor_object and actor_object not in actor_objects:
-            actor_objects.append(actor_object)
+        send_object, T = get_selected_sendable(obj)
+        if send_object and send_object not in actor_objects:
+            actor_objects.append(send_object)
     return actor_objects
 
 
@@ -1250,6 +1267,7 @@ def find_parent_avatar_or_prop(obj: RIObject):
     md_props = RScene.GetMDProps()
     root: RINode = RScene.GetRootNode()
     node = find_node(root, obj.GetID())
+    avatar: RIAvatar = None
     while node:
         node_id = node.GetID()
         for avatar in avatars:
@@ -1262,6 +1280,11 @@ def find_parent_avatar_or_prop(obj: RIObject):
             if prop.GetID() == node_id:
                 return prop
         node = node.GetParent()
+    #for avatar in avatars:
+    #    print(obj)
+    #    print(avatar.GetClothes())
+    #    if obj in avatar.GetAccessories() or obj in avatar.GetClothes():
+    #        return avatar
     return None
 
 
@@ -1358,7 +1381,7 @@ def find_object_by_link_id(link_id):
     return None
 
 
-def find_object_by_name_and_type(search_name, search_type=None):
+def find_object_by_name_and_type(search_name, search_type=None) -> RIObject:
     objects = RScene.FindObjects(EObjectType_Avatar |
                                       EObjectType_Prop |
                                       EObjectType_Light |
@@ -1426,7 +1449,7 @@ def get_object_type(obj):
         return "PROP"
     elif T is RIAccessory:
         return "ACCESSORY"
-    elif T is RILight:
+    elif T is RILight or T is RIDirectionalLight or T is RISpotLight or T is RIPointLight:
         return "LIGHT"
     elif T is RICamera:
         return "CAMERA"
@@ -1551,10 +1574,10 @@ def get_extended_skin_bones(obj, skin_bones: list=None, ignore_pivot=False):
     return skin_bones
 
 
-def get_extended_skin_bones_tree(prop: RIObject):
+def get_extended_skin_bones_tree(avatar_or_prop: RIObject):
 
-    child_objects: list = RScene.FindChildObjects(prop, EObjectType_Prop | EObjectType_Accessory)
-    objects = [prop]
+    child_objects: list = RScene.FindChildObjects(avatar_or_prop, EObjectType_Prop | EObjectType_Accessory)
+    objects = [avatar_or_prop]
     objects.extend(child_objects)
 
     bone_defs = {}
@@ -1577,22 +1600,34 @@ def get_extended_skin_bones_tree(prop: RIObject):
                     if bone_name:
                         bone_def = {
                             "bone": bone,
+                            "id": bone.GetID(),
                             "object": obj,
                             "root": bone.GetID() == root.GetID(),
                             "name": bone_name,
                             "children": [],
+                            "parent": bone.GetParent(),
+                            "SC": SC,
                         }
                         bone_defs[bone.GetID()] = bone_def
                         defs.append(bone_def)
 
+    orphaned = []
     for bone_def in defs:
         bone = bone_def["bone"]
         bone_name = bone_def["name"]
-        parent = bone.GetParent()
+        parent = bone_def["parent"]
         if parent:
             if parent.GetID() in bone_defs:
                 parent_def = bone_defs[parent.GetID()]
                 parent_def["children"].append(bone_def)
+            else:
+                if bone_def != defs[0]:
+                    bone_def["parent"] = None
+                    orphaned.append(bone_def)
+
+    if orphaned:
+        orphaned_names = [ d["name"] for d in orphaned ]
+        utils.log_info(f"Orphaned bone defs: {orphaned_names}")
 
     if defs:
         return defs[0]
@@ -1600,59 +1635,39 @@ def get_extended_skin_bones_tree(prop: RIObject):
         return None
 
 
-def extract_mesh_bones_from_tree(bone_def, mesh_bones=None):
-    if mesh_bones is None:
-        mesh_bones = []
-    to_remove = []
-    for child_def in bone_def["children"]:
-        if child_def["children"]:
-            extract_mesh_bones_from_tree(child_def, mesh_bones)
-        else:
-            bone = child_def["bone"]
-            mesh_bones.append(bone)
-            to_remove.append(child_def)
-    for child_def in to_remove:
-        bone_def["children"].remove(child_def)
-    return mesh_bones
-
-
-def extract_skin_bones_from_tree(bone_def: dict, skin_bones=None, mesh_bones=None, extract_mesh=True):
+def extract_extended_skin_bones(bone_def: dict, skin_bones: list=None):
     if skin_bones is None:
         skin_bones = []
-    if mesh_bones is None:
-        mesh_bones = []
-    to_remove = []
-    child_bone: RINode = bone_def["bone"]
-    skin_bones.append(child_bone)
-    children = child_bone.GetChildren()
-    # go through bones in the correct order
-    #       very important to recreate bone structure in Blender,
-    #       as it is impossible to match duplicate bone names
-    #       unless the order and hierarchy of the bones matches the
-    #       exported armature *exactly*.
-    done = []
-    for child in children:
-        for child_def in bone_def["children"]:
-            child_bone = child_def["bone"]
-            if child_def not in done and child_bone.GetID() == child.GetID():
-                if extract_mesh and not child_def["children"]:
-                    mesh_bones.append(child_bone)
-                    to_remove.append(child_def)
-                extract_skin_bones_from_tree(child_def, skin_bones)
-                done.append(child_def)
-                break
-        # bones not explicitly children of the node are sub props
-        for child_def in bone_def["children"]:
-            child_bone = child_def["bone"]
-            if child_def not in done:
-                if extract_mesh and not child_def["children"]:
-                    mesh_bones.append(child_bone)
-                    to_remove.append(child_def)
-                extract_skin_bones_from_tree(child_def, skin_bones)
-                done.append(child_def)
-    for child_def in to_remove:
-        bone_def["children"].remove(child_def)
-    return skin_bones, mesh_bones
+    bone: RINode = bone_def["bone"]
+    skin_bones.append(bone)
+    id_tree = {
+        "name": bone.GetName(),
+        "id": bone.GetID(),
+        "children": [],
+    }
+    for child_def in bone_def["children"]:
+        child_tree = extract_extended_skin_bones(child_def, skin_bones=skin_bones)[1]
+        if child_tree:
+            id_tree["children"].append(child_tree)
+    return skin_bones, id_tree
+
+
+def extract_extended_skin_objects(bone_def: dict, skin_objects: dict= None):
+    if skin_objects is None:
+        skin_objects = {}
+    obj = bone_def["object"]
+    obj_id = obj.GetID()
+    SC = bone_def["SC"]
+    if obj_id not in skin_objects:
+        skin_objects[obj_id] = {
+            "id": obj.GetID(),
+            "object": obj,
+            "SC": SC,
+            "clip": None,
+        }
+    for child_def in bone_def["children"]:
+        extract_extended_skin_objects(child_def, skin_objects=skin_objects)
+    return skin_objects
 
 
 def rl_export_bone_name(bone_name):
@@ -1668,7 +1683,6 @@ def extract_root_bones_from_tree(bone_def: dict, root_bones=None, names=None):
         root_bones = []
     if names is None:
         names = {}
-    bone: RINode = bone_def["bone"]
     name: str = bone_def["name"]
     if name not in names:
         names[name] = 0
@@ -1686,25 +1700,8 @@ def extract_root_bones_from_tree(bone_def: dict, root_bones=None, names=None):
             "Type": get_object_type(obj),
             "Link_ID": link_id,
         })
-    children = bone.GetChildren()
-    # go through bones in the correct order
-    #       very important to recreate bone structure in Blender,
-    #       as it is impossible to match duplicate bone names
-    #       unless the order and hierarchy of the bones matches the
-    #       exported armature *exactly*.
-    done = []
-    for child in children:
-        for child_def in bone_def["children"]:
-            child_bone = child_def["bone"]
-            if child_def not in done and child_bone.GetID() == child.GetID():
-                extract_root_bones_from_tree(child_def, root_bones, names)
-                done.append(child_def)
-                break
-        # bones not explicitly children of the node are sub props
-        for child_def in bone_def["children"]:
-            if child_def not in done:
-                extract_root_bones_from_tree(child_def, root_bones, names)
-                done.append(child_def)
+    for child_def in bone_def["children"]:
+        extract_root_bones_from_tree(child_def, root_bones, names)
     return root_bones
 
 
@@ -1789,13 +1786,107 @@ def print_node_tree(obj):
 
 
 def is_prop(obj):
-    T = type(obj)
-    return (T is RIProp or T is RIMDProp)
+    if obj:
+        T = type(obj)
+        return (T is RIProp or T is RIMDProp)
+    return False
 
 
 def is_avatar(obj):
-    T = type(obj)
-    return (T is RIAvatar or T is RILightAvatar)
+    if obj:
+        T = type(obj)
+        return (T is RIAvatar or T is RILightAvatar)
+    return False
+
+
+def is_light(obj):
+    if obj:
+        T = type(obj)
+        return (T is RILight or T is RIDirectionalLight or T is RIPointLight or T is RISpotLight)
+    return False
+
+
+def is_camera(obj):
+    if obj:
+        T = type(obj)
+        return (T is RICamera)
+    return False
+
+
+def begin_timeline_scan():
+    start_time: RTime = RGlobal.GetStartTime()
+    RGlobal.SetTime(start_time)
+    current_time: RTime = RGlobal.GetTime()
+    fps: RFps = RGlobal.GetFps()
+    current_frame = fps.GetFrameIndex(current_time)
+    return current_time, current_frame
+
+
+def next_timeline_scan():
+    end_time: RTime = RGlobal.GetEndTime()
+    current_time: RTime = RGlobal.GetTime()
+    fps: RFps = RGlobal.GetFps()
+    if current_time.ToInt() < end_time.ToInt():
+        next_time = fps.GetNextFrameTime(current_time)
+        next_frame = fps.GetFrameIndex(next_time)
+        RGlobal.SetTime(next_time)
+        current_time = next_time
+        return True, next_time, next_frame
+    current_frame = fps.GetFrameIndex(current_time)
+    return False, current_time, current_frame
+
+
+def end_timeline_scan(current_time):
+    RGlobal.SetTime(current_time)
+
+
+def get_all_camera_light_data(no_animation=False):
+    lights = RScene.FindObjects(EObjectType_Light)
+    cameras = RScene.FindObjects(EObjectType_Camera)
+    all_data = []
+    if lights or cameras:
+        if no_animation:
+            time = RGlobal.GetTime()
+            fps: RFps = RGlobal.GetFps()
+            frame = fps.GetFrameIndex(time)
+            frame_lights = []
+            frame_cameras = []
+            frame_data = {
+                "time": time.ToInt(),
+                "frame": int(frame),
+                "lights": frame_lights,
+                "cameras": frame_cameras,
+            }
+            for light in lights:
+                light_data = get_light_data(light)
+                frame_lights.append(light_data)
+            for camera in cameras:
+                camera_data = get_camera_data(camera)
+                frame_cameras.append(camera_data)
+            all_data.append(frame_data)
+        else:
+            time, frame = begin_timeline_scan()
+            start_time = time
+            is_next = True
+            while is_next:
+                frame_lights = []
+                frame_cameras = []
+                frame_data = {
+                    "time": time.ToInt(),
+                    "frame": int(frame),
+                    "lights": frame_lights,
+                    "cameras": frame_cameras,
+                }
+                for light in lights:
+                    light_data = get_light_data(light)
+                    frame_lights.append(light_data)
+                for camera in cameras:
+                    camera_data = get_camera_data(camera)
+                    frame_cameras.append(camera_data)
+                all_data.append(frame_data)
+                is_next, time, frame = next_timeline_scan()
+            end_timeline_scan(start_time)
+    return all_data
 
 
 IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
@@ -1903,6 +1994,170 @@ def get_full_path(rel_path, folder):
             return os.path.normpath(rel_path)
         return os.path.normpath(os.path.join(folder, rel_path))
     return None
+
+
+def get_light_data(light: RILight):
+    spot_light: RISpotLight = None
+    dir_light: RIDirectionalLight = None
+    point_light: RIPointLight = None
+    light_type = "NONE"
+    if type(light) is RISpotLight:
+        spot_light = light
+        light_type = "SPOT"
+    elif type(light) is RIPointLight:
+        point_light = light
+        light_type = "POINT"
+    elif type(light) is RIDirectionalLight:
+        dir_light = light
+        light_type = "DIR"
+    else:
+        return None
+
+    T:RTransform = light.WorldTransform()
+    t: RVector3 = T.T()
+    r: RQuaternion = T.R()
+    s: RVector3 = T.S()
+
+    link_id: str = get_link_id(light, add_if_missing=True)
+    active: bool = light.GetActive()
+    color: RRgb = light.GetColor()
+    multiplier: float = light.GetMultiplier()
+    current_time = RGlobal.GetTime()
+
+    light_range: float = 1000
+    angle: float = 0
+    falloff: float = 100
+    attenuation: float = 100
+    transmission: bool = False
+    is_tube: bool = False
+    tube_length: float = 0
+    tube_radius: float = 0
+    tube_soft_radius: float = 0
+    is_rectangle: bool = False
+    rect: RVector2 = RVector2(0,0)
+    cast_shadow: bool = False
+    inverse_square: bool = False
+    darkness: float = 0.0
+
+    if spot_light:
+        light_range = spot_light.GetRange()
+        status, angle, falloff, attenuation = spot_light.GetSpotLightBeam(angle, falloff, attenuation)
+        transmission = spot_light.GetTransmission()
+        inverse_square = spot_light.GetInverseSquare()
+        is_tube = spot_light.IsTubeShape()
+        tube_length = spot_light.GetTubeLength()
+        tube_radius = spot_light.GetTubeRadius()
+        tube_soft_radius = spot_light.GetTubeSoftRadius()
+        is_rectangle = spot_light.IsRectangleShape()
+        rect = spot_light.GetRectWidthHeight()
+        darkness = spot_light.GetDarkenShadowStrength()
+
+    if point_light:
+        light_range = point_light.GetRange()
+        inverse_square = point_light.GetInverseSquare()
+        is_tube = point_light.IsTubeShape()
+        tube_length = point_light.GetTubeLength()
+        tube_radius = point_light.GetTubeRadius()
+        tube_soft_radius = point_light.GetTubeSoftRadius()
+        is_rectangle = point_light.IsRectangleShape()
+        rect = point_light.GetRectWidthHeight()
+
+    elif dir_light:
+        transmission = dir_light.GetTransmission()
+        darkness = dir_light.GetDarkenShadowStrength()
+
+    cast_shadow = light.IsCastShadow()
+
+    light_data = {
+        "link_id": link_id,
+        "name": light.GetName(),
+        "loc": [t.x, t.y, t.z],
+        "rot": [r.x, r.y, r.z, r.w],
+        "sca": [s.x, s.y, s.z],
+        "active": active,
+        "color": [color.R(), color.G(), color.B()],
+        "multiplier": multiplier,
+        "type": light_type,
+        "range": light_range,
+        "angle": angle,
+        "falloff": falloff,
+        "attenuation": attenuation,
+        "inverse_square": inverse_square,
+        "transmission": transmission,
+        "is_tube": is_tube,
+        "tube_length": tube_length,
+        "tube_radius": tube_radius,
+        "tube_soft_radius": tube_soft_radius,
+        "is_rectangle": is_rectangle,
+        "rect": [rect.x, rect.y],
+        "cast_shadow": cast_shadow,
+        "darkness": darkness,
+    }
+
+    return light_data
+
+
+def get_camera_data(camera: RICamera):
+        link_id = get_link_id(camera, add_if_missing=True)
+        name = camera.GetName()
+        time = RGlobal.GetTime()
+        width = 0
+        height = 0
+        res = camera.GetAperture(width, height)
+        width = res[1]
+        height = res[2]
+        # Get the camera pivot transform values
+        pos = RVector3()
+        rot = RVector3()
+        camera.GetPivot(pos, rot)
+        focal_length = camera.GetFocalLength(time)
+        fov = camera.GetAngleOfView(time)
+        fit = ("HORIZONTAL" if camera.GetFitRenderRegionType() == ECameraFitResolution_Horizontal
+                            else "VERTICAL")
+        far_clip = camera.GetFarClippingPlane()
+        near_clip = camera.GetNearClippingPlane()
+        is_look_at = camera.IsLookAtMode(time)
+        dof_data: RCameraDofData = camera.GetDOFData()
+        dof_enable = dof_data.GetEnable()
+        dof_weight = dof_data.GetCenterColorWeight()
+        dof_decay = dof_data.GetEdgeDecayPower()
+        dof_far_blur = dof_data.GetFarBlurScale()
+        dof_near_blur = dof_data.GetNearBlurScale()
+        dof_far_transition = dof_data.GetFarTransitionRegion()
+        dof_near_transition = dof_data.GetNearTransitionRegion()
+        dof_focus = dof_data.GetFocus()
+        dof_min_blend_distance = dof_data.GetMinBlendDistance()
+        dof_range = dof_data.GetRange()
+        T: RTransform = camera.WorldTransform()
+        t: RVector3 = T.T()
+        r: RQuaternion = T.R()
+        s: RVector3 = T.S()
+        camera_data = {
+            "link_id": link_id,
+            "name": name,
+            "loc": [t.x, t.y, t.z],
+            "rot": [r.x, r.y, r.z, r.w],
+            "sca": [s.x, s.y, s.z],
+            "fov": fov,
+            "fit": fit,
+            "width": width,
+            "height": height,
+            "focal_length": focal_length,
+            "far_clip": far_clip,
+            "near_clip": near_clip,
+            "pos": [pos.x, pos.y, pos.z],
+            "dof_enable": dof_enable,
+            "dof_weight": dof_weight,           # Unknown?
+            "dof_decay": dof_decay,             # Unknown?
+            "dof_focus": dof_focus,             # Focus Distance
+            "dof_range": dof_range,             # Perfect Focus Range
+            "dof_far_blur": dof_far_blur,
+            "dof_near_blur": dof_near_blur,
+            "dof_far_transition": dof_far_transition,
+            "dof_near_transition": dof_near_transition,
+            "dof_min_blend_distance": dof_min_blend_distance, # Blur Edge Sampling Scale
+        }
+        return camera_data
 
 
 def RGB_color(RGB):
@@ -2099,3 +2354,25 @@ def project_vector_around_axis(v: RVector3, axis: RVector3):
     v_perpendicular = v - v_a
     return v_perpendicular
 
+
+def generate_base_json_data(path, name, generation):
+    json_data = {
+        name: {
+            "Version": "1.10.1822.1",
+            "Scene": {
+                "Name": True,
+                "SupportShaderSelect": True
+            },
+            "Object": {
+                name: {
+                    "Generation": generation,
+                    "Meshes": {
+                    },
+                },
+            },
+        }
+    }
+    json_string = json.dumps(json_data, indent = 4)
+    with open(path, "w") as write_file:
+        write_file.write(json_string)
+    return json_data

@@ -7,11 +7,12 @@ from . import link, cc, exporter, prefs, utils, vars
 GOB_QUEUE = None
 GOB_CONNECTED = False
 GOB_DONE = False
+GOB_LIGHTING = False
 
 BLENDER_PROCESS = None
 
 def go_b():
-    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING
     GOB_QUEUE = []
     GOB_CONNECTED = False
     GOB_DONE = False
@@ -32,10 +33,15 @@ def go_b():
         name = "iClone Project"
 
     GOB_OBJECTS = []
+    GOB_LIGHTING = True
     for obj in objects:
+        obj_type = cc.get_object_type(obj)
+        if obj_type == "LIGHT":
+            GOB_LIGHTING = False
         GOB_OBJECTS.append({
             "name": obj.GetName(),
             "object": obj,
+            "type": obj_type,
         })
 
     # prefer using avatar names over prop names
@@ -69,26 +75,44 @@ def go_b():
     for gob_data in GOB_OBJECTS:
         name = gob_data["name"]
         obj = gob_data["object"]
-        object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
-        fbx_path = os.path.join(object_folder, name + ".fbx")
-        gob_data["path"] = fbx_path
-        export = exporter.Exporter(obj, no_window=True)
+        if gob_data["type"] == "PROP" or gob_data["type"] == "AVATAR":
+            object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
+            fbx_path = os.path.join(object_folder, name + ".fbx")
+            gob_data["path"] = fbx_path
+            export = exporter.Exporter(obj, no_window=True)
+            export.set_datalink_export()
+            export.do_export(file_path=fbx_path)
+            GOB_QUEUE.append(gob_data)
+            go_b_send()
+
+    lights_cameras = [ gob_data["object"] for gob_data in GOB_OBJECTS if (gob_data["type"] == "LIGHT" or gob_data["type"] == "CAMERA")]
+    if lights_cameras:
+        folder_name = "Staging_" + utils.timestampns()
+        name = lights_cameras[0].GetName()
+        staging_folder = utils.get_unique_folder_path(import_folder, folder_name, create=True)
+        fbx_path = os.path.join(staging_folder, name + ".rlx")
+        gob_data = {
+            "name": folder_name,
+            "objects": lights_cameras,
+            "type": "STAGING",
+            "path": fbx_path,
+        }
+        export = exporter.Exporter(lights_cameras, no_window=True)
         export.set_datalink_export()
-        export.do_export(file_path=fbx_path)
+        export.do_export(file_path=fbx_path, no_base_folder=True)
         GOB_QUEUE.append(gob_data)
-        go_b_send()
 
     GOB_DONE = True
     go_b_send()
 
 
 def go_b_connected():
-    global GOB_CONNECTED
+    global GOB_CONNECTED, GOB_LIGHTING
     GOB_CONNECTED = True
     LINK = link.get_data_link()
     LINK.service.connected.disconnect(go_b_connected)
     # send the lights and camera
-    LINK.sync_lights()
+    LINK.sync_lighting(GOB_LIGHTING)
     LINK.send_camera_sync()
     # then send the characters
     go_b_send()
@@ -101,16 +125,20 @@ def go_b_send():
             LINK = link.get_data_link()
             while GOB_QUEUE:
                 gob_data = GOB_QUEUE.pop(0)
-                LINK.send_actor_exported(gob_data["object"], gob_data["path"])
+                if gob_data["type"] != "STAGING":
+                    LINK.send_actor_exported(gob_data["object"], gob_data["path"])
+                else:
+                    LINK.send_lights_cameras_exported(gob_data["objects"], gob_data["path"])
         if GOB_DONE:
             go_b_finish()
 
 
 def go_b_finish():
-    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING
     GOB_CONNECTED = False
     GOB_DONE = False
     GOB_QUEUE = None
+    GOB_LIGHTING = False
     LINK = link.get_data_link()
     # finally pose the characters ()
     LINK.send_frame_sync()
@@ -185,7 +213,7 @@ def go_morph_finish():
         LINK = link.get_data_link()
         LINK.service.connected.disconnect(go_morph_connected)
         if prefs.EXPORT_MORPH_MATERIALS:
-            LINK.sync_lights()
+            LINK.sync_lighting()
         LINK.send_camera_sync()
         for gob_data in GOB_OBJECTS:
             LINK.send_morph_exported(gob_data["object"], gob_data["path"])

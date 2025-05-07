@@ -71,6 +71,10 @@ Known Issues
 Changelog
 =========
 
+### 2.3.0
+- Export / transfer of lights and cameras to Blender.
+- Sequence transfer of Prop animations from Blender to iClone.
+
 ### 2.2.5
 - Remote file transfer over datalink, to and from Blender on remote machine.
 

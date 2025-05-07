@@ -20,9 +20,11 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os
+import os, struct, json
 from . import blender, cc, qt, prefs, utils, vars
 
+RLX_ID_LIGHT = 0xCC01
+RLX_ID_CAMERA = 0xCC02
 
 class ExporterEventCallback(REventCallback):
 
@@ -48,11 +50,16 @@ class Exporter:
     json_path = "C:/folder/dummy.json"
     hik_path = "C:/folder/dummy.3dxProfile"
     profile_path = "C:/folder/dummy.ccFacialProfile"
+    light_ies_path = ""
+    light_cookie_path = ""
     json_data = None
     avatar: RIAvatar = None # type: ignore
     prop: RIProp = None # type: ignore
     avatars = None
     props = None
+    lights = None
+    cameras = None
+    all_camera_light_data = None
     window: RIDockWidget = None
     window_progress: RIDockWidget = None
     progress_count = 0
@@ -121,18 +128,57 @@ class Exporter:
             for prop in self.props:
                 utils.log(f" - {prop.GetName()}")
 
+        if self.lights:
+            utils.log("Lights:")
+            for light in self.lights:
+                utils.log(f" - {light.GetName()}")
+
+        if self.cameras:
+            utils.log("Cameras:")
+            for camera in self.cameras:
+                utils.log(f" - {camera.GetName()}")
+
         if not no_window:
             self.create_options_window()
 
     def collect_objects(self, objects):
-        self.avatars = [ o for o in objects if cc.is_avatar(o) ]
-        self.props = [ o for o in objects if cc.is_prop(o) ]
+        if not self.avatars:
+            self.avatars = []
+        if not self.props:
+            self.props = []
+        if not self.lights:
+            self.lights = []
+        if not self.cameras:
+            self.cameras = []
+        self.avatars.clear()
+        self.props.clear()
+        self.lights.clear()
+        self.cameras.clear()
+        for o in objects:
+            if cc.is_light(o):
+                self.lights.append(o)
+            elif cc.is_camera(o):
+                self.cameras.append(o)
+            else:
+                p = cc.find_parent_avatar_or_prop(o)
+                if p and (cc.is_prop(p) or cc.is_avatar(p)):
+                    o = p
+                if cc.is_avatar(o) and o not in self.avatars:
+                    self.avatars.append(o)
+                elif cc.is_prop(o) and o not in self.props:
+                    self.props.append(o)
+        self.all_camera_light_data = None
 
     def clear_objects(self):
         self.avatars = []
         self.props = []
+        self.lights = []
+        self.cameras = []
         self.avatar = None
         self.prop = None
+        self.light = None
+        self.camera = None
+        self.all_camera_light_data = None
 
     def show(self):
         if not self.has_window():
@@ -161,33 +207,69 @@ class Exporter:
     def set_avatar(self, avatar: RIAvatar):
         self.avatar = avatar
         self.prop = None
+        self.light = None
+        self.camera = None
 
     def set_prop(self, prop: RIProp):
         self.avatar = None
         self.prop = prop
+        self.light = None
+        self.camera = None
 
-    def set_base_path(self, file_path, create=False, show=False):
-        base_path = os.path.splitext(file_path)[0]
-        base_dir, base_file = os.path.split(file_path)
-        base_name, base_ext = os.path.splitext(base_file)
-        if os.path.exists(base_path) and not os.path.isdir(base_path):
-            base_path = utils.get_unique_folder_path(base_dir, base_name)
+    def set_light(self, light: RIProp):
+        self.avatar = None
+        self.prop = None
+        self.light = light
+        self.camera = None
+
+    def set_camera(self, camera: RIProp):
+        self.avatar = None
+        self.prop = None
+        self.light = None
+        self.camera = camera
+
+    def set_base_path(self, file_path, create=False, show=False, no_base_folder=False):
+        if no_base_folder:
+            # the parent folder is the base folder for multi exports (used by Light exports)
+            base_path = os.path.dirname(file_path)
+            create = True
+            show = False
+        else:
+            # use the file name of the file_path as the base folder for multi exports
+            base_path = os.path.splitext(file_path)[0]
+            base_dir, base_file = os.path.split(file_path)
+            base_name, base_ext = os.path.splitext(base_file)
+            if os.path.exists(base_path) and not os.path.isdir(base_path):
+                base_path = utils.get_unique_folder_path(base_dir, base_name)
         self.base_path = os.path.normpath(base_path)
         if create:
             os.makedirs(base_path, exist_ok=True)
         if show:
             os.startfile(base_path)
 
+    def get_unique_path(self, base_path, name, ext, is_motion=False):
+        """Ensure unique path names for each export"""
+        attempt = 0
+        fbx_path = ""
+        while True:
+            suffix = "" if attempt == 0 else f"_{attempt:03d}"
+            if is_motion:
+                fbx_path = os.path.join(base_path, f"{name}{suffix}_motion{ext}")
+            else:
+                fbx_path = os.path.join(base_path, f"{name}{suffix}{ext}")
+            if os.path.exists(fbx_path):
+                attempt += 1
+            else:
+                break
+        return fbx_path
+
     def set_multi_paths(self, object, motion_only=False):
         base_path = self.base_path
-        ext = ".iCCX"
-        if cc.is_avatar(object) or cc.is_prop(object):
-            ext = ".Fbx"
+        ext = ".Fbx"
+        if cc.is_light(object) or cc.is_camera(object):
+            ext = ".rlx"
         name = object.GetName()
-        if motion_only:
-            self.fbx_path = os.path.join(base_path, f"{name}_motion{ext}")
-        else:
-            self.fbx_path = os.path.join(base_path, f"{name}{ext}")
+        self.fbx_path = self.get_unique_path(base_path, name, ext, is_motion=motion_only)
         self.fbx_file = os.path.basename(self.fbx_path)
         self.folder = os.path.dirname(self.fbx_path)
         self.character_id = os.path.splitext(self.fbx_file)[0]
@@ -195,11 +277,13 @@ class Exporter:
         self.json_path = os.path.join(self.folder, self.character_id + ".json")
         self.hik_path = os.path.join(self.folder, self.character_id + ".3dxProfile")
         self.profile_path = os.path.join(self.folder, self.character_id + ".ccFacialProfile")
+        if cc.is_light(object):
+            self.light_ies_path = os.path.join(self.folder, self.character_id + ".ies")
+            self.light_cookie_path = os.path.join(self.folder, self.character_id + ".png")
 
     def set_paths(self, file_path, motion_only=False):
         file_path = os.path.normpath(file_path)
-        self.base_path = os.path.splitext(file_path)[0]
-        ext = ".Fbx"
+        self.base_path, ext = os.path.splitext(file_path)
         if motion_only and not self.base_path.endswith("_motion"):
             self.fbx_path = f"{self.base_path}_motion{ext}"
         else:
@@ -212,6 +296,9 @@ class Exporter:
         self.json_path = os.path.join(self.folder, self.character_id + ".json")
         self.hik_path = os.path.join(self.folder, self.character_id + ".3dxProfile")
         self.profile_path = os.path.join(self.folder, self.character_id + ".ccFacialProfile")
+        if self.light:
+            self.light_ies_path = os.path.join(self.folder, self.character_id + ".ies")
+            self.light_cookie_path = os.path.join(self.folder, self.character_id + ".png")
 
     def create_options_window(self):
         W = 400
@@ -280,24 +367,44 @@ class Exporter:
         self.collect_objects(selected)
         if self.label_selected:
             selected_text = ""
-            if not self.avatars and not self.props:
+            if not self.avatars and not self.props and not self.lights and not self.cameras:
                 selected_text = "Nothing Selected!"
+
             if len(self.avatars) == 1:
                 selected_text += f"{len(self.avatars)} Avatar"
             elif len(self.avatars) > 1:
                 selected_text += f"{len(self.avatars)} Avatars"
+
             if self.props and selected_text:
                 selected_text += ", "
             if len(self.props) == 1:
                 selected_text += f"{len(self.props)} Prop"
             elif len(self.props) > 1:
                 selected_text += f"{len(self.props)} Props"
+
+            if self.lights and selected_text:
+                selected_text += ", "
+            if len(self.lights) == 1:
+                selected_text += f"{len(self.lights)} Light"
+            elif len(self.lights) > 1:
+                selected_text += f"{len(self.lights)} Lights"
+
+            if self.cameras and selected_text:
+                selected_text += ", "
+            if len(self.cameras) == 1:
+                selected_text += f"{len(self.cameras)} Camera"
+            elif len(self.cameras) > 1:
+                selected_text += f"{len(self.cameras)} Cameras"
+
             self.label_selected.setText(selected_text)
+
         if self.button_export:
-            if self.avatars or self.props:
+            if self.avatars or self.props or self.lights or self.cameras:
                 qt.enable(self.button_export)
             else:
                 qt.disable(self.button_export)
+
+        self.update_options_enabled()
 
     def update_combo_export_mode(self):
         index = self.combo_export_mode.currentIndex()
@@ -354,15 +461,34 @@ class Exporter:
         if self.radio_export_anim: self.radio_export_anim.setChecked(self.option_current_animation)
         if self.check_animation_only: self.check_animation_only.setChecked(self.option_animation_only)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
+        self.update_options_enabled()
+
+    def update_options_enabled(self):
         if self.option_preset == 0:
             qt.disable(self.group_export_range, self.check_animation_only)
-            qt.enable(self.check_t_pose)
+            qt.enable(self.check_t_pose,
+                      self.check_remove_hidden, self.check_t_pose,
+                      self.check_hik_data, self.check_profile_data,
+                      self.check_bakehair, self.check_bakeskin)
         elif self.option_preset == 1:
             qt.disable(self.check_t_pose)
-            qt.enable(self.group_export_range, self.check_animation_only)
+            qt.enable(self.group_export_range, self.check_animation_only,
+                      self.check_remove_hidden,
+                      self.check_hik_data, self.check_profile_data,
+                      self.check_bakehair, self.check_bakeskin)
         elif self.option_preset == 2:
             qt.disable(self.group_export_range, self.check_animation_only)
-            qt.enable(self.check_t_pose)
+            qt.enable(self.check_t_pose,
+                      self.check_remove_hidden,
+                      self.check_hik_data, self.check_profile_data,
+                      self.check_bakehair, self.check_bakeskin)
+        if not self.props and not self.avatars and not self.lights and not self.cameras:
+            qt.disable(self.check_animation_only)
+        if not self.avatars:
+            qt.disable(self.check_hik_data, self.check_profile_data,
+                       self.check_t_pose, self.check_remove_hidden,
+                       self.check_bakehair, self.check_bakeskin)
+
 
     def fetch_options(self):
         self.option_preset = self.combo_export_mode.currentIndex()
@@ -551,11 +677,15 @@ class Exporter:
         self.option_hik_data = False
         self.option_profile_data = False
 
-    def do_export(self, file_path=None):
-        multi_export = (len(self.avatars) + len(self.props) > 1)
-        single_export = (len(self.avatars) + len(self.props) == 1)
+    def do_export(self, file_path=None, no_base_folder=False):
+        self.exported_paths = []
+        multi_export = (len(self.avatars) + len(self.props) + len(self.lights) + len(self.cameras) > 1)
+        single_export = (len(self.avatars) + len(self.props) + len(self.lights) + len(self.cameras) == 1)
         if not file_path:
-            file_path = RUi.SaveFileDialog("Fbx Files(*.fbx)")
+            if single_export and self.lights:
+                file_path = RUi.SaveFileDialog("Fbx Files(*.rlx)")
+            else:
+                file_path = RUi.SaveFileDialog("Fbx Files(*.fbx)")
         self.window_progress = None
         if multi_export:
             self.create_progress_window()
@@ -576,17 +706,39 @@ class Exporter:
                     self.set_prop(self.props[0])
                     self.set_paths(file_path, self.option_animation_only)
                     self.export_fbx()
+                elif self.lights:
+                    utils.log_info(f"Exporting Light: {self.lights[0].GetName()}")
+                    self.set_light(self.lights[0])
+                    self.set_paths(file_path, self.option_animation_only)
+                    self.export_light()
+                elif self.cameras:
+                    utils.log_info(f"Exporting Camera: {self.cameras[0].GetName()}")
+                    self.set_camera(self.cameras[0])
+                    self.set_paths(file_path, self.option_animation_only)
+                    self.export_camera()
             elif multi_export:
                 # set the base path and create a folder
-                self.set_base_path(file_path, create=True, show=True)
+                self.set_base_path(file_path, create=True, show=True, no_base_folder=no_base_folder)
                 for avatar in self.avatars:
+                    utils.log_info(f"Exporting Avatars ...")
                     self.set_avatar(avatar)
                     self.set_multi_paths(avatar, self.option_animation_only)
                     self.export_fbx()
                 for prop in self.props:
+                    utils.log_info(f"Exporting Props ...")
                     self.set_prop(prop)
                     self.set_multi_paths(prop, self.option_animation_only)
                     self.export_fbx()
+                for light in self.lights:
+                    utils.log_info(f"Exporting Lights ...")
+                    self.set_light(light)
+                    self.set_multi_paths(light, self.option_animation_only)
+                    self.export_light()
+                for camera in self.cameras:
+                    utils.log_info(f"Exporting Cameras ...")
+                    self.set_camera(camera)
+                    self.set_multi_paths(camera, self.option_animation_only)
+                    self.export_camera()
             utils.log("Done!")
             self.clean_up_globals()
 
@@ -595,55 +747,43 @@ class Exporter:
 
         self.close_progress_window()
         self.clear_objects()
+        return self.exported_paths
 
     def export_fbx(self):
-        obj = None
-        if self.avatar:
-            if self.option_animation_only:
-                self.export_motion_fbx()
-                return
-            export_obj = self.avatar
-            is_avatar = True
-            is_prop = False
-            obj = self.avatar
-        elif self.prop:
-            if self.option_animation_only:
-                self.export_motion_fbx()
-                return
-            export_obj = self.prop
-            is_avatar = False
-            is_prop = True
-            obj = self.prop
-        else:
-            utils.log_error("No avatar or prop to export!")
+        if self.option_animation_only:
+            self.export_motion_fbx()
+            return
+        obj = utils.first(self.avatar, self.prop, self.camera, self.light)
+        if not obj:
+            utils.log_error("No avatar, prop or camera to export!")
             return
 
         file_path = self.fbx_path
-        if is_avatar:
+        if self.avatar:
             self.update_progress(0, f"Exporting Avatar: {obj.GetName()} ...", True)
-        else:
+        elif self.prop:
             self.update_progress(0, f"Exporting Prop: {obj.GetName()} ...", True)
+        else:
+            self.update_progress(0, f"Exporting Camera: {obj.GetName()} ...", True)
 
-        utils.log(f"Exporting {('Avatar' if is_avatar else 'Prop')} - {obj.GetName()} - FBX: {file_path}")
 
-        options1 = EExportFbxOptions__None
-        options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
-        options1 = options1 | EExportFbxOptions_RemoveAllUnused
-        options1 = options1 | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
-        options1 = options1 | EExportFbxOptions_ExportRootMotion
-        if is_avatar:
+        utils.log(f"Exporting {cc.get_object_type(obj)} - {obj.GetName()} - FBX: {file_path}")
+
+        options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
+                                            | EExportFbxOptions_RemoveAllUnused
+                                            | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
+                                            | EExportFbxOptions_ExportRootMotion)
+        if self.avatar:
             if self.option_remove_hidden:
                 options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
             else:
                 options1 = options1 | EExportFbxOptions_FbxKey
 
-        options2 = EExportFbxOptions2__None
-        options2 = options2 | EExportFbxOptions2_ResetBoneScale
-        options2 = options2 | EExportFbxOptions2_ResetSelfillumination
+        options2 = (EExportFbxOptions2__None | EExportFbxOptions2_ResetBoneScale
+                                             | EExportFbxOptions2_ResetSelfillumination)
 
-        options3 = EExportFbxOptions3__None
-        options3 = options3 | EExportFbxOptions3_ExportJson
-        options3 = options3 | EExportFbxOptions3_ExportVertexColor
+        options3 = (EExportFbxOptions3__None | EExportFbxOptions3_ExportJson
+                                             | EExportFbxOptions3_ExportVertexColor)
 
         export_fbx_setting = RExportFbxSetting()
 
@@ -651,13 +791,14 @@ class Exporter:
         export_fbx_setting.SetOption2(options2)
         export_fbx_setting.SetOption3(options3)
 
-        if is_avatar:
+        if self.avatar:
             export_fbx_setting.EnableBakeDiffuseSpecularFromShader(self.option_bakehair)
             export_fbx_setting.EnableBakeDiffuseFromSkinColor(self.option_bakeskin)
             export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
 
-        export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
-        export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
+        if self.avatar or self.prop:
+            export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
+            export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
 
         # determine if any frames to export
         project_fps = RGlobal.GetFps()
@@ -694,42 +835,41 @@ class Exporter:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
 
-        result = RFileIO.ExportFbxFile(export_obj, file_path, export_fbx_setting)
+        result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
+        self.exported_paths.append(file_path)
 
-        if is_avatar:
+        if self.avatar:
             self.update_progress(3, f"Exported Avatar Fbx - {obj.GetName()}", True)
-        else:
+        elif self.prop:
             self.update_progress(3, f"Exported Prop Fbx - {obj.GetName()}", True)
-
+        else:
+            self.update_progress(3, f"Exported Camera Fbx - {obj.GetName()}", True)
         self.export_extra_data()
 
     def export_motion_fbx(self):
 
         file_path = self.fbx_path
+        dir, file = os.path.split(file_path)
+        name, ext = os.path.splitext(file)
+        if not name.lower().endswith("_motion"):
+            file_path = os.path.join(dir, f"{name}_Motion{ext}")
 
-        if self.avatar:
-            obj = self.avatar
-            is_avatar = True
-        elif self.prop:
-            obj = self.prop
-            is_avatar = False
+        obj = utils.first(self.avatar, self.prop, self.camera)
 
         self.update_progress(0, f"Exporting Motion - {obj.GetName()}", True)
         utils.log(f"Exporting Motion FBX: {file_path}")
 
-        options1 = EExportFbxOptions__None
-
-        options1 = options1 | EExportFbxOptions_AutoSkinRigidMesh
-        options1 = options1 | EExportFbxOptions_RemoveAllUnused
-        if is_avatar:
+        options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
+                                            | EExportFbxOptions_RemoveAllUnused
+                                            | EExportFbxOptions_ExportRootMotion
+                                            | EExportFbxOptions_RemoveUnusedMorph)
+        if self.avatar:
             options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
-        options1 = options1 | EExportFbxOptions_ExportRootMotion
 
-        options2 = EExportFbxOptions2__None
-        options2 = options2 | EExportFbxOptions2_ResetBoneScale
-        options2 = options2 | EExportFbxOptions2_ResetSelfillumination
+        options2 = (EExportFbxOptions2__None | EExportFbxOptions2_ResetBoneScale
+                                             | EExportFbxOptions2_ResetSelfillumination)
 
-        options3 = EExportFbxOptions3__None
+        options3 = (EExportFbxOptions3__None)
 
         export_fbx_setting = RExportFbxSetting()
 
@@ -739,7 +879,7 @@ class Exporter:
 
         export_fbx_setting.SetTextureFormat(EExportTextureFormat_Default)
         export_fbx_setting.SetTextureSize(EExportTextureSize_Original)
-        if is_avatar:
+        if self.avatar:
             export_fbx_setting.EnableBasicBindPose(not self.option_t_pose)
         else:
             export_fbx_setting.EnableBasicBindPose(True)
@@ -752,21 +892,43 @@ class Exporter:
         export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
 
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
+        self.exported_paths.append(file_path)
 
         self.update_progress(1, f"Exported Motion - {obj.GetName()}", True)
 
     def export_extra_data(self):
         """TODO write sub-object link_id's"""
 
-        utils.log_info(self.json_path)
-        utils.log_info(self.fbx_path)
+        #utils.log_info(self.json_path)
+        #utils.log_info(self.fbx_path)
+
+        if self.camera:
+            utils.log_info(f"Creating Camera Json File: {self.json_path}")
+            json_data = cc.generate_base_json_data(self.json_path, self.character_id, "Camera")
+        elif self.light:
+            utils.log_info(f"Creating Light Json File: {self.json_path}")
+            generation = ""
+            if type(self.light) == RIDirectionalLight:
+                generation = "Directional Light"
+            elif type(self.light) == RIPointLight:
+                generation = "Point Light"
+            elif type(self.light) == RISpotLight:
+                generation = "Spot Light"
+            else:
+                generation = "Unknown Light"
+            json_data = cc.generate_base_json_data(self.json_path, self.character_id, generation)
+
         json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
         root_json = json_data.get_root_json()
+
+        if self.light:
+            root_json["Object"][self.character_id]["Light"] = cc.get_light_data(self.light)
+
         if json_data is None:
             utils.log_error("No valid json data could be found for the export ...")
             return
 
-        obj = self.avatar if self.avatar else self.prop
+        obj = self.avatar if self.avatar else self.prop if self.prop else self.camera if self.camera else self.light
         if not obj: return
         if type(obj) is RILightAvatar: return
 
@@ -837,39 +999,47 @@ class Exporter:
             self.update_progress(1, "Exported Additional Physics.", True)
 
         elif self.prop:
-
             if root_json:
                 root_json["Avatar_Type"] = "Prop"
                 root_json["Link_ID"] = cc.get_link_id(self.prop)
 
+        elif self.camera:
+            if root_json:
+                root_json["Avatar_Type"] = "Camera"
+                root_json["Link_ID"] = cc.get_link_id(self.camera)
+
+        elif self.light:
+            if root_json:
+                root_json["Avatar_Type"] = "Light"
+                root_json["Link_ID"] = cc.get_link_id(self.light)
+
         # Add sub object id's and root bones
-        info_json = []
-        child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
-        objects = [obj]
-        objects.extend(child_objects)
-        root_def = cc.get_extended_skin_bones_tree(obj)
-        root_json["Root Bones"] = cc.extract_root_bones_from_tree(root_def)
-        for obj in objects:
-            obj_name = obj.GetName()
-            SC: RISkeletonComponent = obj.GetSkeletonComponent()
-            root_bone = SC.GetRootBone()
-            root_name = root_bone.GetName() if root_bone else ""
-            skin_bones = SC.GetSkinBones()
-            skin_bone_names = [ b.GetName() for b in skin_bones if b.GetName() ] if skin_bones else []
-            obj_type = cc.get_object_type(obj)
-            if obj_type != "NONE" and skin_bone_names:
-                id = cc.get_link_id(obj, add_if_missing=True)
-                info_obj_json = {
-                    "Link_ID": id,
-                    "Name": obj_name,
-                    "Type": obj_type,
-                    "Root": root_name,
-                    "Bones": skin_bone_names,
-                }
-                info_json.append(info_obj_json)
-
-
-        root_json["Object_Info"] = info_json
+        if self.prop or self.avatar:
+            info_json = []
+            child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+            objects = [obj]
+            objects.extend(child_objects)
+            skin_tree = cc.get_extended_skin_bones_tree(obj)
+            root_json["Root Bones"] = cc.extract_root_bones_from_tree(skin_tree)
+            for obj in objects:
+                obj_name = obj.GetName()
+                SC: RISkeletonComponent = obj.GetSkeletonComponent()
+                root_bone = SC.GetRootBone()
+                root_name = root_bone.GetName() if root_bone else ""
+                skin_bones = SC.GetSkinBones()
+                skin_bone_names = [ b.GetName() for b in skin_bones if b.GetName() ] if skin_bones else []
+                obj_type = cc.get_object_type(obj)
+                if obj_type != "NONE" and skin_bone_names:
+                    id = cc.get_link_id(obj, add_if_missing=True)
+                    info_obj_json = {
+                        "Link_ID": id,
+                        "Name": obj_name,
+                        "Type": obj_type,
+                        "Root": root_name,
+                        "Bones": skin_bone_names,
+                    }
+                    info_json.append(info_obj_json)
+            root_json["Object_Info"] = info_json
 
         # Update JSON data
         utils.log(f"Re-writing JSON data: {self.json_path}")
@@ -897,6 +1067,179 @@ class Exporter:
                             utils.log(f"Adding weightmap path: {phys_json['Weight Map Path']}")
                         else:
                             utils.log(f"Unable to save missing weightmap: {weight_map_path}")
+
+    def export_light(self):
+        if not self.all_camera_light_data:
+            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
+
+        light: RILight = self.light
+
+        frame = 0
+        link_id = cc.get_link_id(light)
+        light_index = -1
+        light_data = None
+        num_frames = len(self.all_camera_light_data)
+        for i, data in enumerate(self.all_camera_light_data[frame]["lights"]):
+            if data["link_id"] == link_id:
+                light_data = data
+                light_index = i
+
+        if not light_data:
+            utils.log_error(f"Unable to find light in light data: {light}")
+            return False
+
+        light_data["frame_count"] = num_frames
+
+        utils.log_info(f"Exporting Light: {light.GetName()}")
+
+        T = type(light)
+        if T is RISpotLight or T is RIPointLight:
+            if light.IsRectangleShape():
+                # saves rect texture (only if there is one).
+                light.SaveRectTexture(self.light_cookie_path)
+                if os.path.exists(self.light_cookie_path):
+                    light_data["cookie"] = self.light_cookie_path
+            # always saves an IES, empty file if there isn't one.
+            light.SaveIes(self.light_ies_path)
+            # remove the IES file if it is empty
+            if os.path.exists(self.light_ies_path):
+                if os.stat(self.light_ies_path).st_size == 0:
+                    os.remove(self.light_ies_path)
+                else:
+                    light_data["ies"] = self.light_ies_path
+
+        binary_bytes = bytearray()
+
+        utils.log_info(f"Packing Light Json ...")
+
+        json_string = json.dumps(light_data)
+        json_bytes = bytearray(json_string, "utf-8")
+        json_header = struct.pack("!II", RLX_ID_LIGHT, len(json_bytes))
+        binary_bytes.extend(json_header)
+        binary_bytes.extend(json_bytes)
+
+        utils.log_info(f"Packing Light Frames: {num_frames} ...")
+
+        frames_bytes = bytearray()
+        for frame_data in self.all_camera_light_data:
+            time = frame_data["time"]
+            frame = frame_data["frame"]
+            light_data = frame_data["lights"][light_index]
+            frame_bytes = struct.pack("!II?fffffffffffffffffff",
+                                     time,
+                                     frame,
+                                     light_data["active"],
+                                     light_data["loc"][0],
+                                     light_data["loc"][1],
+                                     light_data["loc"][2],
+                                     light_data["rot"][0],
+                                     light_data["rot"][1],
+                                     light_data["rot"][2],
+                                     light_data["rot"][3],
+                                     light_data["sca"][0],
+                                     light_data["sca"][1],
+                                     light_data["sca"][2],
+                                     light_data["color"][0],
+                                     light_data["color"][1],
+                                     light_data["color"][2],
+                                     light_data["multiplier"],
+                                     light_data["range"],
+                                     light_data["angle"],
+                                     light_data["falloff"],
+                                     light_data["attenuation"],
+                                     light_data["darkness"])
+            frames_bytes.extend(frame_bytes)
+        frames_header = struct.pack("!I", len(frames_bytes))
+        binary_bytes.extend(frames_header)
+        binary_bytes.extend(frames_bytes)
+
+        utils.log_info(f"Writing Binary File: {self.fbx_path}")
+
+        with open(self.fbx_path, 'wb') as binary_file:
+            binary_file.write(binary_bytes)
+
+        self.export_extra_data()
+        self.exported_paths.append(self.fbx_path)
+
+        return True
+
+    def export_camera(self):
+        if not self.all_camera_light_data:
+            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
+
+        frame = 0
+        link_id = cc.get_link_id(self.camera)
+        camera_index = -1
+        camera_data = None
+        num_frames = len(self.all_camera_light_data)
+        for i, data in enumerate(self.all_camera_light_data[frame]["cameras"]):
+            if data["link_id"] == link_id:
+                camera_data = data
+                camera_index = i
+
+        if not camera_data:
+            utils.log_error(f"Unable to find camera in camera data: {self.camera}")
+            return False
+
+        camera_data["frame_count"] = num_frames
+
+        utils.log_info(f"Exporting Camera: {self.camera.GetName()}")
+
+        binary_bytes = bytearray()
+
+        utils.log_info(f"Packing Camera Json ...")
+
+        json_string = json.dumps(camera_data)
+        json_bytes = bytearray(json_string, "utf-8")
+        json_header = struct.pack("!II", RLX_ID_CAMERA, len(json_bytes))
+        binary_bytes.extend(json_header)
+        binary_bytes.extend(json_bytes)
+
+        utils.log_info(f"Packing Camera Frames: {num_frames} ...")
+
+        frames_bytes = bytearray()
+        for frame_data in self.all_camera_light_data:
+            time = frame_data["time"]
+            frame = frame_data["frame"]
+            camera_data = frame_data["cameras"][camera_index]
+            frame_bytes = struct.pack("!IIfffffffffff?ffffffff",
+                                     time,
+                                     frame,
+                                     camera_data["loc"][0],
+                                     camera_data["loc"][1],
+                                     camera_data["loc"][2],
+                                     camera_data["rot"][0],
+                                     camera_data["rot"][1],
+                                     camera_data["rot"][2],
+                                     camera_data["rot"][3],
+                                     camera_data["sca"][0],
+                                     camera_data["sca"][1],
+                                     camera_data["sca"][2],
+                                     camera_data["focal_length"],
+                                     camera_data["dof_enable"],
+                                     camera_data["dof_focus"], # Focus Distance
+                                     camera_data["dof_range"], # Perfect Focus Range
+                                     camera_data["dof_far_blur"],
+                                     camera_data["dof_near_blur"],
+                                     camera_data["dof_far_transition"],
+                                     camera_data["dof_near_transition"],
+                                     camera_data["dof_min_blend_distance"], # Blur Edge Sampling Scale
+                                     camera_data["fov"])
+            frames_bytes.extend(frame_bytes)
+        frames_header = struct.pack("!I", len(frames_bytes))
+        binary_bytes.extend(frames_header)
+        binary_bytes.extend(frames_bytes)
+
+        utils.log_info(f"Writing Binary File: {self.fbx_path}")
+
+        with open(self.fbx_path, 'wb') as binary_file:
+            binary_file.write(binary_bytes)
+
+        self.exported_paths.append(self.fbx_path)
+
+        self.export_extra_data()
+
+        return True
 
 
 EXPORTER: Exporter = None

@@ -424,6 +424,25 @@ def test_controls():
     test_control(avatar, "Color")
 
 
+def test_frame_scan():
+    start_time: RTime = RGlobal.GetStartTime()
+    RGlobal.SetTime(start_time)
+    end_time: RTime = RGlobal.GetEndTime()
+    current_time: RTime = RGlobal.GetTime()
+    fps: RFps = RGlobal.GetFps()
+
+    print("START")
+
+    while current_time.ToInt() < end_time.ToInt():
+        next_time = fps.GetNextFrameTime(current_time)
+        RGlobal.SetTime(next_time)
+        current_time = next_time
+
+    print("DONE")
+
+
 def test():
-    test_controls()
+    for o in RScene.GetSelectedObjects():
+        if type(o) is RICamera:
+            print(cc.get_camera_data(o))
     return

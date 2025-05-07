@@ -128,6 +128,8 @@ def menu_export():
 
 def menu_link():
     data_link = link.get_data_link()
+    if not data_link.is_listening():
+        data_link.link_start()
     if data_link.is_shown():
         data_link.hide()
     else:
