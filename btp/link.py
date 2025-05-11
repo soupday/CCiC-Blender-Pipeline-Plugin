@@ -3061,9 +3061,11 @@ class DataLink(QObject):
             lights_data["ibl_rotation"] = ibl_rotation
             lights_data["ibl_scale"] = ibl_scale.x
 
-    def sync_lighting(self, include_lights=True):
+    def sync_lighting(self):
         if cc.is_iclone():
             include_lights = False
+        else:
+            include_lights = True
         self.update_link_status(f"Synchronizing Lights")
         self.send_notify(f"Sync Lighting")
         actors = self.get_all_lights()
@@ -3134,7 +3136,7 @@ class DataLink(QObject):
                 else:
                     utils.log_info(f"Actor: {actor.name} sending actor ...")
                     send_actors.append(actor)
-        self.sync_lighting(include_lights=False)
+        self.sync_lighting()
         self.send_camera_sync()
         if motion_actors:
             RScene.ClearSelectObjects()
