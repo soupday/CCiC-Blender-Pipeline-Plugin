@@ -74,6 +74,9 @@ Changelog
 ### 2.3.0
 - Export / transfer of lights and cameras to Blender.
 - Sequence transfer of Prop animations from Blender to iClone.
+- Send Scene button added to send or update the entire scene.
+    - When target actors are in the scene in Blender already, it will update their motions.
+- Select Scene button added, to select all DataLink transferable objects in scene.
 
 ### 2.2.5
 - Remote file transfer over datalink, to and from Blender on remote machine.
