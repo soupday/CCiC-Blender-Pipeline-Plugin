@@ -1129,6 +1129,8 @@ def get_selected_avatars():
 def get_selected_sendable(obj: RIObject):
     """Returns the sendable object from the selection object"""
     T = type(obj)
+    if obj.GetName() == "Preview Camera":
+        return None, None
     prop_or_avatar = find_parent_avatar_or_prop(obj)
     if T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
         return obj, T
@@ -1147,6 +1149,20 @@ def get_selected_actor_objects():
     selected = RScene.GetSelectedObjects()
     actor_objects = []
     for obj in selected:
+        send_object, T = get_selected_sendable(obj)
+        if send_object and send_object not in actor_objects:
+            actor_objects.append(send_object)
+    return actor_objects
+
+
+def get_all_actor_objects():
+    objects = RScene.FindObjects(EObjectType_Avatar | EObjectType_LightAvatar |
+                                 EObjectType_Prop | EObjectType_MDProp |
+                                 EObjectType_Light | EObjectType_DirectionalLight |
+                                 EObjectType_SpotLight | EObjectType_PointLight |
+                                 EObjectType_Camera)
+    actor_objects = []
+    for obj in objects:
         send_object, T = get_selected_sendable(obj)
         if send_object and send_object not in actor_objects:
             actor_objects.append(send_object)
@@ -1371,10 +1387,11 @@ def set_link_id(obj: RIObject, link_id):
 
 
 def find_object_by_link_id(link_id):
-    objects = RScene.FindObjects(EObjectType_Avatar |
-                                      EObjectType_Prop |
-                                      EObjectType_Light |
-                                      EObjectType_Camera)
+    objects = RScene.FindObjects(EObjectType_Avatar | EObjectType_LightAvatar |
+                                 EObjectType_Prop | EObjectType_MDProp |
+                                 EObjectType_Light | EObjectType_DirectionalLight |
+                                 EObjectType_SpotLight | EObjectType_PointLight |
+                                 EObjectType_Camera)
     for obj in objects:
         if get_link_id(obj) == link_id:
             return obj
@@ -1382,10 +1399,11 @@ def find_object_by_link_id(link_id):
 
 
 def find_object_by_name_and_type(search_name, search_type=None) -> RIObject:
-    objects = RScene.FindObjects(EObjectType_Avatar |
-                                      EObjectType_Prop |
-                                      EObjectType_Light |
-                                      EObjectType_Camera)
+    objects = RScene.FindObjects(EObjectType_Avatar | EObjectType_LightAvatar |
+                                 EObjectType_Prop | EObjectType_MDProp |
+                                 EObjectType_Light | EObjectType_DirectionalLight |
+                                 EObjectType_SpotLight | EObjectType_PointLight |
+                                 EObjectType_Camera)
     for obj in objects:
         if obj.GetName() == search_name:
             if search_type:
@@ -1459,10 +1477,11 @@ def get_object_type(obj):
 
 
 def find_linked_objects(object: RIObject):
-    objects = RScene.FindObjects(EObjectType_Avatar |
-                                      EObjectType_Prop |
-                                      EObjectType_Light |
-                                      EObjectType_Camera)
+    objects = RScene.FindObjects(EObjectType_Avatar | EObjectType_LightAvatar |
+                                 EObjectType_Prop | EObjectType_MDProp |
+                                 EObjectType_Light | EObjectType_DirectionalLight |
+                                 EObjectType_SpotLight | EObjectType_PointLight |
+                                 EObjectType_Camera)
     linked_objects = []
     for obj in objects:
         linked_object = obj.GetLinkedObject()
@@ -1513,9 +1532,10 @@ def find_prop_by_id(prop_id):
 
 
 def deduplicate_scene():
-    objects = RScene.FindObjects(EObjectType_Avatar |
-                                 EObjectType_Prop |
-                                 EObjectType_Light |
+    objects = RScene.FindObjects(EObjectType_Avatar | EObjectType_LightAvatar |
+                                 EObjectType_Prop | EObjectType_MDProp |
+                                 EObjectType_Light | EObjectType_DirectionalLight |
+                                 EObjectType_SpotLight | EObjectType_PointLight |
                                  EObjectType_Camera)
     names = {}
     ids_done = []
@@ -1841,7 +1861,8 @@ def end_timeline_scan(current_time):
 
 
 def get_all_camera_light_data(no_animation=False):
-    lights = RScene.FindObjects(EObjectType_Light)
+    lights = RScene.FindObjects(EObjectType_Light | EObjectType_DirectionalLight |
+                                EObjectType_SpotLight | EObjectType_PointLight)
     cameras = RScene.FindObjects(EObjectType_Camera)
     all_data = []
     if lights or cameras:

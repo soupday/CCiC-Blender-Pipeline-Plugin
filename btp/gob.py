@@ -112,7 +112,7 @@ def go_b_connected():
     LINK = link.get_data_link()
     LINK.service.connected.disconnect(go_b_connected)
     # send the lights and camera
-    LINK.sync_lighting(GOB_LIGHTING)
+    LINK.sync_lighting()
     LINK.send_camera_sync()
     # then send the characters
     go_b_send()
