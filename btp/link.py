@@ -196,6 +196,13 @@ class LinkActor():
     def get_object(self) -> RIObject:
         return self.object
 
+    def select(self):
+        if self.object:
+            objects = list(RScene.GetSelectedObjects())
+            if self.object not in objects:
+                objects.append(self.object)
+            RScene.SelectObjects(objects)
+
     def update(self, name, link_id):
         self.name = name
         self.set_link_id(link_id)
@@ -1530,6 +1537,8 @@ class DataLink(QObject):
     button_morph_update: QPushButton = None
     button_sync_lights: QPushButton = None
     button_sync_camera: QPushButton = None
+    button_send_scene: QPushButton = None
+    button_select_scene: QPushButton = None
     toggle_use_fake_user: QPushButton = None
     toggle_set_keyframes: QPushButton = None
     #
@@ -1573,8 +1582,12 @@ class DataLink(QObject):
         self.icon_avatar = qt.get_icon("Character.png")
         self.icon_prop = qt.get_icon("Prop.png")
         self.icon_light = qt.get_icon("Light.png")
+        self.icon_atmosphere = qt.get_icon("Atmosphere.png")
         self.icon_camera = qt.get_icon("Camera.png")
         self.icon_all = qt.get_icon("Actor.png")
+        self.icon_scene = qt.get_icon("Scene.png")
+        self.icon_set = qt.get_icon("Set.png")
+        self.icon_eyes = qt.get_icon("Eyes.png")
         self.icon_fake_user_off = qt.get_icon("BlenderFakeUserOff.png")
         self.icon_fake_user_on = qt.get_icon("BlenderFakeUserOn.png")
         self.icon_set_keyframes_off = qt.get_icon("BlenderActionOff.png")
@@ -1616,6 +1629,7 @@ class DataLink(QObject):
         self.button_link = qt.button(grid, "Listen", self.link_start, row=0, col=0, toggle=True, value=False, height=48)
         qt.button(grid, "Stop", self.link_stop, row=0, col=1, width=64, height=48)
 
+        # SEND
 
         grid = qt.grid(layout)
         grid.setColumnStretch(0, 1)
@@ -1643,7 +1657,7 @@ class DataLink(QObject):
         grid.setColumnStretch(0,1)
         grid.setColumnStretch(1,1)
         align_width = 150
-        self.button_send = qt.icon_button(grid, "Send Character", self.send_actor,
+        self.button_send = qt.icon_button(grid, "Send Character", self.send_actors,
                                      row=0, col=0, icon=self.icon_avatar,
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
@@ -1655,7 +1669,7 @@ class DataLink(QObject):
                                      row=1, col=0, icon="Pose.png",
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
-        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motion_export,
+        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motions,
                                           row=1, col=1, icon="Animation.png",
                                           width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                           icon_size=48, align_width=align_width)
@@ -1669,6 +1683,8 @@ class DataLink(QObject):
                                                    row=2, col=1, icon=self.icon_replace_avatar,
                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                    icon_size=48, align_width=align_width)
+
+        # MORPH
 
         if cc.is_cc():
             qt.label(layout, "Morph:")
@@ -1684,18 +1700,36 @@ class DataLink(QObject):
                                                  width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                  icon_size=48, align_width=align_width)
 
+        # LIGHTS & CAMERA
+
         qt.label(layout, "Lights & Camera:")
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
         grid.setColumnStretch(1,1)
         self.button_sync_lights = qt.icon_button(grid, "Sync Lighting", self.sync_lighting,
-                                            row=0, col=0, icon=self.icon_light,
+                                            row=0, col=0, icon=self.icon_atmosphere,
                                             width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                             icon_size=48, align_width=align_width)
-        self.button_sync_camera = qt.icon_button(grid, "Sync Camera", self.send_camera_sync,
-                                            row=0, col=1, icon=self.icon_camera,
+        self.button_sync_camera = qt.icon_button(grid, "Sync View", self.send_camera_sync,
+                                            row=0, col=1, icon=self.icon_eyes,
                                             width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                             icon_size=48, align_width=align_width)
+
+        # SCENE
+        if cc.is_iclone():
+            qt.label(layout, "Scene:")
+            grid = qt.grid(layout)
+            grid.setColumnStretch(0,1)
+            grid.setColumnStretch(1,1)
+            self.button_select_scene = qt.icon_button(grid, "Select Scene", self.select_scene,
+                                                    row=0, col=0, icon=self.icon_set,
+                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                    icon_size=48, align_width=align_width)
+            self.button_send_scene = qt.icon_button(grid, "Send Scene", self.send_scene,
+                                                    row=0, col=1, icon=self.icon_scene,
+                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                    icon_size=48, align_width=align_width)
+
 
         qt.stretch(layout, 20)
 
@@ -1843,8 +1877,12 @@ class DataLink(QObject):
             icon = self.icon_camera
         if self.is_connected():
             self.button_send.setText(f"Send {type_name}")
+            if self.button_send_scene:
+                self.button_send_scene.setText(f"Send Scene")
         else:
             self.button_send.setText(f"Go-B {type_name}")
+            if self.button_send_scene:
+                self.button_send_scene.setText(f"Go-B Scene")
         self.button_send.setIcon(icon)
         if num_posable > 1:
             self.button_pose.setText(f"Send Poses")
@@ -1866,6 +1904,7 @@ class DataLink(QObject):
                    self.button_animation, self.button_update_replace,
                    self.button_morph, self.button_morph_update,
                    self.button_sync_lights, self.button_sync_camera,
+                   self.button_send_scene,
                    self.combobox_version, self.label_version)
 
         if self.is_connected():
@@ -1882,6 +1921,7 @@ class DataLink(QObject):
             qt.enable(self.combobox_version, self.label_version)
             if num_sendable > 0:
                 qt.enable(self.button_send)
+        qt.enable(self.button_send_scene)
         # context info
 
         if avatar:
@@ -2457,7 +2497,7 @@ class DataLink(QObject):
             selection = [ LinkActor(o) for o in lights_cameras ]
             self.send_lights_cameras(selection)
 
-    def send_actor(self):
+    def send_actors(self):
         if not self.is_connected():
             gob.go_b()
         else:
@@ -2525,53 +2565,58 @@ class DataLink(QObject):
             self.send(OpCodes.UPDATE_REPLACE, update_data)
             self.update_link_status(f"Update Sent: {actor.name}")
 
-    def send_motion_export(self):
+    def send_motions(self):
         actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
-            motion_name = actor.name + "_motion"
-            self.update_link_status(f"Exporting Motion: {motion_name}", True)
-            self.send_notify(f"Exporting Motion: {motion_name}")
-            # Determine export path
-            export_folder = self.get_actor_export_folder(motion_name)
-            export_file = motion_name + ".fbx"
-            export_path = os.path.join(export_folder, export_file)
-            if not export_path: continue
-            utils.log_info(f"Export Path: {export_path}")
-            #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
-            export = exporter.Exporter(actor.object, no_window=True)
-            export.set_datalink_motion_export()
-            export.do_export(export_path)
-            # Send Remote Files First
-            remote_id = self.send_remote_files(export_folder)
-            # Send Motion
-            self.send_notify(f"Motion Import: {motion_name}")
-            fps = get_fps()
-            start_time: RTime = RGlobal.GetStartTime()
-            end_time: RTime = RGlobal.GetEndTime()
-            start_frame = fps.GetFrameIndex(start_time)
-            end_frame = fps.GetFrameIndex(end_time)
-            current_time: RTime = RGlobal.GetTime()
-            current_frame = fps.GetFrameIndex(current_time)
-            export_data = encode_from_json({
-                "path": export_path,
-                "remote_id": remote_id,
-                "name": actor.name,
-                "type": actor.get_type(),
-                "link_id": actor.get_link_id(),
-                "fps": fps.ToFloat(),
-                "start_time": start_time.ToInt(),
-                "end_time": end_time.ToInt(),
-                "start_frame": start_frame,
-                "end_frame": end_frame,
-                "time": current_time.ToInt(),
-                "frame": current_frame,
-                "motion_prefix": self.motion_prefix,
-                "use_fake_user": self.use_fake_user,
-                "set_keyframes": self.set_keyframes,
-            })
-            self.send(OpCodes.MOTION, export_data)
-            self.update_link_status(f"Motion Sent: {motion_name}")
+            if actor.is_avatar() or actor.is_prop():
+                motion_name = actor.name + "_motion"
+                self.update_link_status(f"Exporting Motion: {motion_name}", True)
+                self.send_notify(f"Exporting Motion: {motion_name}")
+                # Determine export path
+                export_folder = self.get_actor_export_folder(motion_name)
+                export_file = motion_name + ".fbx"
+                export_path = os.path.join(export_folder, export_file)
+                if not export_path: continue
+                utils.log_info(f"Export Path: {export_path}")
+                #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
+                export = exporter.Exporter(actor.object, no_window=True)
+                export.set_datalink_motion_export()
+                export.do_export(export_path)
+                # Send Remote Files First
+                remote_id = self.send_remote_files(export_folder)
+                # Send Motion
+                self.send_notify(f"Motion Import: {motion_name}")
+                fps = get_fps()
+                start_time: RTime = RGlobal.GetStartTime()
+                end_time: RTime = RGlobal.GetEndTime()
+                start_frame = fps.GetFrameIndex(start_time)
+                end_frame = fps.GetFrameIndex(end_time)
+                current_time: RTime = RGlobal.GetTime()
+                current_frame = fps.GetFrameIndex(current_time)
+                export_data = encode_from_json({
+                    "path": export_path,
+                    "remote_id": remote_id,
+                    "name": actor.name,
+                    "type": actor.get_type(),
+                    "link_id": actor.get_link_id(),
+                    "fps": fps.ToFloat(),
+                    "start_time": start_time.ToInt(),
+                    "end_time": end_time.ToInt(),
+                    "start_frame": start_frame,
+                    "end_frame": end_frame,
+                    "time": current_time.ToInt(),
+                    "frame": current_frame,
+                    "motion_prefix": self.motion_prefix,
+                    "use_fake_user": self.use_fake_user,
+                    "set_keyframes": self.set_keyframes,
+                })
+                self.send(OpCodes.MOTION, export_data)
+                self.update_link_status(f"Motion Sent: {motion_name}")
+        # because it is faster to send all the lights and cameras at once (because only one scene scan)
+        lights_cameras = [ actor for actor in actors if (actor.is_light() or actor.is_camera()) ]
+        if lights_cameras:
+            self.send_lights_cameras(lights_cameras)
 
     def send_avatar_morph(self, actor: LinkActor, update=False):
         self.update_link_status(f"Exporting Morph: {actor.name}", True)
@@ -2921,7 +2966,8 @@ class DataLink(QObject):
 
     def get_lights_data(self, actors):
 
-        all_lights = RScene.FindObjects(EObjectType_Light)
+        all_lights = RScene.FindObjects(EObjectType_Light | EObjectType_DirectionalLight |
+                                        EObjectType_SpotLight | EObjectType_PointLight)
         all_light_id = []
         for light in all_lights:
             all_light_id.append(cc.get_link_id(light))
@@ -2948,7 +2994,8 @@ class DataLink(QObject):
         return data
 
     def get_all_lights(self):
-        lights = RScene.FindObjects(EObjectType_Light)
+        lights = RScene.FindObjects(EObjectType_Light | EObjectType_DirectionalLight |
+                                    EObjectType_SpotLight | EObjectType_PointLight)
         actors = []
         for light in lights:
             actor = LinkActor(light)
@@ -3015,6 +3062,8 @@ class DataLink(QObject):
             lights_data["ibl_scale"] = ibl_scale.x
 
     def sync_lighting(self, include_lights=True):
+        if cc.is_iclone():
+            include_lights = False
         self.update_link_status(f"Synchronizing Lights")
         self.send_notify(f"Sync Lighting")
         actors = self.get_all_lights()
@@ -3050,6 +3099,55 @@ class DataLink(QObject):
         }
         self.send(OpCodes.CAMERA_SYNC, encode_from_json(data))
         self.send_frame_sync()
+
+    def select_scene(self):
+        all_actor_objects = cc.get_all_actor_objects()
+        RScene.ClearSelectObjects()
+        RScene.SelectObjects(all_actor_objects)
+
+    def send_scene(self):
+        self.select_scene()
+        if not self.is_connected():
+            gob.go_b()
+        else:
+            self.send_scene_request()
+
+    def send_scene_request(self):
+        self.send_request("SCENE")
+
+    def do_send_scene(self, actors_data):
+        motion_actors = []
+        send_actors = []
+        for actor_data in actors_data:
+            name = actor_data["name"]
+            link_id = actor_data["link_id"]
+            character_type = actor_data["type"]
+            confirm = actor_data.get("confirm")
+            actor: LinkActor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
+            if actor:
+                if actor.is_light() or actor.is_camera():
+                    utils.log_info(f"Actor: {actor.name} sending light or camera ...")
+                    send_actors.append(actor)
+                elif confirm:
+                    utils.log_info(f"Actor: {actor.name} updating motion ...")
+                    motion_actors.append(actor)
+                else:
+                    utils.log_info(f"Actor: {actor.name} sending actor ...")
+                    send_actors.append(actor)
+        self.sync_lighting(include_lights=False)
+        self.send_camera_sync()
+        if motion_actors:
+            RScene.ClearSelectObjects()
+            for actor in motion_actors:
+                actor.select()
+            self.send_motions()
+        if send_actors:
+            RScene.ClearSelectObjects()
+            for actor in send_actors:
+                actor.select()
+            self.send_actors()
+        self.select_scene()
+
 
     def decode_camera_sync_data(self, data):
         data = decode_to_json(data)
@@ -3457,6 +3555,8 @@ class DataLink(QObject):
             self.send_pose()
         elif request_type == "SEQUENCE":
             self.send_sequence()
+        elif request_type == "SCENE":
+            self.do_send_scene(actors_data)
         return
 
     def receive_pose(self, data):

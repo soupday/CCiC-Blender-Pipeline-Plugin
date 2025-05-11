@@ -153,7 +153,7 @@ def show_settings():
 def menu_go_b():
     data_link = link.get_data_link()
     if data_link.is_connected():
-        data_link.send_actor()
+        data_link.send_actors()
     else:
         if prefs.check_paths(create=True):
             gob.go_b()
