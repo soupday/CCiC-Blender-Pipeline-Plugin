@@ -1129,7 +1129,7 @@ def get_selected_avatars():
 def get_selected_sendable(obj: RIObject):
     """Returns the sendable object from the selection object"""
     T = type(obj)
-    if obj.GetName() == "Preview Camera":
+    if obj.GetName() in ["Preview Camera", "Shadow Catcher"]:
         return None, None
     prop_or_avatar = find_parent_avatar_or_prop(obj)
     if T is RILight or T is RISpotLight or T is RIPointLight or T is RIDirectionalLight:
