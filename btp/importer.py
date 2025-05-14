@@ -635,13 +635,10 @@ class Importer:
 
                 # displacement strength overrides normal strength which overrides bump, so only set one.
                 if displacement_strength > -1:
-                    #print(f"Displacement Strength: {displacement_strength}")
                     M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Displacement, displacement_strength)
                 elif normal_strength > -1:
-                    #print(f"Normal Strength: {normal_strength}")
                     M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Normal, normal_strength)
                 elif bump_strength > -1:
-                    #print(f"Bump Strength: {bump_strength}")
                     M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Bump, bump_strength)
 
 

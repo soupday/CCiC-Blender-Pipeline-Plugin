@@ -615,7 +615,7 @@ class Exporter:
                     self.option_profile_data = True
                     return
 
-    def set_datalink_export(self):
+    def set_datalink_export(self, no_animation=False):
         self.no_options = True
         self.option_t_pose = False
         self.option_animation_only = False
@@ -623,7 +623,7 @@ class Exporter:
             self.option_bakehair = prefs.CC_BAKE_TEXTURES
             self.option_bakeskin = prefs.CC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-            if prefs.CC_EXPORT_MODE == "Current Pose":
+            if prefs.CC_EXPORT_MODE == "Current Pose" or no_animation:
                 self.option_current_animation = False
                 self.option_current_pose = True
             elif prefs.CC_EXPORT_MODE == "Animation":
@@ -639,7 +639,7 @@ class Exporter:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
             self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            if prefs.IC_EXPORT_MODE == "Current Pose":
+            if prefs.IC_EXPORT_MODE == "Current Pose" or no_animation:
                 self.option_current_animation = False
                 self.option_current_pose = True
             elif prefs.IC_EXPORT_MODE == "Animation":
@@ -772,7 +772,8 @@ class Exporter:
         options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
                                             | EExportFbxOptions_RemoveAllUnused
                                             | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
-                                            | EExportFbxOptions_ExportRootMotion)
+                                            | EExportFbxOptions_ExportRootMotion
+                                            )
         if self.avatar:
             if self.option_remove_hidden:
                 options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
@@ -780,7 +781,8 @@ class Exporter:
                 options1 = options1 | EExportFbxOptions_FbxKey
 
         options2 = (EExportFbxOptions2__None | EExportFbxOptions2_ResetBoneScale
-                                             | EExportFbxOptions2_ResetSelfillumination)
+                                             | EExportFbxOptions2_ResetSelfillumination
+                                             | EExportFbxOptions2_RenameDuplicateMaterialName)
 
         options3 = (EExportFbxOptions3__None | EExportFbxOptions3_ExportJson
                                              | EExportFbxOptions3_ExportVertexColor)
@@ -1016,20 +1018,29 @@ class Exporter:
         # Add sub object id's and root bones
         if self.prop or self.avatar:
             info_json = []
-            child_objects: list = RScene.FindChildObjects(obj, EObjectType_Prop | EObjectType_Accessory)
+            child_objects = cc.get_actor_objects(obj)
             objects = [obj]
-            objects.extend(child_objects)
+            for child in child_objects:
+                if child not in objects:
+                    objects.append(child)
             skin_tree = cc.get_extended_skin_bones_tree(obj)
+            skin_bones, id_tree = cc.extract_extended_skin_bones(skin_tree, include_transforms=True)
+            root_json["ID_Tree"] = id_tree
             root_json["Root Bones"] = cc.extract_root_bones_from_tree(skin_tree)
             for obj in objects:
                 obj_name = obj.GetName()
-                SC: RISkeletonComponent = obj.GetSkeletonComponent()
-                root_bone = SC.GetRootBone()
-                root_name = root_bone.GetName() if root_bone else ""
-                skin_bones = SC.GetSkinBones()
+                try:
+                    SC: RISkeletonComponent = obj.GetSkeletonComponent()
+                    root_bone = SC.GetRootBone()
+                    skin_bones = SC.GetSkinBones()
+                except:
+                    root_bone = None
+                    skin_bones = None
+                root_name = root_bone.GetName() if root_bone else "None"
                 skin_bone_names = [ b.GetName() for b in skin_bones if b.GetName() ] if skin_bones else []
                 obj_type = cc.get_object_type(obj)
-                if obj_type != "NONE" and skin_bone_names:
+                obj_visible = cc.is_visible(obj)
+                if obj_type != "NONE":
                     id = cc.get_link_id(obj, add_if_missing=True)
                     info_obj_json = {
                         "Link_ID": id,
@@ -1037,6 +1048,7 @@ class Exporter:
                         "Type": obj_type,
                         "Root": root_name,
                         "Bones": skin_bone_names,
+                        "Visible": obj_visible,
                     }
                     info_json.append(info_obj_json)
             root_json["Object_Info"] = info_json

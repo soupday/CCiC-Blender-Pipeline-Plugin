@@ -779,6 +779,15 @@ def check_paths(quiet=False, create=False):
 
     return valid
 
+
+def export_animation():
+    if cc.is_cc() and CC_EXPORT_MODE == "Animation":
+        return True
+    if cc.is_iclone() and IC_EXPORT_MODE == "Animation":
+        return True
+    return False
+
+
 PREFERENCES: Preferences = None
 
 def get_preferences():

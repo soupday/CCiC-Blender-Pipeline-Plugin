@@ -8,18 +8,23 @@ GOB_QUEUE = None
 GOB_CONNECTED = False
 GOB_DONE = False
 GOB_LIGHTING = False
+GOB_SCENE_SELECTION = None
 
 BLENDER_PROCESS = None
 
 def go_b():
-    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING, GOB_SCENE_SELECTION
     GOB_QUEUE = []
     GOB_CONNECTED = False
     GOB_DONE = False
 
-    #cc.deduplicate_scene()
+    GOB_SCENE_SELECTION = cc.store_scene_selection()
+
+    cc.deduplicate_scene_objects()
 
     objects = cc.get_selected_actor_objects()
+
+    #RLPy.RGlobal.SetTime(RLPy.RGlobal.GetStartTime())
 
     if cc.is_cc():
         name = "Untitled"
@@ -69,22 +74,6 @@ def go_b():
     write_script(script_path, blend_path)
     launch_blender(script_path)
 
-    # TODO only export character if doesn't exist in Blender...
-
-    # export the avatar(s) while Blender launches
-    for gob_data in GOB_OBJECTS:
-        name = gob_data["name"]
-        obj = gob_data["object"]
-        if gob_data["type"] == "PROP" or gob_data["type"] == "AVATAR":
-            object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
-            fbx_path = os.path.join(object_folder, name + ".fbx")
-            gob_data["path"] = fbx_path
-            export = exporter.Exporter(obj, no_window=True)
-            export.set_datalink_export()
-            export.do_export(file_path=fbx_path)
-            GOB_QUEUE.append(gob_data)
-            go_b_send()
-
     lights_cameras = [ gob_data["object"] for gob_data in GOB_OBJECTS if (gob_data["type"] == "LIGHT" or gob_data["type"] == "CAMERA")]
     if lights_cameras:
         folder_name = "Staging_" + utils.timestampns()
@@ -101,6 +90,21 @@ def go_b():
         export.set_datalink_export()
         export.do_export(file_path=fbx_path, no_base_folder=True)
         GOB_QUEUE.append(gob_data)
+
+    # export the avatar(s) while Blender launches
+    for gob_data in GOB_OBJECTS:
+        name = gob_data["name"]
+        obj = gob_data["object"]
+        if gob_data["type"] == "PROP" or gob_data["type"] == "AVATAR":
+            object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
+            fbx_path = os.path.join(object_folder, name + ".fbx")
+            gob_data["path"] = fbx_path
+            export = exporter.Exporter(obj, no_window=True)
+            prop_fix = gob_data["type"] == "PROP" and link.PROP_FIX
+            export.set_datalink_export(no_animation=prop_fix)
+            export.do_export(file_path=fbx_path)
+            GOB_QUEUE.append(gob_data)
+            go_b_send()
 
     GOB_DONE = True
     go_b_send()
@@ -134,7 +138,7 @@ def go_b_send():
 
 
 def go_b_finish():
-    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING
+    global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING, GOB_SCENE_SELECTION
     GOB_CONNECTED = False
     GOB_DONE = False
     GOB_QUEUE = None
@@ -143,6 +147,8 @@ def go_b_finish():
     # finally pose the characters ()
     LINK.send_frame_sync()
     LINK.send_save()
+    cc.restore_scene_selection(GOB_SCENE_SELECTION)
+    GOB_SCENE_SELECTION = None
 
 
 

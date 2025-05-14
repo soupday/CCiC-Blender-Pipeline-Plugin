@@ -39,6 +39,7 @@ USE_PING = False
 USE_KEEPALIVE = False
 SOCKET_TIMEOUT = 5.0
 INCLUDE_POSE_MESHES = False
+PROP_FIX = False
 
 class OpCodes(IntEnum):
     NONE = 0
@@ -58,7 +59,6 @@ class OpCodes(IntEnum):
     CHARACTER = 100
     CHARACTER_UPDATE = 101
     PROP = 102
-    PROP_UPDATE = 103
     STAGING = 104
     STAGING_UPDATE = 105
     CAMERA = 106
@@ -435,12 +435,13 @@ class LinkData():
         return
 
     def find_sequence_actor(self, link_id) -> LinkActor:
-        for actor in self.sequence_actors:
-            if actor.get_link_id() == link_id:
-                return actor
-        for actor in self.sequence_actors:
-            if link_id in actor.alias:
-                return actor
+        if self.sequence_actors:
+            for actor in self.sequence_actors:
+                if actor.get_link_id() == link_id:
+                    return actor
+            for actor in self.sequence_actors:
+                if link_id in actor.alias:
+                    return actor
         return None
 
 
@@ -620,13 +621,6 @@ def make_avatar_clip(avatar, start_time, num_frames):
 def finalize_avatar_clip(avatar, clip):
     SC: RISkeletonComponent = avatar.GetSkeletonComponent()
     SC.BakeFkToIk(RTime.FromValue(0), True)
-
-
-def decompose_transform(T: RTransform):
-    t: RVector3 = T.T()
-    r: RQuaternion = T.R()
-    s: RVector3 = T.S()
-    return t, r, s
 
 
 def apply_pose(actor: LinkActor, time: RTime, pose_data, shape_data):
@@ -900,7 +894,6 @@ def apply_face_drivers(actor: LinkActor, bone_name, shape_data,
             # expression weight to produce this pose rotation
             angle_fac = min(1.0, max(0, angle_pose/angle_expr))
             shape_data[expr_index] = angle_fac
-            #print(f"{bone_name}:{expr} {cc.dumps_quaternion_xyz(local_pose)} / {cc.dumps_quaternion_xyz(ERQ)} // {cc.dumps_vector3(pose_dir)} / {cc.dumps_vector3(expr_dir)} - {angle_pose:.3f} / {angle_expr:.3f} / {angle_fac:.3f}")
 
 
 def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data):
@@ -957,7 +950,7 @@ def apply_light(actor, scene_time, light_data):
         light.SetMultiplier(scene_time, light_data["energy"] / LIGHT_DIR_SCALE)
     else:
         light.SetMultiplier(scene_time, light_data["energy"] / LIGHT_ENERGY_SCALE)
-    light.SetRange(scene_time, light_data["range"])
+        light.SetRange(scene_time, light_data["range"])
     if T is RISpotLight:
         angle = light_data["angle"] * 180/math.pi
         spot_blend = light_data["blend"]
@@ -967,7 +960,7 @@ def apply_light(actor, scene_time, light_data):
 
 def apply_camera(actor, scene_time, camera_data):
     camera: RICamera = actor.object
-    camera.SetFocalLength(scene_time, camera_data["lens"])
+    camera.SetFocalLength(scene_time, camera_data["focal_length"])
     dof: RCameraDofData = camera.GetDOFData()
     dof.SetEnable(camera_data["use_dof"])
     dof.SetFocus(camera_data["focus_distance"])
@@ -1716,19 +1709,18 @@ class DataLink(QObject):
                                             icon_size=48, align_width=align_width)
 
         # SCENE
-        if cc.is_iclone():
-            qt.label(layout, "Scene:")
-            grid = qt.grid(layout)
-            grid.setColumnStretch(0,1)
-            grid.setColumnStretch(1,1)
-            self.button_select_scene = qt.icon_button(grid, "Select Scene", self.select_scene,
-                                                    row=0, col=0, icon=self.icon_set,
-                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                                    icon_size=48, align_width=align_width)
-            self.button_send_scene = qt.icon_button(grid, "Send Scene", self.send_scene,
-                                                    row=0, col=1, icon=self.icon_scene,
-                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                                    icon_size=48, align_width=align_width)
+        qt.label(layout, "Scene:")
+        grid = qt.grid(layout)
+        grid.setColumnStretch(0,1)
+        grid.setColumnStretch(1,1)
+        self.button_select_scene = qt.icon_button(grid, "Select Scene", self.select_scene,
+                                                row=0, col=0, icon=self.icon_set,
+                                                width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                icon_size=48, align_width=align_width)
+        self.button_send_scene = qt.icon_button(grid, "Send Scene", self.send_scene,
+                                                row=0, col=1, icon=self.icon_scene,
+                                                width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                                icon_size=48, align_width=align_width)
 
 
         qt.stretch(layout, 20)
@@ -2384,7 +2376,7 @@ class DataLink(QObject):
         utils.log_info(f"Export Path: {export_path}")
         # Export Prop
         export = exporter.Exporter(actor.object, no_window=True)
-        export.set_datalink_export()
+        export.set_datalink_export(no_animation=PROP_FIX)
         export.do_export(file_path=export_path)
         # Send Remote Files First
         remote_id = self.send_remote_files(export_folder)
@@ -2402,6 +2394,10 @@ class DataLink(QObject):
         })
         self.send(OpCodes.PROP, export_data)
         self.update_link_status(f"Prop Sent: {actor.name}")
+        if PROP_FIX:
+            self.do_send_pose(actor)
+            if prefs.export_animation():
+                self.send_motions(actor)
 
     def send_lights_cameras(self, actors: list):
         lights_cameras = [ actor.object for actor in actors ]
@@ -2471,38 +2467,21 @@ class DataLink(QObject):
         self.send(OpCodes.CAMERA, export_data)
         self.update_link_status(f"Camera Sent: {actor.name}")
 
-    def send_attached_actors(self, actor: LinkActor):
-        """Send attached lights and cameras.
-           Attached props are sent as part of the parent prop.
-           (Avatars can only be linked, not attached)
-           TODO: something ...
-        """
-        objects = RScene.FindChildObjects(EObjectType_Prop | EObjectType_MDProp |
-                                          EObjectType_Light |
-                                          EObjectType_Camera)
-        for obj in objects:
-            name = obj.GetName()
-            if "Preview" in name: continue
-            actor = LinkActor(obj)
-            if actor.is_avatar():
-                self.send_avatar(actor)
-            elif actor.is_prop():
-                self.send_prop(actor)
-            else:
-                utils.log_error("Unknown Actor type!")
-
-        # because it is faster to send all the lights and cameras at once (because only one scene scan)
-        lights_cameras = [ o for o in objects if (cc.is_light(o) or cc.is_camera(o)) ]
-        if lights_cameras:
-            selection = [ LinkActor(o) for o in lights_cameras ]
-            self.send_lights_cameras(selection)
 
     def send_actors(self):
         if not self.is_connected():
             gob.go_b()
         else:
-            #cc.deduplicate_scene()
+            scene_selection = cc.store_scene_selection()
+
+            cc.deduplicate_scene_objects()
             actors = self.get_selected_actors()
+
+            # because it is faster to send all the lights and cameras at once (only one scene scan)
+            lights_cameras = [ actor for actor in actors if (actor.is_light() or actor.is_camera()) ]
+            if lights_cameras:
+                self.send_lights_cameras(lights_cameras)
+
             actor: LinkActor
             for actor in actors:
                 if actor.is_avatar():
@@ -2512,10 +2491,8 @@ class DataLink(QObject):
                 else:
                     utils.log_error("Unknown Actor type!")
 
-            # because it is faster to send all the lights and cameras at once (because only one scene scan)
-            lights_cameras = [ actor for actor in actors if (actor.is_light() or actor.is_camera()) ]
-            if lights_cameras:
-                self.send_lights_cameras(lights_cameras)
+            cc.restore_scene_selection(scene_selection)
+            #self.send_frame_sync()
 
     def send_update_replace(self):
         avatars = {}
@@ -2565,8 +2542,11 @@ class DataLink(QObject):
             self.send(OpCodes.UPDATE_REPLACE, update_data)
             self.update_link_status(f"Update Sent: {actor.name}")
 
-    def send_motions(self):
-        actors = self.get_selected_actors()
+    def send_motions(self, actors=None):
+        if actors and type(actors) is not list:
+            actors = [actors]
+        if not actors:
+            actors = self.get_selected_actors()
         actor: LinkActor
         for actor in actors:
             if actor.is_avatar() or actor.is_prop():
@@ -2703,7 +2683,11 @@ class DataLink(QObject):
             "save_after_import": save_after_import,
         })
         self.send(OpCodes.CHARACTER, export_data)
-        self.update_link_status(f"Avatar Sent: {actor.name}")
+        if PROP_FIX and actor.is_prop():
+            self.do_send_pose(actor)
+            if prefs.export_animation():
+                self.send_motions(actor)
+        self.update_link_status(f"Actor Sent: {actor.name}")
 
     def send_lights_cameras_exported(self, lights_cameras, fbx_path):
         """Send pre-exported lights through the DataLink (Go-B, Local Only)"""
@@ -2763,7 +2747,7 @@ class DataLink(QObject):
         actor_data = []
         actor_template = {
             "count": len(actors),
-            "actors": actor_data
+            "actors": actor_data,
         }
         actor: LinkActor
         for actor in actors:
@@ -3120,6 +3104,9 @@ class DataLink(QObject):
     def do_send_scene(self, actors_data):
         motion_actors = []
         send_actors = []
+
+        scene_selection = cc.store_scene_selection()
+
         for actor_data in actors_data:
             name = actor_data["name"]
             link_id = actor_data["link_id"]
@@ -3148,7 +3135,8 @@ class DataLink(QObject):
             for actor in send_actors:
                 actor.select()
             self.send_actors()
-        self.select_scene()
+
+        cc.restore_scene_selection(scene_selection)
 
 
     def decode_camera_sync_data(self, data):
@@ -3221,21 +3209,26 @@ class DataLink(QObject):
         if actors:
             self.update_link_status(f"Sending Pose Set")
             self.send_notify(f"Pose Set")
-            # send pose info
-            pose_data = self.encode_pose_data(actors)
-            self.send(OpCodes.POSE, pose_data)
-            # send template data
-            template_data = self.encode_actor_templates(actors)
-            self.send(OpCodes.TEMPLATE, template_data)
-            # store the actors
-            self.data.sequence_actors = actors
-            self.data.sequence_type = "POSE"
-            # send pose frame data
-            pose_frame_data = self.encode_pose_frame_data(actors)
-            self.send(OpCodes.POSE_FRAME, pose_frame_data)
+            self.do_send_pose(actors)
         # restore selection
         if self.data.stored_selection:
             RScene.SelectObjects(self.data.stored_selection)
+
+    def do_send_pose(self, actors):
+        if type(actors) is not list:
+            actors = [actors]
+        # send pose info
+        pose_data = self.encode_pose_data(actors)
+        self.send(OpCodes.POSE, pose_data)
+        # send template data
+        template_data = self.encode_actor_templates(actors)
+        self.send(OpCodes.TEMPLATE, template_data)
+        # store the actors
+        self.data.sequence_actors = actors
+        self.data.sequence_type = "POSE"
+        # send pose frame data
+        pose_frame_data = self.encode_pose_frame_data(actors)
+        self.send(OpCodes.POSE_FRAME, pose_frame_data)
 
     def abort_sequence(self):
         if self.is_sequence_running():
@@ -3326,14 +3319,6 @@ class DataLink(QObject):
     def prep_pose_actor(self, actor: LinkActor, start_time, num_frames, start_frame, end_frame):
         """Creates an empty clip and grabs the t-pose data for the character"""
 
-        # fetch the extended skin bone tree
-        actor.skin_tree = cc.get_extended_skin_bones_tree(actor.object)
-        actor.skin_bones, actor.id_tree = cc.extract_extended_skin_bones(actor.skin_tree)
-        actor.skin_objects = cc.extract_extended_skin_objects(actor.skin_tree)
-        print([ o.GetName() for o in actor.skin_bones ])
-        for skob in actor.skin_objects.values():
-            print(f"{skob['object'].GetName()} {skob['id']}")
-
         fps = get_fps()
 
         clip: RIClip
@@ -3341,6 +3326,11 @@ class DataLink(QObject):
         length = fps.IndexedFrameTime(end_frame)
 
         if actor.get_type() == "PROP" or actor.get_type() == "AVATAR":
+
+            # fetch the extended skin bone tree
+            actor.skin_tree = cc.get_extended_skin_bones_tree(actor.object)
+            actor.skin_bones, actor.id_tree = cc.extract_extended_skin_bones(actor.skin_tree)
+            actor.skin_objects = cc.extract_extended_skin_objects(actor.skin_tree)
 
             for obj_id, skin_def in actor.skin_objects.items():
                 obj = skin_def["object"]
@@ -3439,7 +3429,7 @@ class DataLink(QObject):
             elif character_type == "LIGHT":
 
                 active, col_r, col_g, col_b, energy, rng, angle, blend = struct.unpack_from("!?fffffff", pose_data, offset)
-                offset += 37
+                offset += (7*4 + 1)
                 light_data = {
                     "active": active,
                     "color": RRgb(col_r, col_g, col_b),
@@ -3453,7 +3443,7 @@ class DataLink(QObject):
             elif character_type == "CAMERA":
 
                 lens, use_dof, focus_distance, f_stop = struct.unpack_from("!f?ff", pose_data, offset)
-                offset += 37
+                offset += (3*4 + 1)
                 camera_data = {
                     "focal_length": lens,
                     "use_dof": use_dof,
