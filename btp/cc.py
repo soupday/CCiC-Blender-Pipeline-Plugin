@@ -1296,11 +1296,6 @@ def find_parent_avatar_or_prop(obj: RIObject):
             if prop.GetID() == node_id:
                 return prop
         node = node.GetParent()
-    #for avatar in avatars:
-    #    print(obj)
-    #    print(avatar.GetClothes())
-    #    if obj in avatar.GetAccessories() or obj in avatar.GetClothes():
-    #        return avatar
     return None
 
 
@@ -1461,11 +1456,7 @@ def is_avatar_standard(avatar: RIAvatar):
 
 def get_object_type(obj):
     T = type(obj)
-    if T is RIAvatar or T is RILightAvatar:
-        return "AVATAR"
-    elif T is RIProp or T is RIMDProp:
-        return "PROP"
-    elif T is RIAccessory:
+    if T is RIAccessory:
         return "ACCESSORY"
     elif T is RILight or T is RIDirectionalLight or T is RISpotLight or T is RIPointLight:
         return "LIGHT"
@@ -1473,7 +1464,22 @@ def get_object_type(obj):
         return "CAMERA"
     elif T is RIHair:
         return "HAIR"
+    elif T is RICloth:
+        return "CLOTH"
+    elif T is RIAvatar or T is RILightAvatar:
+        return "AVATAR"
+    elif T is RIProp or T is RIMDProp:
+        return "PROP"
     return "NONE"
+
+
+def is_visible(obj: RIProp, time=None):
+    if time is None:
+        time = RGlobal.GetTime()
+    try:
+        return obj.IsVisible(time)
+    except:
+        return True
 
 
 def find_linked_objects(object: RIObject):
@@ -1531,7 +1537,7 @@ def find_prop_by_id(prop_id):
     return None
 
 
-def deduplicate_scene():
+def deduplicate_scene_objects():
     objects = RScene.FindObjects(EObjectType_Avatar | EObjectType_LightAvatar |
                                  EObjectType_Prop | EObjectType_MDProp |
                                  EObjectType_Light | EObjectType_DirectionalLight |
@@ -1547,7 +1553,7 @@ def deduplicate_scene():
             if name not in names:
                 names[name] = 1
             else:
-                print(f"Deduplicating sub-item name: {name}")
+                utils.log_info(f"Deduplicating sub-item name: {name}")
                 count = names[name]
                 names[name] += 1
                 obj.SetName(f"{name}_{count:03d}")
@@ -1655,7 +1661,7 @@ def get_extended_skin_bones_tree(avatar_or_prop: RIObject):
         return None
 
 
-def extract_extended_skin_bones(bone_def: dict, skin_bones: list=None):
+def extract_extended_skin_bones(bone_def: dict, skin_bones: list=None, include_transforms=False):
     if skin_bones is None:
         skin_bones = []
     bone: RINode = bone_def["bone"]
@@ -1663,10 +1669,15 @@ def extract_extended_skin_bones(bone_def: dict, skin_bones: list=None):
     id_tree = {
         "name": bone.GetName(),
         "id": bone.GetID(),
-        "children": [],
     }
+    if include_transforms:
+        id_tree["world_transform"] = transform_json(bone.WorldTransform())
+        id_tree["local_transform"] = transform_json(bone.LocalTransform())
+    id_tree["children"] = []
     for child_def in bone_def["children"]:
-        child_tree = extract_extended_skin_bones(child_def, skin_bones=skin_bones)[1]
+        child_tree = extract_extended_skin_bones(child_def,
+                                                 skin_bones=skin_bones,
+                                                 include_transforms=include_transforms)[1]
         if child_tree:
             id_tree["children"].append(child_tree)
     return skin_bones, id_tree
@@ -1738,10 +1749,10 @@ def get_extended_skin_bones_tree_debug(prop: RIObject):
         t: RVector3 = T.T()
         r: RQuaternion = T.R()
         s: RVector3 = T.S()
-        print(obj.GetName())
-        print(f"loc: {[t.x, t.y, t.z]}")
-        print(f"rot: {[r.x, r.y, r.z, r.w]}")
-        print(f"sca: {[s.x, s.y, s.z]}")
+        utils.log_always(obj.GetName())
+        utils.log_always(f"loc: {[t.x, t.y, t.z]}")
+        utils.log_always(f"rot: {[r.x, r.y, r.z, r.w]}")
+        utils.log_always(f"sca: {[s.x, s.y, s.z]}")
         SC = obj.GetSkeletonComponent()
         root = SC.GetRootBone()
         skin_bones = SC.GetSkinBones()
@@ -1787,6 +1798,23 @@ def get_extended_skin_bones_tree_debug(prop: RIObject):
         return defs[0]
     else:
         return None
+
+
+def decompose_transform(T: RTransform):
+    t: RVector3 = T.T()
+    r: RQuaternion = T.R()
+    s: RVector3 = T.S()
+    return t, r, s
+
+
+def transform_json(T: RTransform):
+    t, r, s = decompose_transform(T)
+    json_data = {
+        "location": [t.x, t.y, t.z],
+        "rotation": [r.x, r.y, r.z, r.w],
+        "scale": [s.x, s.y, s.z],
+    }
+    return json_data
 
 
 def print_nodes(node, level=0):
@@ -2015,6 +2043,20 @@ def get_full_path(rel_path, folder):
             return os.path.normpath(rel_path)
         return os.path.normpath(os.path.join(folder, rel_path))
     return None
+
+
+def store_scene_selection() -> tuple:
+    selection = RScene.GetSelectedObjects()
+    current_time = RGlobal.GetTime()
+    return (selection, current_time)
+
+
+def restore_scene_selection(store: tuple):
+    if store:
+        selection, current_time = store
+        RGlobal.SetTime(current_time)
+        RScene.ClearSelectObjects()
+        RScene.SelectObjects(selection)
 
 
 def get_light_data(light: RILight):

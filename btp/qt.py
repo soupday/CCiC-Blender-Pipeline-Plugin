@@ -803,7 +803,6 @@ class DColorPicker(QWidget):
         self.button.clicked.connect(self.button_clicked)
         if label:
             self.label.clicked.connect(self.label_clicked)
-        print("DONE")
 
     def update_color(self):
         color = self.get_color()
@@ -824,11 +823,9 @@ class DColorPicker(QWidget):
             self.button.setStyleSheet(f"background-color: {color.name()}")
 
     def label_clicked(self):
-        print("LABEL CLICKED")
         self.set_color(self.default_color)
 
     def button_clicked(self):
-        print("BUTTON CLICKED")
         color = self.get_color()
         color: QColor = QColorDialog.getColor(initial=color)
         if color.isValid():
