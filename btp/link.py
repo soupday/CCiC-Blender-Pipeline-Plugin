@@ -1592,7 +1592,7 @@ class DataLink(QObject):
         grid.setVerticalSpacing(0)
         grid.setColumnStretch(2, 3)
         logo = qt.label(grid, "", row_span=2, width=54, height=54, col=0, row=0)
-        logo.setPixmap(qt.get_pixmap("BlenderLogoLarge.png"))
+        logo.setPixmap(qt.get_pixmap("BLogo.png"))
         qt.label(grid, f"DataLink ({vars.VERSION}):", row=0, col=1, style=qt.STYLE_TITLE)
         self.label_header = qt.label(grid, f"Not Connected",
                                      row=0, col=2, style=qt.STYLE_RL_BOLD, no_size=True)

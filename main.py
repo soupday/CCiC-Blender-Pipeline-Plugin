@@ -36,7 +36,7 @@ def initialize_plugin():
     icon_export = qt.get_icon("BlenderExport.png")
     icon_import = qt.get_icon("BlenderImport.png")
     icon_link = qt.get_icon("BlenderDataLink.png")
-    icon_blender = qt.get_icon("BlenderLogo.png")
+    icon_blender = qt.get_icon("BIcon.png")
     icon_settings = qt.get_icon("BlenderSettings.png")
     icon_morph = qt.get_icon("MeshIcoSphere.png")
 
