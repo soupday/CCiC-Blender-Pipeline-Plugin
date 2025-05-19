@@ -16,12 +16,11 @@
 
 from RLPy import *
 del abs
-import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os, socket, select, struct, time, json, random, atexit, traceback, shutil
+import os, socket, select, struct, time, json, atexit, traceback, shutil
 from . import gob, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
 from enum import IntEnum
 import math
@@ -1623,7 +1622,7 @@ class DataLink(QObject):
         qt.button(grid, "Stop", self.link_stop, row=0, col=1, width=64, height=48)
 
         # SEND
-
+        #
         grid = qt.grid(layout)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(2, 2)
@@ -1678,7 +1677,7 @@ class DataLink(QObject):
                                                    icon_size=48, align_width=align_width)
 
         # MORPH
-
+        #
         if cc.is_cc():
             qt.label(layout, "Morph:")
             grid = qt.grid(layout)
@@ -1694,7 +1693,7 @@ class DataLink(QObject):
                                                  icon_size=48, align_width=align_width)
 
         # LIGHTS & CAMERA
-
+        #
         qt.label(layout, "Lights & Camera:")
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
@@ -1709,6 +1708,7 @@ class DataLink(QObject):
                                             icon_size=48, align_width=align_width)
 
         # SCENE
+        #
         qt.label(layout, "Scene:")
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
@@ -2011,7 +2011,7 @@ class DataLink(QObject):
             self.label_header.setText(f"Connected to {link_service.remote_app} {link_service.remote_version} ({link_service.remote_addon})")
             self.label_folder.setText(f"{self.get_remote_folder()}")
         elif self.is_listening():
-            my_hostname = get_hostname()
+            my_hostname = get_hostname() if not vars.DEV else vars.DEV_NAME
             my_ip = get_ip()
             self.button_link.setStyleSheet(qt.STYLE_BUTTON_WAITING)
             self.button_link.setText(f"Listening on {my_hostname} ({my_ip}) ...")
@@ -2115,6 +2115,9 @@ class DataLink(QObject):
 
         if op_code == OpCodes.CAMERA_SYNC:
             self.receive_camera_sync(data)
+
+        if op_code == OpCodes.FRAME_SYNC:
+            self.receive_frame_sync(data)
 
         if op_code == OpCodes.REQUEST:
             self.receive_request(data)
@@ -3086,59 +3089,6 @@ class DataLink(QObject):
         self.send(OpCodes.CAMERA_SYNC, encode_from_json(data))
         self.send_frame_sync()
 
-    def select_scene(self):
-        all_actor_objects = cc.get_all_actor_objects()
-        RScene.ClearSelectObjects()
-        RScene.SelectObjects(all_actor_objects)
-
-    def send_scene(self):
-        self.select_scene()
-        if not self.is_connected():
-            gob.go_b()
-        else:
-            self.send_scene_request()
-
-    def send_scene_request(self):
-        self.send_request("SCENE")
-
-    def do_send_scene(self, actors_data):
-        motion_actors = []
-        send_actors = []
-
-        scene_selection = cc.store_scene_selection()
-
-        for actor_data in actors_data:
-            name = actor_data["name"]
-            link_id = actor_data["link_id"]
-            character_type = actor_data["type"]
-            confirm = actor_data.get("confirm")
-            actor: LinkActor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
-            if actor:
-                if actor.is_light() or actor.is_camera():
-                    utils.log_info(f"Actor: {actor.name} sending light or camera ...")
-                    send_actors.append(actor)
-                elif confirm:
-                    utils.log_info(f"Actor: {actor.name} updating motion ...")
-                    motion_actors.append(actor)
-                else:
-                    utils.log_info(f"Actor: {actor.name} sending actor ...")
-                    send_actors.append(actor)
-        self.sync_lighting()
-        self.send_camera_sync()
-        if motion_actors:
-            RScene.ClearSelectObjects()
-            for actor in motion_actors:
-                actor.select()
-            self.send_motions()
-        if send_actors:
-            RScene.ClearSelectObjects()
-            for actor in send_actors:
-                actor.select()
-            self.send_actors()
-
-        cc.restore_scene_selection(scene_selection)
-
-
     def decode_camera_sync_data(self, data):
         data = decode_to_json(data)
         view_camera: RICamera = RScene.GetCurrentCamera()
@@ -3194,6 +3144,58 @@ class DataLink(QObject):
         RGlobal.SetStartTime(start_time)
         RGlobal.SetEndTime(end_time)
         RGlobal.SetTime(current_time)
+
+    def select_scene(self):
+        all_actor_objects = cc.get_all_actor_objects()
+        RScene.ClearSelectObjects()
+        RScene.SelectObjects(all_actor_objects)
+
+    def send_scene(self):
+        self.select_scene()
+        if not self.is_connected():
+            gob.go_b()
+        else:
+            self.send_scene_request()
+
+    def send_scene_request(self):
+        self.send_request("SCENE")
+
+    def do_send_scene(self, actors_data):
+        motion_actors = []
+        send_actors = []
+
+        scene_selection = cc.store_scene_selection()
+
+        for actor_data in actors_data:
+            name = actor_data["name"]
+            link_id = actor_data["link_id"]
+            character_type = actor_data["type"]
+            confirm = actor_data.get("confirm")
+            actor: LinkActor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
+            if actor:
+                if actor.is_light() or actor.is_camera():
+                    utils.log_info(f"Actor: {actor.name} sending light or camera ...")
+                    send_actors.append(actor)
+                elif confirm:
+                    utils.log_info(f"Actor: {actor.name} updating motion ...")
+                    motion_actors.append(actor)
+                else:
+                    utils.log_info(f"Actor: {actor.name} sending actor ...")
+                    send_actors.append(actor)
+        self.sync_lighting()
+        self.send_camera_sync()
+        if motion_actors:
+            RScene.ClearSelectObjects()
+            for actor in motion_actors:
+                actor.select()
+            self.send_motions()
+        if send_actors:
+            RScene.ClearSelectObjects()
+            for actor in send_actors:
+                actor.select()
+            self.send_actors()
+
+        cc.restore_scene_selection(scene_selection)
 
 
     # Character Pose
