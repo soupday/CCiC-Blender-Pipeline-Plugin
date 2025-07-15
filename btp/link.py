@@ -2976,7 +2976,7 @@ class DataLink(QObject):
         for actor in actors:
             if actor.is_light():
                 light_data = cc.get_light_data(actor.get_light())
-            data["lights"].append(light_data)
+                data["lights"].append(light_data)
 
         return data
 
@@ -3048,16 +3048,17 @@ class DataLink(QObject):
             lights_data["ibl_rotation"] = ibl_rotation
             lights_data["ibl_scale"] = ibl_scale.x
 
-    def sync_lighting(self):
+    def sync_lighting(self, go_b=False):
         if cc.is_iclone():
-            include_lights = False
+            use_lights = False
         else:
-            include_lights = True
+            use_lights = True
         self.update_link_status(f"Synchronizing Lights")
         self.send_notify(f"Sync Lighting")
         actors = self.get_all_lights()
         light_actors_data = self.get_lights_data(actors)
-        light_actors_data["use_lights"] = include_lights
+        light_actors_data["use_lights"] = use_lights
+        light_actors_data["auto_lights"] = go_b
         self.export_hdri(light_actors_data)
         self.send(OpCodes.LIGHTING, encode_from_json(light_actors_data))
 

@@ -116,7 +116,7 @@ def go_b_connected():
     LINK = link.get_data_link()
     LINK.service.connected.disconnect(go_b_connected)
     # send the lights and camera
-    LINK.sync_lighting()
+    LINK.sync_lighting(go_b=True)
     LINK.send_camera_sync()
     # then send the characters
     go_b_send()
@@ -219,7 +219,7 @@ def go_morph_finish():
         LINK = link.get_data_link()
         LINK.service.connected.disconnect(go_morph_connected)
         if prefs.EXPORT_MORPH_MATERIALS:
-            LINK.sync_lighting()
+            LINK.sync_lighting(go_b=True)
         LINK.send_camera_sync()
         for gob_data in GOB_OBJECTS:
             LINK.send_morph_exported(gob_data["object"], gob_data["path"])

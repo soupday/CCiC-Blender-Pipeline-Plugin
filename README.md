@@ -71,6 +71,9 @@ Known Issues
 Changelog
 =========
 
+### 2.3.2
+- Update to import for CC5 SubD characters and new shaders.
+
 ### 2.3.0
 - Export / transfer of lights and cameras to Blender.
 - Sequence transfer of Prop animations from Blender to iClone.

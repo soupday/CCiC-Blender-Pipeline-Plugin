@@ -24,12 +24,14 @@ SHADER_MAPS = { # { "Json_shader_name" : "CC3_shader_name", }
     "Tra": "Traditional",
     "Pbr": "PBR",
     "RLEyeTearline": "Digital_Human Tear Line",
+    "RLEyeTearline_Plus": "New Digital_Human Tear Line",
     "RLHair": "Digital_Human Hair",
     "RLTeethGum": "Digital_Human Teeth Gums",
     "RLEye": "Digital_Human Eye",
     "RLHead": "Digital_Human Head",
     "RLSkin": "Digital_Human Skin",
     "RLEyeOcclusion": "Digital_Human Eye Occlusion",
+    "RLEyeOcclusion_Plus": "New Digital_Human Eye Occlusion",
     "RLTongue": "Digital_Human Tongue",
     "RLSSS": "SSS",
 }
@@ -750,6 +752,7 @@ class CCMeshMaterial():
             for shader in SHADER_MAPS:
                 if SHADER_MAPS[shader] == shader_full_name:
                     return shader
+            return None
 
     def set_shader(self, shader):
         material_component = self.material_component()
