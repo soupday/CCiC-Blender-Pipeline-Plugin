@@ -509,7 +509,9 @@ def read_temp_state():
 
     res = RLPy.RGlobal.GetPath(RLPy.EPathType_CustomContent, "")
     temp_path = res[1]
+    utils.log_info(f"Custom Content Path: {temp_path}")
     temp_state_path = os.path.join(temp_path, "ccic_blender_pipeline_plugin.txt")
+    utils.log_info(f"Config File Path: {temp_state_path}")
     if os.path.exists(temp_state_path):
         temp_state_json = read_json(temp_state_path)
         if temp_state_json:
@@ -622,36 +624,45 @@ def detect_paths():
     global BLENDER_PATH
     global DATALINK_FOLDER
 
+    utils.log_info("Reading settings...")
     read_temp_state()
 
     changed = False
 
     if not BLENDER_PATH or not os.path.exists(BLENDER_PATH):
+        utils.log_info("No valid Blender path, detecting Blender.exe")
         blender_base_path = "C:\\Program Files\\Blender Foundation\\"
         for ver in BLENDER_VERSIONS:
             B = f"Blender {ver}"
             try_path = os.path.join(blender_base_path, B, "blender.exe")
+            utils.log_info(f" - trying: {try_path}")
             if os.path.exists(try_path):
                 BLENDER_PATH = try_path
                 changed = True
+                utils.log_info(f" - Found!")
                 break
 
     if DATALINK_FOLDER:
+        utils.log_info(f"Datalink folder setting: {DATALINK_FOLDER}")
         if not os.path.exists(DATALINK_FOLDER):
+            utils.log_info(f" - Datalink folder not found!")
             try:
                 os.makedirs(DATALINK_FOLDER, exist_ok=True)
+                utils.log_info(f" - Datalink folder created.")
             except:
-                utils.log_warn(f"DataLink folder: {DATALINK_FOLDER} invalid! Using default.")
+                utils.log_warn(f" - DataLink folder: {DATALINK_FOLDER} invalid! Using default.")
                 DATALINK_FOLDER = ""
 
     if not DATALINK_FOLDER:
         path = cc.user_files_path("DataLink", create=True)
         DATALINK_FOLDER = path
+        utils.log_info(f"No Datalink folder setting: Using user home dir: {path}")
         changed = True
 
     fetch_available_blender_versions(BLENDER_PATH)
 
     if changed:
+        utils.log_info(f"Writing updated settings...")
         write_temp_state()
 
     utils.log_info(f"using Blender Executable Path: {BLENDER_PATH}")
@@ -662,8 +673,11 @@ def fetch_available_blender_versions(path):
     global AVAILABLE_BLENDER_VERSIONS
     global BLENDER_VERSION
 
+    utils.log_info(f"Detecting available Blender versions...")
+    utils.log_info(f" - path: {path}")
     AVAILABLE_BLENDER_VERSIONS = {}
     BLENDER_VERSION = None
+    count = 0
     if os.path.exists(path):
         dir = os.path.dirname(path)
         base_dir = os.path.dirname(dir)
@@ -671,8 +685,10 @@ def fetch_available_blender_versions(path):
             test_path = os.path.join(base_dir, f"Blender {ver}/blender.exe")
             if os.path.exists(test_path):
                 AVAILABLE_BLENDER_VERSIONS[ver] = test_path
+                count += 1
                 if os.path.samefile(test_path, path):
                     BLENDER_VERSION = ver
+    utils.log_info(f"Found {count} Blender versions: using {BLENDER_VERSION}")
     if LINK_UI_CALLBACK_VERSIONS:
         LINK_UI_CALLBACK_VERSIONS()
 
