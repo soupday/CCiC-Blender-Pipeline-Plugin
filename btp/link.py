@@ -1512,8 +1512,6 @@ class DataLink(QObject):
     # UI
     label_header: QLabel = None
     button_link: QPushButton = None
-    combobox_version: QComboBox = None
-    label_version: QLabel = None
     context_frame: QVBoxLayout = None
     info_label_name: QLabel = None
     info_label_type: QLabel = None
@@ -1598,17 +1596,6 @@ class DataLink(QObject):
         qt.label(grid, f"Working Folder:", row=1, col=1, style=qt.STYLE_TITLE)
         self.label_folder = qt.label(grid, f"{self.get_remote_folder()}",
                                      row=1, col=2, style=qt.STYLE_RL_BOLD, no_size=True)
-
-        grid = qt.grid(layout)
-        grid.setColumnStretch(2, 3)
-        self.label_version = qt.label(grid, "Go-B Blender: ", style=qt.STYLE_BOLD, row=0, col=0)
-        self.combobox_version = qt.combobox(grid, prefs.BLENDER_VERSION if prefs.BLENDER_VERSION else "None",
-                                            options=list(prefs.AVAILABLE_BLENDER_VERSIONS.keys()),
-                                            update=self.update_version,
-                                            row=0, col=1)
-        qt.hide(self.label_version, self.combobox_version)
-
-        prefs.LINK_UI_CALLBACK_VERSIONS = self.update_versions
 
         #qt.spacing(layout, 10)
 
@@ -1760,12 +1747,6 @@ class DataLink(QObject):
             REventHandler.UnregisterCallback(self.callback_id)
             self.callback_id = None
 
-    def update_versions(self):
-        if prefs.AVAILABLE_BLENDER_VERSIONS and prefs.BLENDER_VERSION:
-            qt.update_combobox_options(self.combobox_version, list(prefs.AVAILABLE_BLENDER_VERSIONS.keys()), prefs.BLENDER_VERSION)
-        else:
-            qt.update_combobox_options(self.combobox_version, ["None"], "None")
-
     def update_ui(self):
         avatar: RIAvatar = None
         prop: RIProp = None
@@ -1896,8 +1877,7 @@ class DataLink(QObject):
                    self.button_animation, self.button_update_replace,
                    self.button_morph, self.button_morph_update,
                    self.button_sync_lights, self.button_sync_camera,
-                   self.button_send_scene,
-                   self.combobox_version, self.label_version)
+                   self.button_send_scene)
 
         if self.is_connected():
             if num_posable > 0:
@@ -1910,7 +1890,6 @@ class DataLink(QObject):
                 qt.enable(self.button_rigify)
             qt.enable(self.button_sync_lights, self.button_sync_camera)
         else:
-            qt.enable(self.combobox_version, self.label_version)
             if num_sendable > 0:
                 qt.enable(self.button_send)
         qt.enable(self.button_send_scene)
@@ -1974,12 +1953,6 @@ class DataLink(QObject):
             utils.log_info(text)
         if events:
             qt.do_events()
-
-    def update_version(self):
-        if self.combobox_version:
-            index = self.combobox_version.currentIndex()
-            text = self.combobox_version.currentText()
-            prefs.BLENDER_VERSION = text
 
     def update_motion_prefix(self):
         self.motion_prefix = self.textbox_motion_prefix.text()

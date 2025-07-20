@@ -1050,7 +1050,7 @@ def hide(*widgets):
             w.setVisible(False)
 
 
-def browse_folder(title, start_folder):
+def browse_folder(title, start_folder=""):
     folder = QFileDialog.getExistingDirectory(None, title, start_folder, QFileDialog.Option.ShowDirsOnly)
     return folder
 

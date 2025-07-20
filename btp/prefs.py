@@ -27,8 +27,6 @@ import os, json
 from . import cc, qt, utils, vars
 
 # Datalink prefs
-AVAILABLE_BLENDER_VERSIONS: dict = None
-BLENDER_VERSION: str = None
 BLENDER_PATH: str = None
 DATALINK_FOLDER: str = None
 DATALINK_OVERWRITE: bool = False
@@ -67,8 +65,6 @@ TOOLBAR_STATE_IC: bool = True
 BLENDER_VERSIONS = [ "4.5", "4.4", "4.3", "4.2", "4.1", "4.0",
                      "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0",
                      "2.93", "2.92", "2.91", "2.90", "2.83" ]
-
-LINK_UI_CALLBACK_VERSIONS = None
 
 class Preferences(QObject):
     window: RLPy.RIDockWidget = None
@@ -253,13 +249,15 @@ class Preferences(QObject):
             return
         self.no_update = True
         BLENDER_PATH = self.textbox_blender_path.text()
-        fetch_available_blender_versions(BLENDER_PATH)
         write_temp_state()
         self.no_update = False
 
     def browse_datalink_folder(self):
         global DATALINK_FOLDER
-        folder_path = qt.browse_folder("Datalink Folder", DATALINK_FOLDER)
+        if DATALINK_FOLDER:
+            folder_path = qt.browse_folder("Datalink Folder", DATALINK_FOLDER)
+        else:
+            folder_path = qt.browse_folder("Datalink Folder")
         if os.path.exists(folder_path):
             self.textbox_go_b_path.setText(folder_path)
             DATALINK_FOLDER = folder_path
@@ -267,7 +265,10 @@ class Preferences(QObject):
 
     def browse_blender_exe(self):
         global BLENDER_PATH
-        file_path = RLPy.RUi.OpenFileDialog("Blender Executable(*.exe)", BLENDER_PATH)
+        if BLENDER_PATH:
+            file_path = RLPy.RUi.OpenFileDialog("Blender Executable(*.exe)", BLENDER_PATH)
+        else:
+            file_path = RLPy.RUi.OpenFileDialog("Blender Executable(*.exe)")
         if os.path.exists(file_path):
             self.textbox_blender_path.setText(file_path)
             BLENDER_PATH = file_path
@@ -620,6 +621,31 @@ def write_temp_state():
     write_json(temp_state_json, temp_state_path)
 
 
+def get_program_files_path():
+    current_path = utils.get_current_path()
+    path, dir = os.path.split(current_path)
+    while dir and "Program Files" not in dir:
+        path, dir = os.path.split(path)
+    if dir:
+        return os.path.join(path, dir)
+    drive_letters = "CDEFGHIJKLMNOPQRSTUVWXYZ"
+    for drive_letter in drive_letters:
+        try_path = f"{drive_letter}:\\Program Files"
+        if os.path.exists(try_path):
+            return try_path
+    return "C:\\Program Files"
+
+
+def get_blender_folder_version(blender_path):
+    if blender_path:
+        blender_folder = os.path.dirname(blender_path)
+        for ver in BLENDER_VERSIONS:
+            version_folder = os.path.join(blender_folder, ver)
+            if os.path.exists(version_folder):
+                return ver
+    return None
+
+
 def detect_paths():
     global BLENDER_PATH
     global DATALINK_FOLDER
@@ -630,17 +656,44 @@ def detect_paths():
     changed = False
 
     if not BLENDER_PATH or not os.path.exists(BLENDER_PATH):
-        utils.log_info("No valid Blender path, detecting Blender.exe")
-        blender_base_path = "C:\\Program Files\\Blender Foundation\\"
-        for ver in BLENDER_VERSIONS:
-            B = f"Blender {ver}"
-            try_path = os.path.join(blender_base_path, B, "blender.exe")
-            utils.log_info(f" - trying: {try_path}")
+        BLENDER_PATH = ""
+        utils.log_info("No valid Blender path, detecting Blender Exe")
+        blender_base_path = ""
+        blender_steam_path = ""
+        steam_version = "0.0"
+        program_files_path = get_program_files_path()
+        if program_files_path:
+            try_path = os.path.join(program_files_path, "Blender Foundation")
             if os.path.exists(try_path):
-                BLENDER_PATH = try_path
-                changed = True
-                utils.log_info(f" - Found!")
-                break
+                blender_base_path = try_path
+            program_files_x86_path = program_files_path + " (x86)"
+            steam_path = os.path.join(program_files_x86_path, "Steam")
+            if os.path.exists(steam_path):
+                try_path = os.path.join(steam_path, "steamapps", "common", "Blender", "blender-launcher.exe")
+                utils.log_info(f" - trying: {try_path}")
+                if os.path.exists(try_path):
+                    blender_steam_path = try_path
+                    steam_version = get_blender_folder_version(blender_steam_path)
+                    BLENDER_PATH = blender_steam_path
+                    changed = True
+                    utils.log_info(f" - Found Blender (Steam Version {steam_version})")
+
+        # find direct Blender installs
+        if blender_base_path:
+            steam_version_number = float(steam_version)
+            for ver in BLENDER_VERSIONS:
+                ver_number = float(ver)
+                # prefer steam version only if it's higher
+                if steam_version_number > ver_number:
+                    continue
+                B = f"Blender {ver}"
+                try_path = os.path.join(blender_base_path, B, "blender-launcher.exe")
+                utils.log_info(f" - trying: {try_path}")
+                if os.path.exists(try_path):
+                    BLENDER_PATH = try_path
+                    changed = True
+                    utils.log_info(f" - Found!")
+                    break
 
     if DATALINK_FOLDER:
         utils.log_info(f"Datalink folder setting: {DATALINK_FOLDER}")
@@ -659,8 +712,6 @@ def detect_paths():
         utils.log_info(f"No Datalink folder setting: Using user home dir: {path}")
         changed = True
 
-    fetch_available_blender_versions(BLENDER_PATH)
-
     if changed:
         utils.log_info(f"Writing updated settings...")
         write_temp_state()
@@ -669,52 +720,8 @@ def detect_paths():
     utils.log_info(f"Using Datalink Folder: {DATALINK_FOLDER}")
 
 
-def fetch_available_blender_versions(path):
-    global AVAILABLE_BLENDER_VERSIONS
-    global BLENDER_VERSION
-
-    utils.log_info(f"Detecting available Blender versions...")
-    utils.log_info(f" - path: {path}")
-    AVAILABLE_BLENDER_VERSIONS = {}
-    BLENDER_VERSION = None
-    count = 0
-    if os.path.exists(path):
-        dir = os.path.dirname(path)
-        base_dir = os.path.dirname(dir)
-        for ver in BLENDER_VERSIONS:
-            test_path = os.path.join(base_dir, f"Blender {ver}/blender.exe")
-            if os.path.exists(test_path):
-                AVAILABLE_BLENDER_VERSIONS[ver] = test_path
-                count += 1
-                if os.path.samefile(test_path, path):
-                    BLENDER_VERSION = ver
-    utils.log_info(f"Found {count} Blender versions: using {BLENDER_VERSION}")
-    if LINK_UI_CALLBACK_VERSIONS:
-        LINK_UI_CALLBACK_VERSIONS()
-
-
 def get_blender_path():
-    if BLENDER_VERSION and AVAILABLE_BLENDER_VERSIONS:
-        try:
-            return AVAILABLE_BLENDER_VERSIONS[BLENDER_VERSION]
-        except: ...
     return BLENDER_PATH
-
-
-def get_blender_version():
-    try:
-        if AVAILABLE_BLENDER_VERSIONS:
-            for ver in AVAILABLE_BLENDER_VERSIONS:
-                cmp_path = AVAILABLE_BLENDER_VERSIONS[ver]
-                if os.path.samefile(cmp_path, BLENDER_PATH):
-                    return ver, cmp_path
-        dir = os.path.dirname(BLENDER_PATH)
-        base_dir, folder_name = os.path.split(dir)
-        if "Blender " in folder_name:
-            ver = folder_name[8:]
-            return ver
-    except: ...
-    return "None"
 
 
 def check_datalink_path(report=None, create=False, warn=False):
