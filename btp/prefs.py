@@ -29,7 +29,7 @@ from . import cc, qt, utils, vars
 # Datalink prefs
 AVAILABLE_BLENDER_VERSIONS: dict = None
 BLENDER_VERSION: str = None
-BLENDER_PATH: str = None
+BLENDER_PATH: str = ""
 DATALINK_FOLDER: str = None
 DATALINK_OVERWRITE: bool = False
 EXPORT_MORPH_MATERIALS: bool = True
@@ -635,6 +635,8 @@ def detect_paths():
                 BLENDER_PATH = try_path
                 changed = True
                 break
+    if not BLENDER_PATH:
+        BLENDER_PATH = ""
 
     if DATALINK_FOLDER:
         if not os.path.exists(DATALINK_FOLDER):
@@ -664,7 +666,7 @@ def fetch_available_blender_versions(path):
 
     AVAILABLE_BLENDER_VERSIONS = {}
     BLENDER_VERSION = None
-    if os.path.exists(path):
+    if path and os.path.exists(path):
         dir = os.path.dirname(path)
         base_dir = os.path.dirname(dir)
         for ver in BLENDER_VERSIONS:
