@@ -70,6 +70,8 @@ Known Issues
 
 Changelog
 =========
+### 2.3.1
+- Fix to start up errors when not detecting Blender path for the first time.
 
 ### 2.3.0
 - Export / transfer of lights and cameras to Blender.
