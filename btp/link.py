@@ -1849,11 +1849,17 @@ class DataLink(QObject):
             type_name = "Cameras"
             icon = self.icon_camera
         if self.is_connected():
-            self.button_send.setText(f"Send {type_name}")
+            if self.button_send:
+                self.button_send.setText(f"Send {type_name}")
+            if self.button_morph:
+                self.button_morph.setText(f"Send Morph")
             if self.button_send_scene:
                 self.button_send_scene.setText(f"Send Scene")
         else:
-            self.button_send.setText(f"Go-B {type_name}")
+            if self.button_send:
+                self.button_send.setText(f"Go-B {type_name}")
+            if self.button_morph:
+                self.button_morph.setText(f"Go-B Morph")
             if self.button_send_scene:
                 self.button_send_scene.setText(f"Go-B Scene")
         self.button_send.setIcon(icon)
@@ -1892,6 +1898,7 @@ class DataLink(QObject):
         else:
             if num_sendable > 0:
                 qt.enable(self.button_send)
+                qt.enable(self.button_morph)
         qt.enable(self.button_send_scene)
         # context info
 
@@ -2612,11 +2619,14 @@ class DataLink(QObject):
         self.update_link_status(f"Morph Sent: {actor.name}")
 
     def send_morph(self):
-        actors = self.get_selected_actors()
-        actor: LinkActor
-        for actor in actors:
-            if actor.is_standard():
-                self.send_avatar_morph(actor)
+        if not self.is_connected():
+            gob.go_morph()
+        else:
+            actors = self.get_selected_actors()
+            actor: LinkActor
+            for actor in actors:
+                if actor.is_standard():
+                    self.send_avatar_morph(actor)
 
     def send_morph_update(self):
         actors = self.get_selected_actors()
