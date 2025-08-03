@@ -1555,14 +1555,22 @@ class DataLink(QObject):
         atexit.register(self.on_exit)
 
     def show(self):
-        self.window.Show()
-        self.show_link_state()
+        if self.window:
+            self.window.Show()
+            self.show_link_state()
 
     def hide(self):
-        self.window.Hide()
+        if self.window:
+            self.window.Hide()
+
+    def close(self):
+        if self.window:
+            self.window.Close()
+            self.window = None
+        self.on_exit()
 
     def is_shown(self):
-        return self.window.IsVisible()
+        return self.window.IsVisible() if self.window else False
 
     def create_window(self):
         self.window, window_layout = qt.window("Blender DataLink", width=440, height=524, show_hide=self.on_show_hide)
@@ -3900,6 +3908,20 @@ def get_data_link():
     if not LINK:
         LINK = DataLink()
     return LINK
+
+
+def link_stop():
+    global LINK
+    running = False
+    visible = False
+    if LINK:
+        utils.log_info("Stopping Data-link!")
+        running = LINK.is_listening()
+        visible = LINK.is_shown()
+        LINK.link_stop()
+        LINK.close()
+        LINK = None
+    return running, visible
 
 
 def debug(debug_json):

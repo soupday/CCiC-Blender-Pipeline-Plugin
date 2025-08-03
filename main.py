@@ -55,6 +55,8 @@ def initialize_plugin():
     qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Settings", action=menu_settings, icon=icon_settings)
     qt.add_menu_action(plugin_menu, "Toolbar", action=menu_toolbar, toggle=True, on=True)
+    qt.menu_separator(plugin_menu)
+    qt.add_menu_action(plugin_menu, "Reload", action=menu_reload)
 
     toolbar = qt.find_add_toolbar("Blender Pipeline Toolbar", show_hide=fetch_toolbar_state)
     qt.clear_toolbar(toolbar)
@@ -170,6 +172,24 @@ def menu_go_morph():
             gob.go_morph()
         else:
             show_settings()
+
+
+def menu_reload():
+    import importlib
+    print("Reloading Scripts...")
+    running, visible = link.link_stop()
+    modules = [ vars, prefs, cc, qt, tests, importer, exporter, morph, link, gob ]
+    for module in modules:
+        importlib.reload(module)
+    print("Done Reloading Scripts.")
+    print("")
+    initialize_plugin()
+    if running or visible:
+        LINK = link.get_data_link()
+        if visible:
+            LINK.show()
+        if running:
+            LINK.link_start()
 
 
 def run_script():
