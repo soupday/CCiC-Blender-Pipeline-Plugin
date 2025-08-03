@@ -52,6 +52,14 @@ function Add-Junction($keyPath){
                 New-Item -Path "$entryValue\$subFolder" -ItemType Directory
             }
 
+            # is this a Git Clone? Install as junction, otherwise install as full copy
+            $isGitClone = Test-Path -Path "$scriptFolder\.git"
+            if ($isGitClone){
+                Write-Host "`n Installing Git Clone Plugin as junction link."
+            }else{
+                Write-Host "`n Installing Plugin Files directly."
+            }
+
             # create a directory junction to the folder containing this script
             $junctionPath = "$entryValue\$subFolder\$scriptFolderName"
 
@@ -63,8 +71,13 @@ function Add-Junction($keyPath){
             }
             $junctionExists = Test-Path -Path $junctionPath
             if(!$junctionExists){
-                cmd /c mklink /J "$junctionPath" "$scriptFolder" | Out-Null
-                Write-Host "`n Folder link $junctionPath has been created."
+                if ($isGitClone){
+                    cmd /c mklink /J "$junctionPath" "$scriptFolder" | Out-Null
+                    Write-Host "`n Folder link $junctionPath has been created."
+                }else{
+                    Copy-Item -Path "$scriptFolder" -Destination "$junctionPath" -Recurse
+                    Write-Host "`n Folder $junctionPath has been copied."
+                }
             }
         }else{
             Write-Host "`n Cannot find $valueName in the registry key... skipping."
