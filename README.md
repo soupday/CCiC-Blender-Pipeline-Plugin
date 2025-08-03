@@ -72,7 +72,6 @@ Changelog
 =========
 ### 2.3.1
 - Fix to start up errors when not detecting Blender path for the first time.
-- Fix to shutdown crash on some systems.
 - Powershell install/uninstall script.
     - If installing from a Git Clone, the plugin will be installed as a junction link to the local repository, so all you need to do to update (or switch branches) is pull the new version, and restart CC/iClone.
 
