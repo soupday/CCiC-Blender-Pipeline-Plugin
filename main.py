@@ -192,7 +192,6 @@ def menu_reload():
             LINK.link_start()
 
 
-
 def run_script():
     initialize_plugin()
 
