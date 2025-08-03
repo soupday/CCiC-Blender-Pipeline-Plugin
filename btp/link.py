@@ -1043,18 +1043,21 @@ class LinkService(QObject):
                 utils.log_error(f"Unable to start server on TCP *:{SERVER_PORT}")
 
     def stop_server(self):
-        if self.server_sock:
-            utils.log_info(f"Closing Server Socket")
-            try:
-                self.server_sock.shutdown(socket.SHUT_RDWR)
-                self.server_sock.close()
-            except:
-                pass
-        self.is_listening = False
-        self.server_sock = None
-        self.server_sockets = []
-        self.server_stopped.emit()
-        self.changed.emit()
+        try:
+            if self.server_sock:
+                utils.log_info(f"Closing Server Socket")
+                try:
+                    self.server_sock.shutdown(socket.SHUT_RDWR)
+                    self.server_sock.close()
+                except Exception as e:
+                    utils.log_error("Closing Server Socket failed!", e)
+            self.is_listening = False
+            self.server_sock = None
+            self.server_sockets = []
+            self.server_stopped.emit()
+            self.changed.emit()
+        except Exception as e:
+            utils.log_error("Stop Server error!", e)
 
     def start_timer(self):
         self.time = time.time()
@@ -1117,21 +1120,24 @@ class LinkService(QObject):
         self.send(OpCodes.HELLO, encode_from_json(json_data))
 
     def stop_client(self):
-        if self.client_sock:
-            utils.log_info(f"Closing Client Socket")
-            try:
-                self.client_sock.shutdown(socket.SHUT_RDWR)
-                self.client_sock.close()
-            except:
-                pass
-        self.is_connected = False
-        self.is_connecting = False
-        self.client_sock = None
-        self.client_sockets = []
-        if self.listening:
-            self.keepalive_timer = HANDSHAKE_TIMEOUT_S
-        self.client_stopped.emit()
-        self.changed.emit()
+        try:
+            if self.client_sock:
+                utils.log_info(f"Closing Client Socket")
+                try:
+                    self.client_sock.shutdown(socket.SHUT_RDWR)
+                    self.client_sock.close()
+                except Exception as e:
+                    utils.log_error("Closing Client Socket failed!", e)
+            self.is_connected = False
+            self.is_connecting = False
+            self.client_sock = None
+            self.client_sockets = []
+            if self.listening:
+                self.keepalive_timer = HANDSHAKE_TIMEOUT_S
+            self.client_stopped.emit()
+            self.changed.emit()
+        except Exception as e:
+            utils.log_error("Stop Client error!", e)
 
     def has_client_sock(self):
         if self.client_sock and (self.is_connected or self.is_connecting):
