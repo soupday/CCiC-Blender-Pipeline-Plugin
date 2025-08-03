@@ -1047,7 +1047,7 @@ class LinkService(QObject):
         if self.server_sock:
             utils.log_info(f"Closing Server Socket")
             try:
-                self.server_sock.shutdown()
+                self.server_sock.shutdown(socket.SHUT_RDWR)
                 self.server_sock.close()
             except:
                 pass
@@ -1121,7 +1121,7 @@ class LinkService(QObject):
         if self.client_sock:
             utils.log_info(f"Closing Client Socket")
             try:
-                self.client_sock.shutdown()
+                self.client_sock.shutdown(socket.SHUT_RDWR)
                 self.client_sock.close()
             except:
                 pass
