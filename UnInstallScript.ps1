@@ -47,8 +47,8 @@ function Remove-Junction($keyPath){
             $junctionExists = Test-Path -Path $junctionPath
 
             if($junctionExists){
-                cmd /c rmdir $junctionPath
-                Write-Host "`n Folder link $junctionPath deleted."
+                cmd /c rmdir /s /q $junctionPath
+                Write-Host "`n Folder/Link $junctionPath deleted."
             }else{
                 Write-Host "`n Expected folder link $junctionPath is absent."
             }

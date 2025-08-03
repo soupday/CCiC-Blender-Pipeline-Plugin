@@ -66,7 +66,7 @@ function Add-Junction($keyPath){
             $junctionExists = Test-Path -Path $junctionPath
             if($junctionExists){
                 Write-Host "`n Folder link $junctionPath already exists."
-                cmd /c rmdir $junctionPath
+                cmd /c rmdir /s /q $junctionPath
                 Write-Host "`n Folder link $junctionPath deleted."
             }
             $junctionExists = Test-Path -Path $junctionPath
