@@ -1047,8 +1047,7 @@ class LinkService(QObject):
             if self.server_sock:
                 utils.log_info(f"Closing Server Socket")
                 try:
-                    # don't shutdown server listeners as they are never connected...
-                    #self.server_sock.shutdown(socket.SHUT_RDWR)
+                    # no shutdown for server sockets, just close.
                     self.server_sock.close()
                 except Exception as e:
                     utils.log_error("Closing Server Socket failed!", e)

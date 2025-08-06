@@ -27,7 +27,7 @@ $valueName = "Install Path"
 $subFolder = "OpenPlugin"
 
 # script vars
-$scriptFolder = $PSScriptRoot
+#$scriptFolder = $PSScriptRoot
 #$scriptFolderName = Split-Path -Path $scriptFolder -Leaf
 $scriptFolderName = "Blender Pipeline Plugin"
 
