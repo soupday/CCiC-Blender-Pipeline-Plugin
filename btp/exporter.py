@@ -66,6 +66,7 @@ class Exporter:
     progress_bar = None
     group_export_range: QGroupBox = None
     combo_export_mode: QComboBox = None
+    group_export_subd: QComboBox = None
     label_selected: QLabel = None
     button_export: QPushButton = None
     check_bakehair: QCheckBox = None
@@ -79,6 +80,9 @@ class Exporter:
     check_remove_hidden: QCheckBox = None
     radio_export_pose: QRadioButton = None
     radio_export_anim: QRadioButton = None
+    radio_export_sub_0: QRadioButton = None
+    radio_export_sub_1: QRadioButton = None
+    radio_export_sub_2: QRadioButton = None
     option_preset = 0
     option_bakehair = False
     option_bakeskin = False
@@ -110,6 +114,11 @@ class Exporter:
         self.option_t_pose = prefs.EXPORT_T_POSE
         self.option_current_pose = prefs.EXPORT_CURRENT_POSE
         self.option_current_animation = prefs.EXPORT_CURRENT_ANIMATION
+        
+        self.option_export_sub_0 = prefs.EXPORT_SUB_0
+        self.option_export_sub_1 = prefs.EXPORT_SUB_1
+        self.option_export_sub_2 = prefs.EXPORT_SUB_2
+        
         self.option_animation_only = prefs.EXPORT_MOTION_ONLY
         self.option_hik_data = prefs.EXPORT_HIK
         self.option_profile_data = prefs.EXPORT_FACIAL_PROFILE
@@ -302,7 +311,7 @@ class Exporter:
 
     def create_options_window(self):
         W = 400
-        H = 520
+        H = 600
         TITLE = f"Blender Pipeline Export FBX"
         self.window, layout = qt.window(TITLE, width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window.SetFeatures(EDockWidgetFeatures_Closable)
@@ -324,7 +333,15 @@ class Exporter:
         box.setSpacing(0)
         self.radio_export_pose = qt.radio_button(box, "Current Frame", False)
         self.radio_export_anim = qt.radio_button(box, "All", True)
-
+        
+        qt.spacing(layout, 8)
+        
+        self.group_export_subd, box = qt.group(layout, title="HD Character", vertical=False, horizontal=True)
+        box.setSpacing(0)
+        self.radio_export_sub_0 = qt.radio_button(box, "SubD 0", True)
+        self.radio_export_sub_1 = qt.radio_button(box, "SubD 1", False)
+        self.radio_export_sub_2 = qt.radio_button(box, "SubD 2", False)
+        
         qt.spacing(layout, 8)
 
         col = qt.column(layout)
@@ -459,6 +476,9 @@ class Exporter:
         if self.check_t_pose: self.check_t_pose.setChecked(self.option_t_pose)
         if self.radio_export_pose: self.radio_export_pose.setChecked(self.option_current_pose)
         if self.radio_export_anim: self.radio_export_anim.setChecked(self.option_current_animation)
+        if self.radio_export_sub_0: self.radio_export_sub_0.setChecked(self.option_export_sub_0)
+        if self.radio_export_sub_1: self.radio_export_sub_1.setChecked(self.option_export_sub_1)
+        if self.radio_export_sub_2: self.radio_export_sub_2.setChecked(self.option_export_sub_2)
         if self.check_animation_only: self.check_animation_only.setChecked(self.option_animation_only)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
         self.update_options_enabled()
@@ -469,25 +489,25 @@ class Exporter:
             qt.enable(self.check_t_pose,
                       self.check_remove_hidden, self.check_t_pose,
                       self.check_hik_data, self.check_profile_data,
-                      self.check_bakehair, self.check_bakeskin)
+                      self.check_bakehair, self.check_bakeskin, self.group_export_subd)
         elif self.option_preset == 1:
             qt.disable(self.check_t_pose)
             qt.enable(self.group_export_range, self.check_animation_only,
                       self.check_remove_hidden,
                       self.check_hik_data, self.check_profile_data,
-                      self.check_bakehair, self.check_bakeskin)
+                      self.check_bakehair, self.check_bakeskin, self.group_export_subd)
         elif self.option_preset == 2:
             qt.disable(self.group_export_range, self.check_animation_only)
             qt.enable(self.check_t_pose,
                       self.check_remove_hidden,
                       self.check_hik_data, self.check_profile_data,
-                      self.check_bakehair, self.check_bakeskin)
+                      self.check_bakehair, self.check_bakeskin, self.group_export_subd)
         if not self.props and not self.avatars and not self.lights and not self.cameras:
             qt.disable(self.check_animation_only)
         if not self.avatars:
             qt.disable(self.check_hik_data, self.check_profile_data,
                        self.check_t_pose, self.check_remove_hidden,
-                       self.check_bakehair, self.check_bakeskin)
+                       self.check_bakehair, self.check_bakeskin, self.group_export_subd)
 
 
     def fetch_options(self):
@@ -502,9 +522,15 @@ class Exporter:
         if self.radio_export_pose:
             self.option_current_pose = self.radio_export_pose.isChecked() if self.option_preset == 1 else False
             prefs.EXPORT_CURRENT_POSE = self.option_current_pose
-        if self.radio_export_anim:
-            self.option_current_animation = self.radio_export_anim.isChecked() if self.option_preset == 1 else False
-            prefs.EXPORT_CURRENT_ANIMATION = self.option_current_animation
+        if self.radio_export_sub_0:
+            self.option_export_sub_0 = self.radio_export_sub_0.isChecked()
+            prefs.EXPORT_SUB_0 = self.option_export_sub_0
+        if self.radio_export_sub_1:
+            self.option_export_sub_1 = self.radio_export_sub_1.isChecked()
+            prefs.EXPORT_SUB_1 = self.option_export_sub_1
+        if self.radio_export_sub_2:
+            self.option_export_sub_2 = self.radio_export_sub_2.isChecked()
+            prefs.EXPORT_SUB_2 = self.option_export_sub_2
         if self.check_animation_only:
             self.option_animation_only = self.check_animation_only.isChecked()
             prefs.EXPORT_MOTION_ONLY = self.option_animation_only
@@ -596,6 +622,9 @@ class Exporter:
         self.check_bakeskin = None
         self.radio_export_pose = None
         self.radio_export_anim = None
+        self.radio_export_sub_0 = None
+        self.radio_export_sub_1 = None
+        self.radio_export_sub_2 = None
         self.check_animation_only = None
         self.check_hik_data = None
         self.check_profile_data = None
@@ -635,6 +664,7 @@ class Exporter:
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
             self.check_non_standard_export()
+            
         else:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
@@ -836,7 +866,16 @@ class Exporter:
         else:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
-
+        
+        if (self.option_export_sub_0):
+            export_fbx_setting.SetExportLevel(0)
+        elif (self.option_export_sub_1):
+            export_fbx_setting.SetExportLevel(1)
+        elif (self.option_export_sub_2):
+            export_fbx_setting.SetExportLevel(2)
+        else:
+            export_fbx_setting.SetExportLevel(0)
+        
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
 
