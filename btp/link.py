@@ -22,6 +22,7 @@ from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, atexit, traceback, shutil
 from . import gob, importer, exporter, morph, cc, qt, prefs, tests, utils, vars
+from .utils import LI, LW, LD, log_info, log_detail, log_warn, log_error
 from enum import IntEnum
 import math
 
@@ -252,7 +253,7 @@ class LinkActor():
         face_rotations = {}
         face_drivers = {}
         if vars.DEV:
-            utils.log_info("Expression Bones:")
+            if LI(): log_info("Expression Bones:")
 
         for expression in expressions:
             is_face = False
@@ -295,7 +296,7 @@ class LinkActor():
                                 expression_rotations[expression] = {}
                             expression_rotations[expression][bone_name] = ERQ
                         if vars.DEV:
-                            utils.log_info(f" - {expression} / {bone_name} = ({euler_angle_x:.4f}, {euler_angle_y:.4f}, {euler_angle_z:.4f}){' FACE DRIVER' if is_face_driver else ''}")
+                            if LI(): log_info(f" - {expression} / {bone_name} = ({euler_angle_x:.4f}, {euler_angle_y:.4f}, {euler_angle_z:.4f}){' FACE DRIVER' if is_face_driver else ''}")
         self.expression_rotations = expression_rotations
         self.face_rotations = face_rotations
         self.face_drivers = face_drivers
@@ -334,46 +335,46 @@ class LinkActor():
     def add_alias(self, link_id):
         actor_link_id = cc.get_link_id(self.object)
         if not actor_link_id:
-            utils.log_info(f"Assigning actor link_id: {self.object.GetName()}: {link_id}")
+            if LI(): log_info(f"Assigning actor link_id: {self.object.GetName()}: {link_id}")
             cc.set_link_id(self.object, link_id)
             return
         if link_id not in self.alias and actor_link_id != link_id:
-            utils.log_info(f"Assigning actor alias: {self.object.GetName()}: {link_id}")
+            if LI(): log_info(f"Assigning actor alias: {self.object.GetName()}: {link_id}")
             self.alias.append(link_id)
             return
 
     @staticmethod
     def find_actor(link_id, search_name=None, search_type=None):
 
-        utils.log_detail(f"Looking for LinkActor: {search_name} {link_id} {search_type}")
+        if LD: log_detail(f"Looking for LinkActor: {search_name} {link_id} {search_type}")
         actor: LinkActor = None
         obj = cc.find_object_by_link_id(link_id)
         if obj:
             if not search_type or LinkActor.get_actor_type(obj) == search_type:
                 actor = LinkActor(obj)
                 return actor
-        utils.log_detail(f"Chr not found by link_id")
+        if LD: log_detail(f"Chr not found by link_id")
 
         if search_name:
             obj = cc.find_object_by_name_and_type(search_name, search_type)
             if obj:
                 found_link_id = cc.get_link_id(obj)
-                utils.log_detail(f"Chr found by name: {obj.GetName()} / {found_link_id}")
+                if LD: log_detail(f"Chr found by name: {obj.GetName()} / {found_link_id}")
                 actor = LinkActor(obj)
                 actor.add_alias(link_id)
                 return actor
-            utils.log_detail(f"Chr not found by name")
+            if LD: log_detail(f"Chr not found by name")
 
         if cc.is_cc() and search_type == "AVATAR":
             avatar = cc.get_first_avatar()
             if avatar:
                 found_link_id = cc.get_link_id(obj)
-                utils.log_detail(f"Falling back to first Avatar: {avatar.GetName()} / {found_link_id}")
+                if LD: log_detail(f"Falling back to first Avatar: {avatar.GetName()} / {found_link_id}")
                 actor = LinkActor(avatar)
                 actor.add_alias(link_id)
                 return actor
 
-        utils.log_info(f"LinkActor not found: {search_name} {link_id} {search_type}")
+        if LI(): log_info(f"LinkActor not found: {search_name} {link_id} {search_type}")
         return actor
 
     @staticmethod
@@ -483,7 +484,7 @@ def prep_timeline_old(SC: RISkeletonComponent, start_frame, end_frame):
     end_time: fps.IndexedFrameTime(end_frame)
     RGlobal.SetStartTime(start_time)
     RGlobal.SetEndTime(end_time)
-    utils.log_info(f"start: {start_time.ToInt()}, end: {end_time.ToInt()}")
+    if LI(): log_info(f"start: {start_time.ToInt()}, end: {end_time.ToInt()}")
     num_clips = SC.GetClipCount()
     if num_clips == 0:
         clip = SC.AddClip(start_time)
@@ -576,14 +577,14 @@ def update_timeline(to_time=None):
 def extend_project_range(end_time: RTime, min_time = 0):
     proj_length: RTime = RGlobal.GetProjectLength()
     if end_time.ToInt() > proj_length.ToInt():
-        utils.log_info(f"Extending Project Range: {end_time.ToInt()}")
+        if LI(): log_info(f"Extending Project Range: {end_time.ToInt()}")
         RGlobal.SetProjectLength(end_time)
     else:
         RGlobal.SetProjectLength(proj_length)
 
 
 def set_project_range(end_time: RTime):
-    utils.log_info(f"Setting Project Range: {end_time.ToInt()}")
+    if LI(): log_info(f"Setting Project Range: {end_time.ToInt()}")
     RGlobal.SetProjectLength(end_time)
 
 
@@ -695,7 +696,7 @@ def fetch_transform(D):
 
 
 def log_transform(name, rot, tra, sca):
-    utils.log_info(f" - {name}: ({utils.fd2(tra.x)}, {utils.fd2(tra.y)}, {utils.fd2(tra.z)}) - ({utils.fd2(rot.x)}, {utils.fd2(rot.x)}, {utils.fd2(rot.z)}, {utils.fd2(rot.w)}) - ({utils.fd2(sca.x)}, {utils.fd2(sca.y)}, {utils.fd2(sca.z)})")
+    if LI(): log_info(f" - {name}: ({utils.fd2(tra.x)}, {utils.fd2(tra.y)}, {utils.fd2(tra.z)}) - ({utils.fd2(rot.x)}, {utils.fd2(rot.x)}, {utils.fd2(rot.z)}, {utils.fd2(rot.w)}) - ({utils.fd2(sca.x)}, {utils.fd2(sca.y)}, {utils.fd2(sca.z)})")
 
 
 def get_expression_counter_rotation(actor: LinkActor, bone_name, expression_weights) -> RQuaternion:
@@ -742,7 +743,7 @@ def apply_world_fk_pose(actor: LinkActor, skin_tree_def: dict,
         bone_index = -1
 
     if bone_id not in actor.t_pose:
-        utils.log_error(f"Bone {bone_name} not in t-pose data!")
+        log_error(f"Bone {bone_name} not in t-pose data!")
         return
 
     if bone_index > -1:
@@ -907,7 +908,7 @@ def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data):
         FC.AddExpressivenessKey(time, 1.0)
         res = FC.AddExpressionKeys(time, expressions, strengths, RTime.FromValue(1))
         if res.IsError():
-            utils.log_error("Failed to set expressions")
+            log_error("Failed to set expressions")
         #FC.EndKeyEditing()
 
     # can only have one active viseme key at a time?
@@ -928,7 +929,7 @@ def apply_shapes(actor: LinkActor, time: RTime, pose_data, shape_data):
             viseme_key.SetTime(time)
             res = VC.AddVisemeKey(viseme_key)
             if res.IsError():
-                utils.log_error("Failed to set visemes")
+                log_error("Failed to set visemes")
 
 
 def apply_transform(actor, scene_time, transform_data):
@@ -1033,31 +1034,31 @@ class LinkService(QObject):
                 #self.server_sock.setblocking(True)
                 self.server_sockets = [self.server_sock]
                 self.is_listening = True
-                utils.log_info(f"Listening on TCP *:{SERVER_PORT}")
+                if LI(): log_info(f"Listening on TCP *:{SERVER_PORT}")
                 self.listening.emit()
                 self.changed.emit()
             except:
                 self.server_sock = None
                 self.server_sockets = []
                 self.is_listening = True
-                utils.log_error(f"Unable to start server on TCP *:{SERVER_PORT}")
+                log_error(f"Unable to start server on TCP *:{SERVER_PORT}")
 
     def stop_server(self):
         try:
             if self.server_sock:
-                utils.log_info(f"Closing Server Socket")
+                if LI(): log_info(f"Closing Server Socket")
                 try:
                     # no shutdown for server sockets, just close.
                     self.server_sock.close()
                 except Exception as e:
-                    utils.log_error("Closing Server Socket failed!", e)
+                    log_error("Closing Server Socket failed!", e)
             self.is_listening = False
             self.server_sock = None
             self.server_sockets = []
             self.server_stopped.emit()
             self.changed.emit()
         except Exception as e:
-            utils.log_error("Stop Server error!", e)
+            log_error("Stop Server error!", e)
 
     def start_timer(self):
         self.time = time.time()
@@ -1066,16 +1067,16 @@ class LinkService(QObject):
             self.timer.setInterval(TIMER_INTERVAL)
             self.timer.timeout.connect(self.loop)
         self.timer.start()
-        utils.log_info(f"Service timer started")
+        if LI(): log_info(f"Service timer started")
 
     def stop_timer(self):
         if self.timer:
             self.timer.stop()
-            utils.log_info(f"Service timer stopped")
+            if LI(): log_info(f"Service timer stopped")
 
     def try_start_client(self, host, port):
         if not self.client_sock:
-            utils.log_info(f"Attempting to connect")
+            if LI(): log_info(f"Attempting to connect")
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(SOCKET_TIMEOUT)
@@ -1089,7 +1090,7 @@ class LinkService(QObject):
                 self.client_port = self.host_port
                 self.keepalive_timer = KEEPALIVE_TIMEOUT_S
                 self.ping_timer = PING_INTERVAL_S
-                utils.log_info(f"Connecting to data-link server on {self.host_ip}:{self.host_port}")
+                if LI(): log_info(f"Connecting to data-link server on {self.host_ip}:{self.host_port}")
                 self.send_hello()
                 self.connecting.emit()
                 self.changed.emit()
@@ -1099,10 +1100,10 @@ class LinkService(QObject):
                 self.client_sockets = []
                 self.is_connected = False
                 self.is_connecting = False
-                utils.log_info(f"Client socket connect failed!")
+                if LI(): log_info(f"Client socket connect failed!")
                 return False
         else:
-            utils.log_info(f"Client already connected!")
+            if LI(): log_info(f"Client already connected!")
             return True
 
     def send_hello(self):
@@ -1122,12 +1123,12 @@ class LinkService(QObject):
     def stop_client(self):
         try:
             if self.client_sock:
-                utils.log_info(f"Closing Client Socket")
+                if LI(): log_info(f"Closing Client Socket")
                 try:
                     self.client_sock.shutdown(socket.SHUT_RDWR)
                     self.client_sock.close()
                 except Exception as e:
-                    utils.log_error("Closing Client Socket failed!", e)
+                    log_error("Closing Client Socket failed!", e)
             self.is_connected = False
             self.is_connecting = False
             self.client_sock = None
@@ -1137,7 +1138,7 @@ class LinkService(QObject):
             self.client_stopped.emit()
             self.changed.emit()
         except Exception as e:
-            utils.log_error("Stop Client error!", e)
+            log_error("Stop Client error!", e)
 
     def has_client_sock(self):
         if self.client_sock and (self.is_connected or self.is_connecting):
@@ -1151,7 +1152,7 @@ class LinkService(QObject):
             try:
                 r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
             except Exception as e:
-                utils.log_error("Client socket recv:select failed!", e)
+                log_error("Client socket recv:select failed!", e)
                 self.client_lost()
                 return
             count = 0
@@ -1160,11 +1161,11 @@ class LinkService(QObject):
                 try:
                     header = self.client_sock.recv(8)
                     if header == 0:
-                        utils.log_warn("Socket closed by client")
+                        if LW: log_warn("Socket closed by client")
                         self.client_lost()
                         return
                 except Exception as e:
-                    utils.log_error("Client socket recv:recv header failed!", e)
+                    log_error("Client socket recv:recv header failed!", e)
                     self.client_lost()
                     return
                 if header and len(header) == 8:
@@ -1177,7 +1178,7 @@ class LinkService(QObject):
                             try:
                                 chunk = self.client_sock.recv(chunk_size)
                             except Exception as e:
-                                utils.log_error("Client socket recv:recv chunk failed!", e)
+                                log_error("Client socket recv:recv chunk failed!", e)
                                 self.client_lost()
                                 return
                             data.extend(chunk)
@@ -1194,7 +1195,7 @@ class LinkService(QObject):
                                     chunk = self.client_sock.recv(chunk_size)
                                     file.write(chunk)
                                 except Exception as e:
-                                    utils.log_error("Client socket recv:recv file chunk failed!", e)
+                                    log_error("Client socket recv:recv file chunk failed!", e)
                                     self.client_lost()
                                     return
                                 size -= len(chunk)
@@ -1214,7 +1215,7 @@ class LinkService(QObject):
                 try:
                     r,w,x = select.select(self.client_sockets, self.empty_sockets, self.empty_sockets, 0)
                 except Exception as e:
-                    utils.log_error("Client socket recv:select (reselect) failed!", e)
+                    log_error("Client socket recv:select (reselect) failed!", e)
                     self.client_lost()
                     return
                 if r:
@@ -1227,14 +1228,14 @@ class LinkService(QObject):
             try:
                 r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
             except Exception as e:
-                utils.log_error("Server socket accept:select failed!", e)
+                log_error("Server socket accept:select failed!", e)
                 self.service_lost()
                 return
             while r:
                 try:
                     sock, address = self.server_sock.accept()
                 except:
-                    utils.log_error("Server socket accept failed!")
+                    log_error("Server socket accept failed!")
                     self.service_lost()
                     return
                 if self.is_connected:
@@ -1248,21 +1249,21 @@ class LinkService(QObject):
                 self.is_connecting = True
                 self.keepalive_timer = KEEPALIVE_TIMEOUT_S
                 self.ping_timer = PING_INTERVAL_S
-                utils.log_info(f"Incoming connection received from: {address[0]}:{address[1]}")
+                if LI(): log_info(f"Incoming connection received from: {address[0]}:{address[1]}")
                 self.send_hello()
                 self.accepted.emit(self.client_ip, self.client_port)
                 self.changed.emit()
                 try:
                     r,w,x = select.select(self.server_sockets, self.empty_sockets, self.empty_sockets, 0)
                 except Exception as e:
-                    utils.log_error("Server socket accept:select failed!", e)
+                    log_error("Server socket accept:select failed!", e)
                     self.service_lost()
                     return
 
     def parse(self, op_code, data):
         self.keepalive_timer = KEEPALIVE_TIMEOUT_S
         if op_code == OpCodes.HELLO:
-            utils.log_info(f"Hello Received")
+            if LI(): log_info(f"Hello Received")
             if data:
                 json_data = decode_to_json(data)
                 self.remote_app = json_data["Application"]
@@ -1270,22 +1271,22 @@ class LinkService(QObject):
                 self.remote_path = json_data["Path"]
                 self.remote_addon = json_data.get("Addon", "x.x.x")
                 self.remote_is_local = json_data.get("Local", True)
-                utils.log_info(f"Connected to: {self.remote_app} {self.remote_version} / {self.remote_addon}")
-                utils.log_info(f"Using file path: {self.remote_path}")
-                utils.log_info(f"Client is connecting {('Locally' if self.remote_is_local else 'Remotely')}")
+                if LI(): log_info(f"Connected to: {self.remote_app} {self.remote_version} / {self.remote_addon}")
+                if LI(): log_info(f"Using file path: {self.remote_path}")
+                if LI(): log_info(f"Client is connecting {('Locally' if self.remote_is_local else 'Remotely')}")
             self.service_initialize()
             if data:
                 self.changed.emit()
         elif op_code == OpCodes.FILE:
             self.receive_remote_file(data)
         elif op_code == OpCodes.PING:
-            utils.log_info(f"Ping Received")
+            if LI(): log_info(f"Ping Received")
             pass
         elif op_code == OpCodes.STOP:
-            utils.log_info(f"Termination Received")
+            if LI(): log_info(f"Termination Received")
             self.service_stop()
         elif op_code == OpCodes.DISCONNECT:
-            utils.log_info(f"Disconnection Received")
+            if LI(): log_info(f"Disconnection Received")
             self.service_recv_disconnected()
 
     def receive_remote_file(self, data: bytearray):
@@ -1293,12 +1294,12 @@ class LinkService(QObject):
         tar_file_path = self.get_remote_tar_file_path(remote_id)
         parent_path = os.path.dirname(tar_file_path)
         unpack_folder = utils.make_sub_folder(parent_path, remote_id)
-        utils.log_info(f"Receive Remote Files: {remote_id} / {unpack_folder}")
+        if LI(): log_info(f"Receive Remote Files: {remote_id} / {unpack_folder}")
         if os.path.exists(tar_file_path):
             shutil.unpack_archive(tar_file_path, unpack_folder, "tar")
             os.remove(tar_file_path)
         else:
-            utils.log_error(f"Receiving Remote Files: {tar_file_path}")
+            log_error(f"Receiving Remote Files: {tar_file_path}")
 
     def service_start(self, host, port):
         if not self.is_listening:
@@ -1351,7 +1352,7 @@ class LinkService(QObject):
                 rate = 1.0 / delta_time
                 self.loop_rate = self.loop_rate * 0.75 + rate * 0.25
                 #if self.loop_count % 100 == 0:
-                #    utils.log_info(f"LinkServer loop timer rate: {self.loop_rate}")
+                #    if LI(): log_info(f"LinkServer loop timer rate: {self.loop_rate}")
                 self.loop_count += 1
 
             if self.is_connected:
@@ -1362,14 +1363,14 @@ class LinkService(QObject):
                     self.send(OpCodes.PING)
 
                 if USE_KEEPALIVE and self.keepalive_timer <= 0:
-                    utils.log_info("lost connection!")
+                    if LI(): log_info("lost connection!")
                     self.service_stop()
 
             elif self.is_listening:
                 self.keepalive_timer -= delta_time
 
                 if USE_KEEPALIVE and self.keepalive_timer <= 0:
-                    utils.log_info("no connection within time limit!")
+                    if LI(): log_info("no connection within time limit!")
                     self.service_stop()
 
             # accept incoming connections
@@ -1386,7 +1387,7 @@ class LinkService(QObject):
                     self.sequence.emit()
 
         except Exception as e:
-            utils.log_error("LinkService timer loop crash!")
+            log_error("LinkService timer loop crash!")
             traceback.print_exc()
             return TIMER_INTERVAL
 
@@ -1403,19 +1404,19 @@ class LinkService(QObject):
                 try:
                     self.client_sock.sendall(data)
                 except Exception as e:
-                    utils.log_error("Client socket sendall failed!")
+                    log_error("Client socket sendall failed!")
                     self.client_lost()
                     return
                 self.ping_timer = PING_INTERVAL_S
                 self.sent.emit()
 
         except:
-            utils.log_error("LinkService send failed!")
+            log_error("LinkService send failed!")
             traceback.print_exc()
 
     def send_file(self, tar_id, tar_file):
         try:
-            utils.log_info(f"Sending Remote files: {tar_file}")
+            if LI(): log_info(f"Sending Remote files: {tar_file}")
             if self.client_sock and (self.is_connected or self.is_connecting):
                 file_size = os.path.getsize(tar_file)
                 id_data = pack_string(tar_id)
@@ -1434,7 +1435,7 @@ class LinkService(QObject):
                 self.ping_timer = PING_INTERVAL_S
                 self.sent.emit()
         except:
-            utils.log_error("LinkService send failed!")
+            log_error("LinkService send failed!")
             traceback.print_exc()
 
     def get_remote_tar_file_path(self, remote_id):
@@ -1494,7 +1495,7 @@ class LinkEventCallback(REventCallback):
        self.target = target
 
     #def OnCurrentTimeChanged(self, fTime):
-    #    utils.log_info('Current time:' + str(fTime))
+    #    if LI(): log_info('Current time:' + str(fTime))
 
     def OnObjectSelectionChanged(self):
         global LINK
@@ -1971,7 +1972,7 @@ class DataLink(QObject):
     def update_link_status(self, text, events=False, log=True):
         self.label_status.setText(text)
         if log:
-            utils.log_info(text)
+            if LI(): log_info(text)
         if events:
             qt.do_events()
 
@@ -2268,7 +2269,7 @@ class DataLink(QObject):
             cwd = os.getcwd()
             tar_file_name = remote_id
             os.chdir(parent_folder)
-            utils.log_info(f"Packing Remote files: {tar_file_name}")
+            if LI(): log_info(f"Packing Remote files: {tar_file_name}")
             self.update_link_status("Packing Remote files", True, log=False)
             shutil.make_archive(tar_file_name, "tar", export_folder)
             os.chdir(cwd)
@@ -2278,10 +2279,10 @@ class DataLink(QObject):
                 link_service.send_file(remote_id, tar_file_path)
                 self.update_link_status("Files Sent", True)
             if os.path.exists(tar_file_path):
-                utils.log_info(f"Cleaning up remote export package: {tar_file_path}")
+                if LI(): log_info(f"Cleaning up remote export package: {tar_file_path}")
                 os.remove(tar_file_path)
             if os.path.exists(export_folder):
-                utils.log_info(f"Cleaning up remote export folder: {export_folder}")
+                if LI(): log_info(f"Cleaning up remote export folder: {export_folder}")
                 shutil.rmtree(export_folder)
         return remote_id
 
@@ -2339,7 +2340,7 @@ class DataLink(QObject):
         export_file = actor.name + ".fbx"
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
-        utils.log_info(f"Export Path: {export_path}")
+        if LI(): log_info(f"Export Path: {export_path}")
         #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
         # Export Avatar
         export = exporter.Exporter(actor.object, no_window=True)
@@ -2370,7 +2371,7 @@ class DataLink(QObject):
         export_file = actor.name + ".fbx"
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
-        utils.log_info(f"Export Path: {export_path}")
+        if LI(): log_info(f"Export Path: {export_path}")
         # Export Prop
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export(no_animation=PROP_FIX)
@@ -2409,7 +2410,7 @@ class DataLink(QObject):
         export_file = names[0] + ".rlx"
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
-        utils.log_info(f"Export Path: {export_path}")
+        if LI(): log_info(f"Export Path: {export_path}")
         # Export Light
         export = exporter.Exporter(lights_cameras, no_window=True)
         export.set_datalink_export()
@@ -2442,7 +2443,7 @@ class DataLink(QObject):
         export_file = actor.name + ".fbx"
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
-        utils.log_info(f"Export Path: {export_path}")
+        if LI(): log_info(f"Export Path: {export_path}")
         # Export Camera
         export = exporter.Exporter(actor.object, no_window=True)
         export.set_datalink_export()
@@ -2486,7 +2487,7 @@ class DataLink(QObject):
                 elif actor.is_prop():
                     self.send_prop(actor)
                 else:
-                    utils.log_error("Unknown Actor type!")
+                    log_error("Unknown Actor type!")
 
             cc.restore_scene_selection(scene_selection)
             #self.send_frame_sync()
@@ -2519,7 +2520,7 @@ class DataLink(QObject):
             export_file = actor.name + "_Update.fbx"
             export_path = os.path.join(export_folder, export_file)
             if not export_path: continue
-            utils.log_info(f"Export Path: {export_path}")
+            if LI(): log_info(f"Export Path: {export_path}")
             export = exporter.Exporter(actor.object, no_window=True)
             export.set_update_replace_export(full_avatar=not objects)
             export.do_export(file_path=export_path)
@@ -2555,7 +2556,7 @@ class DataLink(QObject):
                 export_file = motion_name + ".fbx"
                 export_path = os.path.join(export_folder, export_file)
                 if not export_path: continue
-                utils.log_info(f"Export Path: {export_path}")
+                if LI(): log_info(f"Export Path: {export_path}")
                 #linked_object = actor.object.GetLinkedObject(RGlobal.GetTime())
                 export = exporter.Exporter(actor.object, no_window=True)
                 export.set_datalink_motion_export()
@@ -2603,7 +2604,7 @@ class DataLink(QObject):
         export_file = actor.name + ".obj"
         export_path = os.path.join(export_folder, export_file)
         if not export_path: return
-        utils.log_info(f"Export Path: {export_path}")
+        if LI(): log_info(f"Export Path: {export_path}")
         # Export Morph Obj
         obj_options = (EExport3DFileOption_ResetToBindPose |
                        EExport3DFileOption_FullBodyPart |
@@ -3000,14 +3001,14 @@ class DataLink(QObject):
             export_file = "RL_Scene_HDRI.hdr"
             export_path = os.path.join(export_folder, export_file)
             if not export_path: return
-            utils.log_info(f"Export Path: {export_path}")
+            if LI(): log_info(f"Export Path: {export_path}")
             #
             if os.path.exists(export_path):
                 try:
                     os.remove(export_path)
                 except:
                     pass
-            utils.log_info(f"Export HDRI: {export_path}")
+            if LI(): log_info(f"Export HDRI: {export_path}")
             VSC.SaveIBLImage(export_path)
             # Send Remote Files First
             remote_id = self.send_remote_files(export_folder)
@@ -3172,13 +3173,13 @@ class DataLink(QObject):
             actor: LinkActor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
             if actor:
                 if actor.is_light() or actor.is_camera():
-                    utils.log_info(f"Actor: {actor.name} sending light or camera ...")
+                    if LI(): log_info(f"Actor: {actor.name} sending light or camera ...")
                     send_actors.append(actor)
                 elif confirm:
-                    utils.log_info(f"Actor: {actor.name} updating motion ...")
+                    if LI(): log_info(f"Actor: {actor.name} updating motion ...")
                     motion_actors.append(actor)
                 else:
-                    utils.log_info(f"Actor: {actor.name} sending actor ...")
+                    if LI(): log_info(f"Actor: {actor.name} sending actor ...")
                     send_actors.append(actor)
         self.sync_lighting()
         self.send_camera_sync()
@@ -3342,7 +3343,7 @@ class DataLink(QObject):
                     skin_def["clip"] = clip
                 else:
                     skin_def["clip"] = None
-                    utils.log_error(f"Unable to create animation clip: {obj.GetName()} ({obj_id})")
+                    log_error(f"Unable to create animation clip: {obj.GetName()} ({obj_id})")
 
         if actor.get_type() == "AVATAR":
 
@@ -3465,12 +3466,12 @@ class DataLink(QObject):
             link_id = actor_data.get("link_id")
             actor = self.data.find_sequence_actor(link_id)
             if actor:
-                utils.log_info(f"Character Template Received: {name}")
+                if LI(): log_info(f"Character Template Received: {name}")
                 if actor.get_type() == "PROP" or actor.get_type() == "AVATAR":
                     actor.set_template(actor_data)
-                    utils.log_info(f" - character using expression drivers: {actor.use_drivers}")
+                    if LI(): log_info(f" - character using expression drivers: {actor.use_drivers}")
             else:
-                utils.log_error(f"Unable to find actor: {name} ({link_id})")
+                log_error(f"Unable to find actor: {name} ({link_id})")
 
     def encode_request_data(self, actors, request_type):
         actors_data = []
@@ -3504,7 +3505,10 @@ class DataLink(QObject):
         self.send_request("POSE")
 
     def send_sequence_request(self):
-        self.send_request("SEQUENCE")
+        if self.abort_sequence():
+            return
+        else:
+            self.send_request("SEQUENCE")
 
     def receive_request(self, data):
         self.update_link_status(f"Receiving Request ...")
@@ -3517,7 +3521,7 @@ class DataLink(QObject):
             character_type = actor_data["type"]
             actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
             actor_data["confirm"] = actor is not None
-            utils.log_info(f"Actor: {name} " + ("Confirmed!" if actor_data["confirm"] else "Missing!"))
+            if LI(): log_info(f"Actor: {name} " + ("Confirmed!" if actor_data["confirm"] else "Missing!"))
             if actor:
                 actor_type = actor.get_type()
                 if actor.get_link_id() != link_id:
@@ -3794,11 +3798,11 @@ class DataLink(QObject):
             imported_objects = imp.import_fbx()
             if imported_objects:
                 self.update_link_status(f"Character Imported: {name}", True)
-                utils.log_info(f"Looking for imported Actor: {link_id} / {name} / {character_type}")
+                if LI(): log_info(f"Looking for imported Actor: {link_id} / {name} / {character_type}")
                 actor = LinkActor.find_actor(link_id, search_name=name, search_type=character_type)
                 if actor and (actor.get_link_id() != link_id or actor.name != name):
                     # sometimes CC or Blender will change the name or link_id, so let Blender know of the change
-                    utils.log_info(f"Imported Actor has different ID: {link_id} != {actor.get_link_id()} or {name} != {actor.name} / {character_type}")
+                    if LI(): log_info(f"Imported Actor has different ID: {link_id} != {actor.get_link_id()} or {name} != {actor.name} / {character_type}")
                     # now tell Blender of the new avatar ID
                     self.update_link_status(f"Updating Blender: {actor.name}", True)
                     self.send_actor_update(actor, name, link_id)
@@ -3818,10 +3822,10 @@ class DataLink(QObject):
             remote_tar_file = link_service.get_remote_tar_file_path(remote_id)
             remote_files_folder = link_service.get_unpacked_tar_file_folder(remote_id)
             if os.path.exists(remote_tar_file):
-                utils.log_info(f"Cleaning up remote file package: {remote_tar_file}")
+                if LI(): log_info(f"Cleaning up remote file package: {remote_tar_file}")
                 os.remove(remote_tar_file)
             if os.path.exists(remote_files_folder):
-                utils.log_info(f"Cleaning up remote file folder: {remote_files_folder}")
+                if LI(): log_info(f"Cleaning up remote file folder: {remote_files_folder}")
                 shutil.rmtree(remote_files_folder)
 
     def receive_morph(self, data):
@@ -3862,7 +3866,7 @@ class DataLink(QObject):
             results = cc.find_actor_source_meshes(mesh_name, obj_name, avatar)
             if results:
                 for cc_mesh_name in results:
-                    utils.log_info(f"Replace Mesh: {obj_name} / {mesh_name} -> {cc_mesh_name}")
+                    if LI(): log_info(f"Replace Mesh: {obj_name} / {mesh_name} -> {cc_mesh_name}")
                     status = None
                     try:
                         status: RStatus = avatar.ReplaceMesh(cc_mesh_name, obj_file_path)
@@ -3872,10 +3876,10 @@ class DataLink(QObject):
                     if status == RStatus.Success:
                         RGlobal.ForceViewportUpdate()
                         self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
-                        utils.log_info(f"Replace mesh success!")
+                        if LI(): log_info(f"Replace mesh success!")
                         return
                     else:
-                        utils.log_error(f"Replace mesh failed!")
+                        log_error(f"Replace mesh failed!")
             qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
             return
         qt.message_box("Error", f"Unable to find actor: {actor_name} / {character_type}")
@@ -3904,7 +3908,7 @@ LINK: DataLink = None
 
 def link_auto_start():
     global LINK
-    utils.log_info("Auto-starting Data-link!")
+    if LI(): log_info("Auto-starting Data-link!")
     if not LINK:
         LINK = DataLink()
         LINK.link_start()
@@ -3921,7 +3925,7 @@ def link_stop():
     running = False
     visible = False
     if LINK:
-        utils.log_info("Stopping Data-link!")
+        if LI(): log_info("Stopping Data-link!")
         running = LINK.is_listening()
         visible = LINK.is_shown()
         LINK.link_stop()

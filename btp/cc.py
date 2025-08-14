@@ -15,6 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
+del abs
 import os, json, math
 from . import utils, vars
 from enum import IntEnum
@@ -477,8 +478,8 @@ class CCJsonData():
     def get_character_generation(self):
         try:
             return self.json_data[self.character_id]["Object"][self.character_id]["Generation"]
-        except:
-            return "Unknown"
+        except: ...
+        return "Unknown"
 
     def set_character_generation(self, generation_type):
         try:
@@ -486,9 +487,21 @@ class CCJsonData():
                 generation = vars.AVATAR_GENERATIONS[generation_type]
                 self.json_data[self.character_id]["Object"][self.character_id]["Generation"] = generation
                 return generation
-        except:
-            pass
+        except: ...
         return ""
+
+    def get_expression_set(self):
+        try:
+            return self.json_data[self.character_id]["Object"][self.character_id]["Expression"]
+        except: ...
+        return None
+
+    def set_expression_set(self, expression_data):
+        try:
+            self.json_data[self.character_id]["Object"][self.character_id]["Expression"] = expression_data
+            return True
+        except: ...
+        return False
 
     def get_avatar_type(self):
         try:
@@ -2356,6 +2369,14 @@ def dumps_quaternion(q: RQuaternion):
 def dumps_quaternion_xyz(q: RQuaternion):
     x,y,z = quaternion_to_euler_xyz(q, degrees=True)
     return f"({x:.3f}, {y:.3f}, {z:.3f})"
+
+
+def vector3_to_array(v: RVector3):
+    return [v.x, v.y, v.z]
+
+
+def quaternion_to_array(q: RQuaternion):
+    return [q.x, q.y, q.z, q.w]
 
 
 def quaternion_to_angle_axis(q: RQuaternion, axis: RVector3):

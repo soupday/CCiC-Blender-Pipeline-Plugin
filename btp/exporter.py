@@ -15,6 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
+del abs
 import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
@@ -114,11 +115,11 @@ class Exporter:
         self.option_t_pose = prefs.EXPORT_T_POSE
         self.option_current_pose = prefs.EXPORT_CURRENT_POSE
         self.option_current_animation = prefs.EXPORT_CURRENT_ANIMATION
-        
+
         self.option_export_sub_0 = prefs.EXPORT_SUB_0
         self.option_export_sub_1 = prefs.EXPORT_SUB_1
         self.option_export_sub_2 = prefs.EXPORT_SUB_2
-        
+
         self.option_animation_only = prefs.EXPORT_MOTION_ONLY
         self.option_hik_data = prefs.EXPORT_HIK
         self.option_profile_data = prefs.EXPORT_FACIAL_PROFILE
@@ -333,15 +334,15 @@ class Exporter:
         box.setSpacing(0)
         self.radio_export_pose = qt.radio_button(box, "Current Frame", False)
         self.radio_export_anim = qt.radio_button(box, "All", True)
-        
+
         qt.spacing(layout, 8)
-        
+
         self.group_export_subd, box = qt.group(layout, title="HD Character", vertical=False, horizontal=True)
         box.setSpacing(0)
         self.radio_export_sub_0 = qt.radio_button(box, "SubD 0", True)
         self.radio_export_sub_1 = qt.radio_button(box, "SubD 1", False)
         self.radio_export_sub_2 = qt.radio_button(box, "SubD 2", False)
-        
+
         qt.spacing(layout, 8)
 
         col = qt.column(layout)
@@ -664,7 +665,7 @@ class Exporter:
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
             self.check_non_standard_export()
-            
+
         else:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
@@ -866,16 +867,17 @@ class Exporter:
         else:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
-        
-        if (self.option_export_sub_0):
-            export_fbx_setting.SetExportLevel(0)
-        elif (self.option_export_sub_1):
-            export_fbx_setting.SetExportLevel(1)
-        elif (self.option_export_sub_2):
-            export_fbx_setting.SetExportLevel(2)
-        else:
-            export_fbx_setting.SetExportLevel(0)
-        
+
+        if hasattr(export_fbx_setting, "SetExportLevel"):
+            if (self.option_export_sub_0):
+                export_fbx_setting.SetExportLevel(0)
+            elif (self.option_export_sub_1):
+                export_fbx_setting.SetExportLevel(1)
+            elif (self.option_export_sub_2):
+                export_fbx_setting.SetExportLevel(2)
+            else:
+                export_fbx_setting.SetExportLevel(0)
+
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
 
@@ -1032,6 +1034,65 @@ class Exporter:
                         self.update_progress(2, "Exported Facial Profile.", True)
                     else:
                         self.update_progress(2, "No Facial Profile!", True)
+
+            # expression
+            expression_data = json_data.get_expression_set()
+            FC: RIFaceComponent = self.avatar.GetFaceComponent()
+            SC = self.avatar.GetSkeletonComponent()
+            if not expression_data and FC and SC:
+
+                FACIAL_EXPRESSION_PREFIXES = [
+                    "Mouth_",
+                    "Jaw_",
+                    "Eye_",
+                    "Right_Eyeball_",
+                    "Left_Eyeball_",
+                    "A25_Jaw_",
+                    "Move_Jaw_",
+                    "Turn_Jaw_",
+                ]
+
+                IGNORE_EXPRESSIONS = [ "Mouth_Close" ]
+
+                FACE_BONES = [ "CC_Base_JawRoot", "CC_Base_FacialBone", "CC_Base_Head",
+                               "CC_Base_Tongue01", "CC_Base_Tongue02", "CC_Base_Tongue03",
+                               "CC_Base_R_Eye", "CC_Base_L_Eye",
+                               "CC_Base_Teeth01", "CC_Base_Teeth02", "CC_Base_UpperJaw" ]
+
+                expression_data = {}
+                bones = SC.GetSkinBones()
+                expressions = FC.GetExpressionNames("")
+                for expression in expressions:
+                    is_face = False
+                    if expression in IGNORE_EXPRESSIONS:
+                        continue
+                    for face_prefix in FACIAL_EXPRESSION_PREFIXES:
+                        if expression.startswith(face_prefix):
+                            is_face = True
+                            break
+                    bone_data = {}
+                    bone: RINode
+                    for bone in bones:
+                        bone_name = bone.GetName()
+                        if is_face and bone_name not in FACE_BONES:
+                            continue
+                        try:
+                            ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                        except:
+                            ERM = RMatrix3(1, 0, 0,
+                                           0, 1, 0,
+                                           0, 0, 1)
+                        ERQ = RQuaternion()
+                        ERQ.FromRotationMatrix(ERM)
+                        euler_angle_x, euler_angle_y, euler_angle_z = cc.quaternion_to_euler_xyz(ERQ, degrees=True)
+                        t = abs(euler_angle_x) + abs(euler_angle_y) + abs(euler_angle_z)
+                        if t > 0.1:
+                            bone_data[bone_name] = {
+                                    "Rotation": cc.quaternion_to_array(ERQ),
+                                }
+                    if bone_data:
+                        expression_data[expression] = { "Bones": bone_data }
+                json_data.set_expression_set(expression_data)
 
             self.update_progress(0, "Exporting Additional Physics ...", True)
 
