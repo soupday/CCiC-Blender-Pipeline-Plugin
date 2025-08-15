@@ -47,6 +47,8 @@ IC_USE_FACIAL_EXPRESSIONS: bool = False
 IC_DELETE_HIDDEN_FACES: bool = True
 IC_BAKE_TEXTURES: bool = True
 IC_EXPORT_MODE: str = "Animation"
+CC_EXPORT_MAX_SUB_LEVEL: int = 2
+IC_EXPORT_MAX_SUB_LEVEL: int = 2
 # Export prefs
 EXPORT_PRESET: int = 0
 EXPORT_BAKE_HAIR: bool = False
@@ -54,9 +56,7 @@ EXPORT_BAKE_SKIN: bool = False
 EXPORT_T_POSE: bool = False
 EXPORT_CURRENT_POSE: bool = False
 EXPORT_CURRENT_ANIMATION: bool = False
-EXPORT_SUB_0: bool = False
-EXPORT_SUB_1: bool = False
-EXPORT_SUB_2: bool = True
+EXPORT_SUB_LEVEL: int = 2
 EXPORT_MOTION_ONLY: bool = False
 EXPORT_HIK: bool = False
 EXPORT_FACIAL_PROFILE: bool = False
@@ -65,7 +65,7 @@ EXPORT_REMOVE_HIDDEN: bool = False
 TOOLBAR_STATE_CC: bool = True
 TOOLBAR_STATE_IC: bool = True
 
-BLENDER_VERSIONS = [ "4.5", "4.4", "4.3", "4.2", "4.1", "4.0",
+BLENDER_VERSIONS = [ "4.6", "4.5", "4.4", "4.3", "4.2", "4.1", "4.0",
                      "3.6", "3.5", "3.4", "3.3", "3.2", "3.1", "3.0",
                      "2.93", "2.92", "2.91", "2.90", "2.83" ]
 
@@ -91,6 +91,8 @@ class Preferences(QObject):
     checkbox_ic_bake_textures: QCheckBox = None
     combo_cc_export_mode: QComboBox = None
     combo_ic_export_mode: QComboBox = None
+    combo_cc_export_max_sub_level: QComboBox = None
+    combo_ic_export_max_sub_level: QComboBox = None
     no_update: bool = False
 
     def __init__(self):
@@ -108,7 +110,7 @@ class Preferences(QObject):
 
     def create_window(self):
         W = 500
-        H = 520
+        H = 540
         if cc.is_cc():
             H = 580
         self.window, layout = qt.window(f"Blender Pipeline Plug-in Preferences", width=W, height=H, fixed=True, show_hide=self.on_show_hide)
@@ -154,8 +156,7 @@ class Preferences(QObject):
 
         if cc.is_cc():
 
-            qt.label(grid, "Export With:", style=qt.STYLE_NONE,
-                     row=1, col=0)
+            qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=1, col=0)
             self.combo_cc_export_mode = qt.combobox(grid, CC_EXPORT_MODE, options = [
                                                         "Bind Pose", "Current Pose", "Animation"
                                                     ], update=self.update_combo_cc_export_mode,
@@ -165,49 +166,60 @@ class Preferences(QObject):
             self.textbox_morph_slider_path = qt.textbox(grid, DEFAULT_MORPH_SLIDER_PATH, update=self.update_textbox_morph_slider_path,
                                                     row=2, col=1)
 
+            qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=3, col=0)
+            self.combo_cc_export_max_sub_level = qt.combobox(grid, str(CC_EXPORT_MAX_SUB_LEVEL),
+                                                            options = [ "0", "1", "2" ],
+                                                            update=self.update_combo_cc_export_max_sub_level,
+                                                            row=3, col=1)
+
             self.checkbox_cc_use_facial_profile = qt.checkbox(grid, "Use Facial Setting", CC_USE_FACIAL_PROFILE,
                                                             update=self.update_checkbox_cc_use_facial_profile,
-                                                            row=3, col=0, col_span=2)
+                                                            row=4, col=0, col_span=2)
             self.checkbox_cc_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", CC_USE_FACIAL_EXPRESSIONS,
-                                                                update=self.update_checkbox_cc_use_facial_expressions,
-                                                                row=4, col=0, col_span=2)
+                                                            update=self.update_checkbox_cc_use_facial_expressions,
+                                                            row=5, col=0, col_span=2)
             self.checkbox_cc_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", CC_USE_HIK_PROFILE,
-                                                        update=self.update_checkbox_cc_use_hik_profile,
-                                                        row=5, col=0, col_span=2)
+                                                            update=self.update_checkbox_cc_use_hik_profile,
+                                                            row=6, col=0, col_span=2)
             self.checkbox_cc_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", CC_DELETE_HIDDEN_FACES,
                                                             update=self.update_checkbox_cc_delete_hidden_faces,
-                                                            row=6, col=0, col_span=2)
+                                                            row=7, col=0, col_span=2)
             self.checkbox_cc_bake_textures = qt.checkbox(grid, "Bake Textures", CC_BAKE_TEXTURES,
                                                             update=self.update_checkbox_cc_bake_textures,
-                                                            row=7, col=0, col_span=2)
+                                                            row=8, col=0, col_span=2)
             self.checkbox_export_morph_materials = qt.checkbox(grid, "Export Materials with Send Morph", EXPORT_MORPH_MATERIALS,
                                                             update=self.update_checkbox_export_morph_materials,
-                                                            row=8, col=0, col_span=2)
+                                                            row=9, col=0, col_span=2)
 
         else:
 
-            qt.label(grid, "Export With:", style=qt.STYLE_NONE,
-                     row=1, col=0)
+            qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=1, col=0)
             self.combo_ic_export_mode = qt.combobox(grid, IC_EXPORT_MODE, options = [
                                                         "Bind Pose", "Current Pose", "Animation"
                                                     ], update=self.update_combo_ic_export_mode,
                                                     row=1, col=1)
 
+            qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=2, col=0)
+            self.combo_ic_export_max_sub_level = qt.combobox(grid, str(IC_EXPORT_MAX_SUB_LEVEL),
+                                                            options = [ "0", "1", "2" ],
+                                                            update=self.update_combo_ic_export_max_sub_level,
+                                                            row=2, col=1)
+
             self.checkbox_ic_use_facial_profile = qt.checkbox(grid, "Use Facial Setting", IC_USE_FACIAL_PROFILE,
                                                             update=self.update_checkbox_ic_use_facial_profile,
-                                                            row=2, col=0, col_span=2)
+                                                            row=3, col=0, col_span=2)
             self.checkbox_ic_use_facial_expressions = qt.checkbox(grid, "Use Facial Expressions", IC_USE_FACIAL_EXPRESSIONS,
-                                                                update=self.update_checkbox_ic_use_facial_expressions,
-                                                                row=3, col=0, col_span=2)
+                                                            update=self.update_checkbox_ic_use_facial_expressions,
+                                                            row=4, col=0, col_span=2)
             self.checkbox_ic_use_hik_profile = qt.checkbox(grid, "Use HIK Profile", IC_USE_HIK_PROFILE,
-                                                        update=self.update_checkbox_ic_use_hik_profile,
-                                                        row=4, col=0, col_span=2)
+                                                            update=self.update_checkbox_ic_use_hik_profile,
+                                                            row=5, col=0, col_span=2)
             self.checkbox_ic_delete_hidden_faces = qt.checkbox(grid, "Delete Hidden Faces", IC_DELETE_HIDDEN_FACES,
                                                             update=self.update_checkbox_ic_delete_hidden_faces,
-                                                            row=5, col=0, col_span=2)
+                                                            row=6, col=0, col_span=2)
             self.checkbox_ic_bake_textures = qt.checkbox(grid, "Bake Textures", IC_BAKE_TEXTURES,
                                                             update=self.update_checkbox_ic_bake_textures,
-                                                            row=6, col=0, col_span=2)
+                                                            row=7, col=0, col_span=2)
 
         qt.spacing(layout, 10)
         qt.stretch(layout, 1)
@@ -367,6 +379,17 @@ class Preferences(QObject):
         write_temp_state()
         self.no_update = False
 
+    def update_combo_cc_export_max_sub_level(self):
+        global CC_EXPORT_MAX_SUB_LEVEL
+        if self.no_update:
+            return
+        self.no_update = True
+        text = self.combo_cc_export_max_sub_level.currentText()
+        levels = { "0": 0, "1": 1, "2": 2 }
+        CC_EXPORT_MAX_SUB_LEVEL = levels[text]
+        write_temp_state()
+        self.no_update = False
+
     def update_checkbox_ic_use_facial_profile(self):
         global IC_USE_FACIAL_PROFILE
         if self.no_update:
@@ -427,6 +450,17 @@ class Preferences(QObject):
             return
         self.no_update = True
         IC_EXPORT_MODE = self.combo_ic_export_mode.currentText()
+        write_temp_state()
+        self.no_update = False
+
+    def update_combo_ic_export_max_sub_level(self):
+        global IC_EXPORT_MAX_SUB_LEVEL
+        if self.no_update:
+            return
+        self.no_update = True
+        text = self.combo_ic_export_max_sub_level.currentText()
+        levels = { "0": 0, "1": 1, "2": 2 }
+        IC_EXPORT_MAX_SUB_LEVEL = levels[text]
         write_temp_state()
         self.no_update = False
 
@@ -498,6 +532,8 @@ def read_temp_state():
     global IC_BAKE_TEXTURES
     global CC_EXPORT_MODE
     global IC_EXPORT_MODE
+    global CC_EXPORT_MAX_SUB_LEVEL
+    global IC_EXPORT_MAX_SUB_LEVEL
     global EXPORT_PRESET
     global EXPORT_BAKE_HAIR
     global EXPORT_BAKE_SKIN
@@ -508,6 +544,7 @@ def read_temp_state():
     global EXPORT_HIK
     global EXPORT_FACIAL_PROFILE
     global EXPORT_REMOVE_HIDDEN
+    global EXPORT_SUB_LEVEL
     global TOOLBAR_STATE_CC
     global TOOLBAR_STATE_IC
 
@@ -538,6 +575,8 @@ def read_temp_state():
             IC_BAKE_TEXTURES = get_attr(temp_state_json, "ic_bake_textures", True)
             CC_EXPORT_MODE = get_attr(temp_state_json, "cc_export_mode", "Animation")
             IC_EXPORT_MODE = get_attr(temp_state_json, "ic_export_mode", "Animation")
+            CC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "cc_export_max_sub_level", 2)
+            IC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "ic_export_max_sub_level", 2)
             EXPORT_PRESET = get_attr(temp_state_json, "export_preset", -1)
             EXPORT_BAKE_HAIR = get_attr(temp_state_json, "export_bake_hair", False)
             EXPORT_BAKE_SKIN = get_attr(temp_state_json, "export_bake_skin", False)
@@ -548,6 +587,7 @@ def read_temp_state():
             EXPORT_HIK = get_attr(temp_state_json, "export_hik", False)
             EXPORT_FACIAL_PROFILE = get_attr(temp_state_json, "export_facial_profile", False)
             EXPORT_REMOVE_HIDDEN = get_attr(temp_state_json, "export_remove_hidden", False)
+            EXPORT_SUB_LEVEL = get_attr(temp_state_json, "export_sub_level", 2)
             TOOLBAR_STATE_CC = get_attr(temp_state_json, "toolbar_state_cc", True)
             TOOLBAR_STATE_IC = get_attr(temp_state_json, "toolbar_state_ic", True)
 
@@ -572,6 +612,8 @@ def write_temp_state():
     global IC_BAKE_TEXTURES
     global CC_EXPORT_MODE
     global IC_EXPORT_MODE
+    global CC_EXPORT_MAX_SUB_LEVEL
+    global IC_EXPORT_MAX_SUB_LEVEL
     global EXPORT_PRESET
     global EXPORT_BAKE_HAIR
     global EXPORT_BAKE_SKIN
@@ -582,6 +624,7 @@ def write_temp_state():
     global EXPORT_HIK
     global EXPORT_FACIAL_PROFILE
     global EXPORT_REMOVE_HIDDEN
+    global EXPORT_SUB_LEVEL
     global TOOLBAR_STATE_CC
     global TOOLBAR_STATE_IC
 
@@ -608,6 +651,8 @@ def write_temp_state():
         "ic_bake_textures": IC_BAKE_TEXTURES,
         "cc_export_mode": CC_EXPORT_MODE,
         "ic_export_mode": IC_EXPORT_MODE,
+        "cc_export_max_sub_level": CC_EXPORT_MAX_SUB_LEVEL,
+        "ic_export_max_sub_level": IC_EXPORT_MAX_SUB_LEVEL,
         "export_preset": EXPORT_PRESET,
         "export_bake_hair": EXPORT_BAKE_HAIR,
         "export_bake_skin": EXPORT_BAKE_SKIN,
@@ -618,6 +663,7 @@ def write_temp_state():
         "export_hik": EXPORT_HIK,
         "export_facial_profile": EXPORT_FACIAL_PROFILE,
         "export_remove_hidden": EXPORT_REMOVE_HIDDEN,
+        "export_sub_level": EXPORT_SUB_LEVEL,
         "toolbar_state_cc": TOOLBAR_STATE_CC,
         "toolbar_state_ic": TOOLBAR_STATE_IC,
     }

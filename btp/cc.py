@@ -1378,12 +1378,33 @@ def has_link_id(obj: RIObject):
     return False
 
 
+def validate_link_id(obj):
+    if obj:
+        link_id = get_data_block_str(obj, "DataLink", "LinkID")
+        link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and not link_id_name:
+            set_link_id(obj, link_id)
+            link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and link_id_name == obj.GetName():
+            return True
+    return False
+
+
 def get_link_id(obj: RIObject, add_if_missing=False):
     if obj:
         link_id = get_data_block_str(obj, "DataLink", "LinkID")
+        link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and not link_id_name:
+            set_link_id(obj, link_id)
+            link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and link_id_name != obj.GetName():
+            link_id = utils.random_string(20)
+            utils.log_info(f"Object Name changed ({link_id_name} => {obj.GetName()}), assigning new link ID: {link_id}")
+            set_link_id(obj, link_id)
         if not link_id:
-            link_id = str(obj.GetID())
+            link_id = utils.random_string(20)
             if add_if_missing:
+                utils.log_info(f"Assigning new link ID ({obj.GetName()}): {link_id}")
                 set_link_id(obj, link_id)
         return link_id
     return None
@@ -1393,8 +1414,10 @@ def set_link_id(obj: RIObject, link_id):
     if obj:
         data_block: RDataBlock = add_data_block(obj, "DataLink")
         add_attr(data_block, "LinkID", EAttributeType_String, EAttributeFlag_Default)
-        value = RVariant(str(link_id))
-        data_block.SetData("LinkID", value)
+        link_id_value = RVariant(str(link_id))
+        link_id_name_value = RVariant(obj.GetName())
+        data_block.SetData("LinkID", link_id_value)
+        data_block.SetData("LinkIDName", link_id_name_value)
 
 
 def find_object_by_link_id(link_id):

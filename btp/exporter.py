@@ -67,7 +67,7 @@ class Exporter:
     progress_bar = None
     group_export_range: QGroupBox = None
     combo_export_mode: QComboBox = None
-    group_export_subd: QComboBox = None
+    group_export_subd: QGroupBox  = None
     label_selected: QLabel = None
     button_export: QPushButton = None
     check_bakehair: QCheckBox = None
@@ -84,6 +84,7 @@ class Exporter:
     radio_export_sub_0: QRadioButton = None
     radio_export_sub_1: QRadioButton = None
     radio_export_sub_2: QRadioButton = None
+    option_export_sub_level = 2
     option_preset = 0
     option_bakehair = False
     option_bakeskin = False
@@ -115,11 +116,7 @@ class Exporter:
         self.option_t_pose = prefs.EXPORT_T_POSE
         self.option_current_pose = prefs.EXPORT_CURRENT_POSE
         self.option_current_animation = prefs.EXPORT_CURRENT_ANIMATION
-
-        self.option_export_sub_0 = prefs.EXPORT_SUB_0
-        self.option_export_sub_1 = prefs.EXPORT_SUB_1
-        self.option_export_sub_2 = prefs.EXPORT_SUB_2
-
+        self.option_export_sub_level = prefs.EXPORT_SUB_LEVEL
         self.option_animation_only = prefs.EXPORT_MOTION_ONLY
         self.option_hik_data = prefs.EXPORT_HIK
         self.option_profile_data = prefs.EXPORT_FACIAL_PROFILE
@@ -339,9 +336,9 @@ class Exporter:
 
         self.group_export_subd, box = qt.group(layout, title="HD Character", vertical=False, horizontal=True)
         box.setSpacing(0)
-        self.radio_export_sub_0 = qt.radio_button(box, "SubD 0", True)
-        self.radio_export_sub_1 = qt.radio_button(box, "SubD 1", False)
-        self.radio_export_sub_2 = qt.radio_button(box, "SubD 2", False)
+        self.radio_export_sub_0 = qt.radio_button(box, "SubD 0", self.option_export_sub_level == 0)
+        self.radio_export_sub_1 = qt.radio_button(box, "SubD 1", self.option_export_sub_level == 1)
+        self.radio_export_sub_2 = qt.radio_button(box, "SubD 2", self.option_export_sub_level == 2)
 
         qt.spacing(layout, 8)
 
@@ -477,9 +474,9 @@ class Exporter:
         if self.check_t_pose: self.check_t_pose.setChecked(self.option_t_pose)
         if self.radio_export_pose: self.radio_export_pose.setChecked(self.option_current_pose)
         if self.radio_export_anim: self.radio_export_anim.setChecked(self.option_current_animation)
-        if self.radio_export_sub_0: self.radio_export_sub_0.setChecked(self.option_export_sub_0)
-        if self.radio_export_sub_1: self.radio_export_sub_1.setChecked(self.option_export_sub_1)
-        if self.radio_export_sub_2: self.radio_export_sub_2.setChecked(self.option_export_sub_2)
+        if self.radio_export_sub_0: self.radio_export_sub_0.setChecked(self.option_export_sub_level == 0)
+        if self.radio_export_sub_1: self.radio_export_sub_1.setChecked(self.option_export_sub_level == 1)
+        if self.radio_export_sub_2: self.radio_export_sub_2.setChecked(self.option_export_sub_level == 2)
         if self.check_animation_only: self.check_animation_only.setChecked(self.option_animation_only)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
         self.update_options_enabled()
@@ -523,15 +520,10 @@ class Exporter:
         if self.radio_export_pose:
             self.option_current_pose = self.radio_export_pose.isChecked() if self.option_preset == 1 else False
             prefs.EXPORT_CURRENT_POSE = self.option_current_pose
-        if self.radio_export_sub_0:
-            self.option_export_sub_0 = self.radio_export_sub_0.isChecked()
-            prefs.EXPORT_SUB_0 = self.option_export_sub_0
-        if self.radio_export_sub_1:
-            self.option_export_sub_1 = self.radio_export_sub_1.isChecked()
-            prefs.EXPORT_SUB_1 = self.option_export_sub_1
-        if self.radio_export_sub_2:
-            self.option_export_sub_2 = self.radio_export_sub_2.isChecked()
-            prefs.EXPORT_SUB_2 = self.option_export_sub_2
+        if self.radio_export_sub_0 and self.radio_export_sub_1 and self.radio_export_sub_2:
+            self.option_export_sub_level = 1 if self.radio_export_sub_1.isChecked() else \
+                                           2 if self.radio_export_sub_2.isChecked() else 0
+            prefs.EXPORT_SUB_LEVEL = self.option_export_sub_level
         if self.check_animation_only:
             self.option_animation_only = self.check_animation_only.isChecked()
             prefs.EXPORT_MOTION_ONLY = self.option_animation_only
@@ -626,6 +618,7 @@ class Exporter:
         self.radio_export_sub_0 = None
         self.radio_export_sub_1 = None
         self.radio_export_sub_2 = None
+        self.group_export_subd = None
         self.check_animation_only = None
         self.check_hik_data = None
         self.check_profile_data = None
@@ -664,6 +657,7 @@ class Exporter:
                 self.option_current_pose = False
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.option_export_sub_level = prefs.CC_EXPORT_MAX_SUB_LEVEL
             self.check_non_standard_export()
 
         else:
@@ -681,6 +675,7 @@ class Exporter:
                 self.option_current_pose = False
             self.option_hik_data = prefs.IC_USE_HIK_PROFILE
             self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+            self.option_export_sub_level = prefs.IC_EXPORT_MAX_SUB_LEVEL
 
     def set_update_replace_export(self, full_avatar=False):
         self.no_options = True
@@ -869,14 +864,7 @@ class Exporter:
             utils.log_info(f"Exporting without motion")
 
         if hasattr(export_fbx_setting, "SetExportLevel"):
-            if (self.option_export_sub_0):
-                export_fbx_setting.SetExportLevel(0)
-            elif (self.option_export_sub_1):
-                export_fbx_setting.SetExportLevel(1)
-            elif (self.option_export_sub_2):
-                export_fbx_setting.SetExportLevel(2)
-            else:
-                export_fbx_setting.SetExportLevel(0)
+            export_fbx_setting.SetExportLevel(self.option_export_sub_level)
 
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
