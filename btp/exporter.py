@@ -81,10 +81,11 @@ class Exporter:
     check_remove_hidden: QCheckBox = None
     radio_export_pose: QRadioButton = None
     radio_export_anim: QRadioButton = None
+    radio_export_sub_c: QRadioButton = None
     radio_export_sub_0: QRadioButton = None
     radio_export_sub_1: QRadioButton = None
     radio_export_sub_2: QRadioButton = None
-    option_export_sub_level = 2
+    option_export_sub_level = -1
     option_preset = 0
     option_bakehair = False
     option_bakeskin = False
@@ -336,6 +337,7 @@ class Exporter:
 
         self.group_export_subd, box = qt.group(layout, title="HD Character", vertical=False, horizontal=True)
         box.setSpacing(0)
+        self.radio_export_sub_c = qt.radio_button(box, "Current", self.option_export_sub_level == -1)
         self.radio_export_sub_0 = qt.radio_button(box, "SubD 0", self.option_export_sub_level == 0)
         self.radio_export_sub_1 = qt.radio_button(box, "SubD 1", self.option_export_sub_level == 1)
         self.radio_export_sub_2 = qt.radio_button(box, "SubD 2", self.option_export_sub_level == 2)
@@ -474,6 +476,7 @@ class Exporter:
         if self.check_t_pose: self.check_t_pose.setChecked(self.option_t_pose)
         if self.radio_export_pose: self.radio_export_pose.setChecked(self.option_current_pose)
         if self.radio_export_anim: self.radio_export_anim.setChecked(self.option_current_animation)
+        if self.radio_export_sub_c: self.radio_export_sub_c.setChecked(self.option_export_sub_level == -1)
         if self.radio_export_sub_0: self.radio_export_sub_0.setChecked(self.option_export_sub_level == 0)
         if self.radio_export_sub_1: self.radio_export_sub_1.setChecked(self.option_export_sub_level == 1)
         if self.radio_export_sub_2: self.radio_export_sub_2.setChecked(self.option_export_sub_level == 2)
@@ -521,8 +524,9 @@ class Exporter:
             self.option_current_pose = self.radio_export_pose.isChecked() if self.option_preset == 1 else False
             prefs.EXPORT_CURRENT_POSE = self.option_current_pose
         if self.radio_export_sub_0 and self.radio_export_sub_1 and self.radio_export_sub_2:
-            self.option_export_sub_level = 1 if self.radio_export_sub_1.isChecked() else \
-                                           2 if self.radio_export_sub_2.isChecked() else 0
+            self.option_export_sub_level = 0 if self.radio_export_sub_0.isChecked() else \
+                                           1 if self.radio_export_sub_1.isChecked() else \
+                                           2 if self.radio_export_sub_2.isChecked() else -1
             prefs.EXPORT_SUB_LEVEL = self.option_export_sub_level
         if self.check_animation_only:
             self.option_animation_only = self.check_animation_only.isChecked()
@@ -615,6 +619,7 @@ class Exporter:
         self.check_bakeskin = None
         self.radio_export_pose = None
         self.radio_export_anim = None
+        self.radio_export_sub_c = None
         self.radio_export_sub_0 = None
         self.radio_export_sub_1 = None
         self.radio_export_sub_2 = None
@@ -863,8 +868,14 @@ class Exporter:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
 
-        if hasattr(export_fbx_setting, "SetExportLevel"):
-            export_fbx_setting.SetExportLevel(self.option_export_sub_level)
+        if (self.avatar and
+            hasattr(export_fbx_setting, "SetExportLevel") and
+            hasattr(self.avatar, "GetMaxSubdivMeshLevel")):
+            max_subd = self.avatar.GetMaxSubdivMeshLevel()
+            subd_level = self.option_export_sub_level
+            if subd_level >= 0 and max_subd >= 0:
+                subd_level = min(max_subd, subd_level)
+            export_fbx_setting.SetExportLevel(subd_level)
 
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)

@@ -47,8 +47,8 @@ IC_USE_FACIAL_EXPRESSIONS: bool = False
 IC_DELETE_HIDDEN_FACES: bool = True
 IC_BAKE_TEXTURES: bool = True
 IC_EXPORT_MODE: str = "Animation"
-CC_EXPORT_MAX_SUB_LEVEL: int = 2
-IC_EXPORT_MAX_SUB_LEVEL: int = 2
+CC_EXPORT_MAX_SUB_LEVEL: int = -1
+IC_EXPORT_MAX_SUB_LEVEL: int = -1
 # Export prefs
 EXPORT_PRESET: int = 0
 EXPORT_BAKE_HAIR: bool = False
@@ -56,7 +56,7 @@ EXPORT_BAKE_SKIN: bool = False
 EXPORT_T_POSE: bool = False
 EXPORT_CURRENT_POSE: bool = False
 EXPORT_CURRENT_ANIMATION: bool = False
-EXPORT_SUB_LEVEL: int = 2
+EXPORT_SUB_LEVEL: int = -1
 EXPORT_MOTION_ONLY: bool = False
 EXPORT_HIK: bool = False
 EXPORT_FACIAL_PROFILE: bool = False
@@ -168,7 +168,7 @@ class Preferences(QObject):
 
             qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=3, col=0)
             self.combo_cc_export_max_sub_level = qt.combobox(grid, str(CC_EXPORT_MAX_SUB_LEVEL),
-                                                            options = [ "0", "1", "2" ],
+                                                            options = [ "Current", "SubD 0", "SubD 1", "SubD 2" ],
                                                             update=self.update_combo_cc_export_max_sub_level,
                                                             row=3, col=1)
 
@@ -201,7 +201,7 @@ class Preferences(QObject):
 
             qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=2, col=0)
             self.combo_ic_export_max_sub_level = qt.combobox(grid, str(IC_EXPORT_MAX_SUB_LEVEL),
-                                                            options = [ "0", "1", "2" ],
+                                                            options = [ "Current", "SubD 0", "SubD 1", "SubD 2" ],
                                                             update=self.update_combo_ic_export_max_sub_level,
                                                             row=2, col=1)
 
@@ -385,7 +385,7 @@ class Preferences(QObject):
             return
         self.no_update = True
         text = self.combo_cc_export_max_sub_level.currentText()
-        levels = { "0": 0, "1": 1, "2": 2 }
+        levels = { "Current": -1, "SubD 0": 0, "SubD 1": 1, "SubD 2": 2 }
         CC_EXPORT_MAX_SUB_LEVEL = levels[text]
         write_temp_state()
         self.no_update = False
@@ -459,7 +459,7 @@ class Preferences(QObject):
             return
         self.no_update = True
         text = self.combo_ic_export_max_sub_level.currentText()
-        levels = { "0": 0, "1": 1, "2": 2 }
+        levels = { "Current": -1, "SubD 0": 0, "SubD 1": 1, "SubD 2": 2 }
         IC_EXPORT_MAX_SUB_LEVEL = levels[text]
         write_temp_state()
         self.no_update = False
@@ -575,8 +575,8 @@ def read_temp_state():
             IC_BAKE_TEXTURES = get_attr(temp_state_json, "ic_bake_textures", True)
             CC_EXPORT_MODE = get_attr(temp_state_json, "cc_export_mode", "Animation")
             IC_EXPORT_MODE = get_attr(temp_state_json, "ic_export_mode", "Animation")
-            CC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "cc_export_max_sub_level", 2)
-            IC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "ic_export_max_sub_level", 2)
+            CC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "cc_export_max_sub_level", -1)
+            IC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "ic_export_max_sub_level", -1)
             EXPORT_PRESET = get_attr(temp_state_json, "export_preset", -1)
             EXPORT_BAKE_HAIR = get_attr(temp_state_json, "export_bake_hair", False)
             EXPORT_BAKE_SKIN = get_attr(temp_state_json, "export_bake_skin", False)
@@ -587,7 +587,7 @@ def read_temp_state():
             EXPORT_HIK = get_attr(temp_state_json, "export_hik", False)
             EXPORT_FACIAL_PROFILE = get_attr(temp_state_json, "export_facial_profile", False)
             EXPORT_REMOVE_HIDDEN = get_attr(temp_state_json, "export_remove_hidden", False)
-            EXPORT_SUB_LEVEL = get_attr(temp_state_json, "export_sub_level", 2)
+            EXPORT_SUB_LEVEL = get_attr(temp_state_json, "export_sub_level", -1)
             TOOLBAR_STATE_CC = get_attr(temp_state_json, "toolbar_state_cc", True)
             TOOLBAR_STATE_IC = get_attr(temp_state_json, "toolbar_state_ic", True)
 
