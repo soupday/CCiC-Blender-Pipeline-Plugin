@@ -1009,6 +1009,7 @@ class LinkService(QObject):
     remote_version: str = None
     remote_path: str = None
     remote_addon: str = None
+    remote_fps: int = 60
     remote_is_local: bool = True
     # temp
     temp_path: str = None
@@ -1270,6 +1271,7 @@ class LinkService(QObject):
                 self.remote_version = json_data["Version"]
                 self.remote_path = json_data["Path"]
                 self.remote_addon = json_data.get("Addon", "x.x.x")
+                self.remote_fps = json_data.get("FPS", 60)
                 self.remote_is_local = json_data.get("Local", True)
                 if LI(): log_info(f"Connected to: {self.remote_app} {self.remote_version} / {self.remote_addon}")
                 if LI(): log_info(f"Using file path: {self.remote_path}")
