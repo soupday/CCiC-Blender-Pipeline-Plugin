@@ -1060,6 +1060,9 @@ class LinkService(QObject):
             self.changed.emit()
         except Exception as e:
             log_error("Stop Server error!", e)
+            self.is_listening = False
+            self.server_sock = None
+            self.server_sockets = []
 
     def start_timer(self):
         self.time = time.time()
@@ -1140,6 +1143,10 @@ class LinkService(QObject):
             self.changed.emit()
         except Exception as e:
             log_error("Stop Client error!", e)
+            self.is_connected = False
+            self.is_connecting = False
+            self.client_sock = None
+            self.client_sockets = []
 
     def has_client_sock(self):
         if self.client_sock and (self.is_connected or self.is_connecting):
