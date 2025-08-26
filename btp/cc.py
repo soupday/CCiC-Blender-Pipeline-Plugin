@@ -1398,11 +1398,11 @@ def get_link_id(obj: RIObject, add_if_missing=False):
             set_link_id(obj, link_id)
             link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
         if link_id and link_id_name != obj.GetName():
-            link_id = utils.random_string(20)
+            link_id = utils.random_string(20, lower_case=False)
             utils.log_info(f"Object Name changed ({link_id_name} => {obj.GetName()}), assigning new link ID: {link_id}")
             set_link_id(obj, link_id)
         if not link_id:
-            link_id = utils.random_string(20)
+            link_id = utils.random_string(20, lower_case=False)
             if add_if_missing:
                 utils.log_info(f"Assigning new link ID ({obj.GetName()}): {link_id}")
                 set_link_id(obj, link_id)

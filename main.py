@@ -15,7 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
-from btp import vars, prefs, cc, qt, tests, importer, exporter, morph, link, gob
+from btp import vars, prefs, utils, cc, qt, tests, importer, exporter, morph, link, gob
 
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
@@ -178,7 +178,7 @@ def menu_reload():
     import importlib
     print("Reloading Scripts...")
     running, visible = link.link_stop()
-    modules = [ vars, prefs, cc, qt, tests, importer, exporter, morph, link, gob ]
+    modules = [ vars, prefs, utils, cc, qt, tests, importer, exporter, morph, link, gob ]
     for module in modules:
         importlib.reload(module)
     print("Done Reloading Scripts.")

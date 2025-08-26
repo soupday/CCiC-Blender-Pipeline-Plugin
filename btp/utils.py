@@ -333,8 +333,11 @@ def srgb_to_linear(color):
     ]
 
 
-def random_string(length):
-    chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+def random_string(length, upper_case=True, lower_case=True, numeric=True):
+    chars = ""
+    if upper_case: chars +=  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if lower_case: chars += "abcdefghijklmnopqrstuvwxyz"
+    if numeric: chars += "0123456789"
     l = len(chars)
     res = ""
     for i in range(0, length):
