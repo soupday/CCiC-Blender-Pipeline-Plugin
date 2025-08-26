@@ -15,6 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
+del abs
 import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
@@ -66,6 +67,7 @@ class Exporter:
     progress_bar = None
     group_export_range: QGroupBox = None
     combo_export_mode: QComboBox = None
+    group_export_subd: QGroupBox  = None
     label_selected: QLabel = None
     button_export: QPushButton = None
     check_bakehair: QCheckBox = None
@@ -79,6 +81,11 @@ class Exporter:
     check_remove_hidden: QCheckBox = None
     radio_export_pose: QRadioButton = None
     radio_export_anim: QRadioButton = None
+    radio_export_sub_c: QRadioButton = None
+    radio_export_sub_0: QRadioButton = None
+    radio_export_sub_1: QRadioButton = None
+    radio_export_sub_2: QRadioButton = None
+    option_export_sub_level = -1
     option_preset = 0
     option_bakehair = False
     option_bakeskin = False
@@ -110,6 +117,7 @@ class Exporter:
         self.option_t_pose = prefs.EXPORT_T_POSE
         self.option_current_pose = prefs.EXPORT_CURRENT_POSE
         self.option_current_animation = prefs.EXPORT_CURRENT_ANIMATION
+        self.option_export_sub_level = prefs.EXPORT_SUB_LEVEL
         self.option_animation_only = prefs.EXPORT_MOTION_ONLY
         self.option_hik_data = prefs.EXPORT_HIK
         self.option_profile_data = prefs.EXPORT_FACIAL_PROFILE
@@ -302,7 +310,7 @@ class Exporter:
 
     def create_options_window(self):
         W = 400
-        H = 520
+        H = 600
         TITLE = f"Blender Pipeline Export FBX"
         self.window, layout = qt.window(TITLE, width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window.SetFeatures(EDockWidgetFeatures_Closable)
@@ -324,6 +332,15 @@ class Exporter:
         box.setSpacing(0)
         self.radio_export_pose = qt.radio_button(box, "Current Frame", False)
         self.radio_export_anim = qt.radio_button(box, "All", True)
+
+        qt.spacing(layout, 8)
+
+        self.group_export_subd, box = qt.group(layout, title="HD Character", vertical=False, horizontal=True)
+        box.setSpacing(0)
+        self.radio_export_sub_c = qt.radio_button(box, "Current", self.option_export_sub_level == -1)
+        self.radio_export_sub_0 = qt.radio_button(box, "SubD 0", self.option_export_sub_level == 0)
+        self.radio_export_sub_1 = qt.radio_button(box, "SubD 1", self.option_export_sub_level == 1)
+        self.radio_export_sub_2 = qt.radio_button(box, "SubD 2", self.option_export_sub_level == 2)
 
         qt.spacing(layout, 8)
 
@@ -459,6 +476,10 @@ class Exporter:
         if self.check_t_pose: self.check_t_pose.setChecked(self.option_t_pose)
         if self.radio_export_pose: self.radio_export_pose.setChecked(self.option_current_pose)
         if self.radio_export_anim: self.radio_export_anim.setChecked(self.option_current_animation)
+        if self.radio_export_sub_c: self.radio_export_sub_c.setChecked(self.option_export_sub_level == -1)
+        if self.radio_export_sub_0: self.radio_export_sub_0.setChecked(self.option_export_sub_level == 0)
+        if self.radio_export_sub_1: self.radio_export_sub_1.setChecked(self.option_export_sub_level == 1)
+        if self.radio_export_sub_2: self.radio_export_sub_2.setChecked(self.option_export_sub_level == 2)
         if self.check_animation_only: self.check_animation_only.setChecked(self.option_animation_only)
         if self.check_remove_hidden: self.check_remove_hidden.setChecked(self.option_remove_hidden)
         self.update_options_enabled()
@@ -469,25 +490,25 @@ class Exporter:
             qt.enable(self.check_t_pose,
                       self.check_remove_hidden, self.check_t_pose,
                       self.check_hik_data, self.check_profile_data,
-                      self.check_bakehair, self.check_bakeskin)
+                      self.check_bakehair, self.check_bakeskin, self.group_export_subd)
         elif self.option_preset == 1:
             qt.disable(self.check_t_pose)
             qt.enable(self.group_export_range, self.check_animation_only,
                       self.check_remove_hidden,
                       self.check_hik_data, self.check_profile_data,
-                      self.check_bakehair, self.check_bakeskin)
+                      self.check_bakehair, self.check_bakeskin, self.group_export_subd)
         elif self.option_preset == 2:
             qt.disable(self.group_export_range, self.check_animation_only)
             qt.enable(self.check_t_pose,
                       self.check_remove_hidden,
                       self.check_hik_data, self.check_profile_data,
-                      self.check_bakehair, self.check_bakeskin)
+                      self.check_bakehair, self.check_bakeskin, self.group_export_subd)
         if not self.props and not self.avatars and not self.lights and not self.cameras:
             qt.disable(self.check_animation_only)
         if not self.avatars:
             qt.disable(self.check_hik_data, self.check_profile_data,
                        self.check_t_pose, self.check_remove_hidden,
-                       self.check_bakehair, self.check_bakeskin)
+                       self.check_bakehair, self.check_bakeskin, self.group_export_subd)
 
 
     def fetch_options(self):
@@ -502,9 +523,11 @@ class Exporter:
         if self.radio_export_pose:
             self.option_current_pose = self.radio_export_pose.isChecked() if self.option_preset == 1 else False
             prefs.EXPORT_CURRENT_POSE = self.option_current_pose
-        if self.radio_export_anim:
-            self.option_current_animation = self.radio_export_anim.isChecked() if self.option_preset == 1 else False
-            prefs.EXPORT_CURRENT_ANIMATION = self.option_current_animation
+        if self.radio_export_sub_0 and self.radio_export_sub_1 and self.radio_export_sub_2:
+            self.option_export_sub_level = 0 if self.radio_export_sub_0.isChecked() else \
+                                           1 if self.radio_export_sub_1.isChecked() else \
+                                           2 if self.radio_export_sub_2.isChecked() else -1
+            prefs.EXPORT_SUB_LEVEL = self.option_export_sub_level
         if self.check_animation_only:
             self.option_animation_only = self.check_animation_only.isChecked()
             prefs.EXPORT_MOTION_ONLY = self.option_animation_only
@@ -596,6 +619,11 @@ class Exporter:
         self.check_bakeskin = None
         self.radio_export_pose = None
         self.radio_export_anim = None
+        self.radio_export_sub_c = None
+        self.radio_export_sub_0 = None
+        self.radio_export_sub_1 = None
+        self.radio_export_sub_2 = None
+        self.group_export_subd = None
         self.check_animation_only = None
         self.check_hik_data = None
         self.check_profile_data = None
@@ -634,7 +662,9 @@ class Exporter:
                 self.option_current_pose = False
             self.option_hik_data = prefs.CC_USE_HIK_PROFILE
             self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
+            self.option_export_sub_level = prefs.CC_EXPORT_MAX_SUB_LEVEL
             self.check_non_standard_export()
+
         else:
             self.option_bakehair = prefs.IC_BAKE_TEXTURES
             self.option_bakeskin = prefs.IC_BAKE_TEXTURES
@@ -650,6 +680,7 @@ class Exporter:
                 self.option_current_pose = False
             self.option_hik_data = prefs.IC_USE_HIK_PROFILE
             self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
+            self.option_export_sub_level = prefs.IC_EXPORT_MAX_SUB_LEVEL
 
     def set_update_replace_export(self, full_avatar=False):
         self.no_options = True
@@ -837,6 +868,15 @@ class Exporter:
             export_fbx_setting.EnableExportMotion(False)
             utils.log_info(f"Exporting without motion")
 
+        if (self.avatar and
+            hasattr(export_fbx_setting, "SetExportLevel") and
+            hasattr(self.avatar, "GetMaxSubdivMeshLevel")):
+            max_subd = self.avatar.GetMaxSubdivMeshLevel()
+            subd_level = self.option_export_sub_level
+            if subd_level >= 0 and max_subd >= 0:
+                subd_level = min(max_subd, subd_level)
+            export_fbx_setting.SetExportLevel(subd_level)
+
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
 
@@ -993,6 +1033,65 @@ class Exporter:
                         self.update_progress(2, "Exported Facial Profile.", True)
                     else:
                         self.update_progress(2, "No Facial Profile!", True)
+
+            # expression
+            expression_data = json_data.get_expression_set()
+            FC: RIFaceComponent = self.avatar.GetFaceComponent()
+            SC = self.avatar.GetSkeletonComponent()
+            if not expression_data and FC and SC:
+
+                FACIAL_EXPRESSION_PREFIXES = [
+                    "Mouth_",
+                    "Jaw_",
+                    "Eye_",
+                    "Right_Eyeball_",
+                    "Left_Eyeball_",
+                    "A25_Jaw_",
+                    "Move_Jaw_",
+                    "Turn_Jaw_",
+                ]
+
+                IGNORE_EXPRESSIONS = [ "Mouth_Close" ]
+
+                FACE_BONES = [ "CC_Base_JawRoot", "CC_Base_FacialBone", "CC_Base_Head",
+                               "CC_Base_Tongue01", "CC_Base_Tongue02", "CC_Base_Tongue03",
+                               "CC_Base_R_Eye", "CC_Base_L_Eye",
+                               "CC_Base_Teeth01", "CC_Base_Teeth02", "CC_Base_UpperJaw" ]
+
+                expression_data = {}
+                bones = SC.GetSkinBones()
+                expressions = FC.GetExpressionNames("")
+                for expression in expressions:
+                    is_face = False
+                    if expression in IGNORE_EXPRESSIONS:
+                        continue
+                    for face_prefix in FACIAL_EXPRESSION_PREFIXES:
+                        if expression.startswith(face_prefix):
+                            is_face = True
+                            break
+                    bone_data = {}
+                    bone: RINode
+                    for bone in bones:
+                        bone_name = bone.GetName()
+                        if is_face and bone_name not in FACE_BONES:
+                            continue
+                        try:
+                            ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                        except:
+                            ERM = RMatrix3(1, 0, 0,
+                                           0, 1, 0,
+                                           0, 0, 1)
+                        ERQ = RQuaternion()
+                        ERQ.FromRotationMatrix(ERM)
+                        euler_angle_x, euler_angle_y, euler_angle_z = cc.quaternion_to_euler_xyz(ERQ, degrees=True)
+                        t = abs(euler_angle_x) + abs(euler_angle_y) + abs(euler_angle_z)
+                        if t > 0.1:
+                            bone_data[bone_name] = {
+                                    "Rotation": cc.quaternion_to_array(ERQ),
+                                }
+                    if bone_data:
+                        expression_data[expression] = { "Bones": bone_data }
+                json_data.set_expression_set(expression_data)
 
             self.update_progress(0, "Exporting Additional Physics ...", True)
 

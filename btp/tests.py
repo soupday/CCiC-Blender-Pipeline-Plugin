@@ -442,7 +442,16 @@ def test_frame_scan():
 
 
 def test():
-    for o in RScene.GetSelectedObjects():
-        if type(o) is RICamera:
-            print(cc.get_camera_data(o))
+    avatar = cc.get_first_avatar()
+    material_component: RIMaterialComponent = avatar.GetMaterialComponent()
+    print(material_component.GetShaderNames())
+    meshes = avatar.GetMeshNames()
+    for mesh in meshes:
+        print(f"Mesh: {mesh}")
+        materials = material_component.GetMaterialNames(mesh)
+        for material in materials:
+            shader = material_component.GetShader(mesh, material)
+            print(f" - Material: {material} - Shader: {shader}")
+            params = material_component.GetShaderParameterNames(mesh, material)
+            print (f"    - Params: {params}")
     return

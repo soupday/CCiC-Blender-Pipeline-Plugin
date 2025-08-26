@@ -15,6 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
+del abs
 import os, json, math
 from . import utils, vars
 from enum import IntEnum
@@ -24,12 +25,14 @@ SHADER_MAPS = { # { "Json_shader_name" : "CC3_shader_name", }
     "Tra": "Traditional",
     "Pbr": "PBR",
     "RLEyeTearline": "Digital_Human Tear Line",
+    "RLEyeTearline_Plus": "New Digital_Human Tear Line",
     "RLHair": "Digital_Human Hair",
     "RLTeethGum": "Digital_Human Teeth Gums",
     "RLEye": "Digital_Human Eye",
     "RLHead": "Digital_Human Head",
     "RLSkin": "Digital_Human Skin",
     "RLEyeOcclusion": "Digital_Human Eye Occlusion",
+    "RLEyeOcclusion_Plus": "New Digital_Human Eye Occlusion",
     "RLTongue": "Digital_Human Tongue",
     "RLSSS": "SSS",
 }
@@ -475,8 +478,8 @@ class CCJsonData():
     def get_character_generation(self):
         try:
             return self.json_data[self.character_id]["Object"][self.character_id]["Generation"]
-        except:
-            return "Unknown"
+        except: ...
+        return "Unknown"
 
     def set_character_generation(self, generation_type):
         try:
@@ -484,9 +487,21 @@ class CCJsonData():
                 generation = vars.AVATAR_GENERATIONS[generation_type]
                 self.json_data[self.character_id]["Object"][self.character_id]["Generation"] = generation
                 return generation
-        except:
-            pass
+        except: ...
         return ""
+
+    def get_expression_set(self):
+        try:
+            return self.json_data[self.character_id]["Object"][self.character_id]["Expression"]
+        except: ...
+        return None
+
+    def set_expression_set(self, expression_data):
+        try:
+            self.json_data[self.character_id]["Object"][self.character_id]["Expression"] = expression_data
+            return True
+        except: ...
+        return False
 
     def get_avatar_type(self):
         try:
@@ -750,6 +765,7 @@ class CCMeshMaterial():
             for shader in SHADER_MAPS:
                 if SHADER_MAPS[shader] == shader_full_name:
                     return shader
+            return None
 
     def set_shader(self, shader):
         material_component = self.material_component()
@@ -1362,12 +1378,33 @@ def has_link_id(obj: RIObject):
     return False
 
 
+def validate_link_id(obj):
+    if obj:
+        link_id = get_data_block_str(obj, "DataLink", "LinkID")
+        link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and not link_id_name:
+            set_link_id(obj, link_id)
+            link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and link_id_name == obj.GetName():
+            return True
+    return False
+
+
 def get_link_id(obj: RIObject, add_if_missing=False):
     if obj:
         link_id = get_data_block_str(obj, "DataLink", "LinkID")
+        link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and not link_id_name:
+            set_link_id(obj, link_id)
+            link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
+        if link_id and link_id_name != obj.GetName():
+            link_id = utils.random_string(20)
+            utils.log_info(f"Object Name changed ({link_id_name} => {obj.GetName()}), assigning new link ID: {link_id}")
+            set_link_id(obj, link_id)
         if not link_id:
-            link_id = str(obj.GetID())
+            link_id = utils.random_string(20)
             if add_if_missing:
+                utils.log_info(f"Assigning new link ID ({obj.GetName()}): {link_id}")
                 set_link_id(obj, link_id)
         return link_id
     return None
@@ -1377,8 +1414,10 @@ def set_link_id(obj: RIObject, link_id):
     if obj:
         data_block: RDataBlock = add_data_block(obj, "DataLink")
         add_attr(data_block, "LinkID", EAttributeType_String, EAttributeFlag_Default)
-        value = RVariant(str(link_id))
-        data_block.SetData("LinkID", value)
+        link_id_value = RVariant(str(link_id))
+        link_id_name_value = RVariant(obj.GetName())
+        data_block.SetData("LinkID", link_id_value)
+        data_block.SetData("LinkIDName", link_id_name_value)
 
 
 def find_object_by_link_id(link_id):
@@ -2353,6 +2392,14 @@ def dumps_quaternion(q: RQuaternion):
 def dumps_quaternion_xyz(q: RQuaternion):
     x,y,z = quaternion_to_euler_xyz(q, degrees=True)
     return f"({x:.3f}, {y:.3f}, {z:.3f})"
+
+
+def vector3_to_array(v: RVector3):
+    return [v.x, v.y, v.z]
+
+
+def quaternion_to_array(q: RQuaternion):
+    return [q.x, q.y, q.z, q.w]
 
 
 def quaternion_to_angle_axis(q: RQuaternion, axis: RVector3):

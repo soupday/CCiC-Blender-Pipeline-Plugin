@@ -27,6 +27,18 @@ LOG_INDENT = 0
 DO_EVENTS = True
 
 
+def LI():
+    return LOG_LEVEL == "ALL" or LOG_LEVEL == "DETAILS"
+
+
+def LW():
+    return LOG_LEVEL == "ALL" or LOG_LEVEL == "DETAILS" or LOG_LEVEL == "WARN"
+
+
+def LD():
+    return LOG_LEVEL == "DETAILS"
+
+
 def log(message):
     log_info(message)
 

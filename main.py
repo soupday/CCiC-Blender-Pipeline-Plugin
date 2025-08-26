@@ -35,10 +35,10 @@ def initialize_plugin():
 
     icon_export = qt.get_icon("BlenderExport.png")
     icon_import = qt.get_icon("BlenderImport.png")
-    icon_link = qt.get_icon("BlenderDataLink.png")
-    icon_blender = qt.get_icon("BIcon.png")
+    icon_link = qt.get_icon("BIcon.png")
+    icon_blender = qt.get_icon("GoB.png")
     icon_settings = qt.get_icon("BlenderSettings.png")
-    icon_morph = qt.get_icon("MeshIcoSphere.png")
+    icon_morph = qt.get_icon("GoMorph.png")
 
     # Menu (CC4 & iClone)
     plugin_menu = qt.find_add_plugin_menu("Blender Pipeline")
