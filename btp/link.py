@@ -1045,7 +1045,7 @@ class LinkService(QObject):
                 log_error(f"Unable to start server on TCP *:{SERVER_PORT}")
 
     def stop_server(self):
-        try:
+       try:
             if self.server_sock:
                 if LI(): log_info(f"Closing Server Socket")
                 try:
