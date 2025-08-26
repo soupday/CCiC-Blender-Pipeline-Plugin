@@ -73,6 +73,7 @@ Changelog
 
 ### 2.3.2
 - Update to import for CC5 SubD characters and new shaders.
+- Export and Datalink options for SubD level exports.
 
 ### 2.3.1
 - Fix to start up errors when not detecting Blender path for the first time.
