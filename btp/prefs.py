@@ -154,6 +154,7 @@ class Preferences(QObject):
         qt.label(grid, "DataLink Send Settings:", style=qt.STYLE_RL_BOLD,
                  row=0, col=0, col_span=2)
 
+        subd_levels = { -1: "Current", 0: "SubD 0", 1: "SubD 1", 2: "SubD 2" }
         if cc.is_cc():
 
             qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=1, col=0)
@@ -167,7 +168,7 @@ class Preferences(QObject):
                                                     row=2, col=1)
 
             qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=3, col=0)
-            self.combo_cc_export_max_sub_level = qt.combobox(grid, str(CC_EXPORT_MAX_SUB_LEVEL),
+            self.combo_cc_export_max_sub_level = qt.combobox(grid, subd_levels[CC_EXPORT_MAX_SUB_LEVEL],
                                                             options = [ "Current", "SubD 0", "SubD 1", "SubD 2" ],
                                                             update=self.update_combo_cc_export_max_sub_level,
                                                             row=3, col=1)
@@ -200,7 +201,7 @@ class Preferences(QObject):
                                                     row=1, col=1)
 
             qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=2, col=0)
-            self.combo_ic_export_max_sub_level = qt.combobox(grid, str(IC_EXPORT_MAX_SUB_LEVEL),
+            self.combo_ic_export_max_sub_level = qt.combobox(grid, subd_levels[IC_EXPORT_MAX_SUB_LEVEL],
                                                             options = [ "Current", "SubD 0", "SubD 1", "SubD 2" ],
                                                             update=self.update_combo_ic_export_max_sub_level,
                                                             row=2, col=1)
