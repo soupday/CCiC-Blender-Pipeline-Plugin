@@ -2230,6 +2230,7 @@ def get_camera_data(camera: RICamera):
         dof_focus = dof_data.GetFocus()
         dof_min_blend_distance = dof_data.GetMinBlendDistance()
         dof_range = dof_data.GetRange()
+        active = RScene.GetCurrentCamera() == camera
         T: RTransform = camera.WorldTransform()
         t: RVector3 = T.T()
         r: RQuaternion = T.R()
@@ -2258,6 +2259,7 @@ def get_camera_data(camera: RICamera):
             "dof_far_transition": dof_far_transition,
             "dof_near_transition": dof_near_transition,
             "dof_min_blend_distance": dof_min_blend_distance, # Blur Edge Sampling Scale
+            "active": active,
         }
         return camera_data
 

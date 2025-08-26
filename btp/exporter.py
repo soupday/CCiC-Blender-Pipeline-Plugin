@@ -1335,7 +1335,8 @@ class Exporter:
                                      camera_data["dof_far_transition"],
                                      camera_data["dof_near_transition"],
                                      camera_data["dof_min_blend_distance"], # Blur Edge Sampling Scale
-                                     camera_data["fov"])
+                                     camera_data["fov"],
+                                     camera_data["active"])
             frames_bytes.extend(frame_bytes)
         frames_header = struct.pack("!I", len(frames_bytes))
         binary_bytes.extend(frames_header)
