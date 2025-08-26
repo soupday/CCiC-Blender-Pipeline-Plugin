@@ -1313,7 +1313,7 @@ class Exporter:
             time = frame_data["time"]
             frame = frame_data["frame"]
             camera_data = frame_data["cameras"][camera_index]
-            frame_bytes = struct.pack("!IIfffffffffff?ffffffff",
+            frame_bytes = struct.pack("!IIfffffffffff?ffffffff?",
                                      time,
                                      frame,
                                      camera_data["loc"][0],
