@@ -2897,7 +2897,8 @@ class DataLink(QObject):
 
                 # pack animateable light data
                 light_data = cc.get_light_data(actor.object)
-                data += struct.pack("!?fffffffff",
+                if light_data:
+                    data += struct.pack("!?fffffffff",
                                     light_data["active"],
                                     light_data["color"][0],
                                     light_data["color"][1],
@@ -2913,7 +2914,8 @@ class DataLink(QObject):
 
                 # pack animateable camera data
                 camera_data = cc.get_camera_data(actor.object)
-                data += struct.pack("!f?fffffff",
+                if camera_data:
+                    data += struct.pack("!f?fffffff",
                                      camera_data["focal_length"],
                                      camera_data["dof_enable"],
                                      camera_data["dof_focus"], # Focus Distance
@@ -2983,7 +2985,8 @@ class DataLink(QObject):
         for actor in actors:
             if actor.is_light():
                 light_data = cc.get_light_data(actor.get_light())
-                data["lights"].append(light_data)
+                if light_data:
+                    data["lights"].append(light_data)
 
         return data
 
