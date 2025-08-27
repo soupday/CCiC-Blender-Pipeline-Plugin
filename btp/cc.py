@@ -1947,10 +1947,12 @@ def get_all_camera_light_data(no_animation=False):
             }
             for light in lights:
                 light_data = get_light_data(light)
-                frame_lights.append(light_data)
+                if light_data:
+                    frame_lights.append(light_data)
             for camera in cameras:
                 camera_data = get_camera_data(camera)
-                frame_cameras.append(camera_data)
+                if camera_data:
+                    frame_cameras.append(camera_data)
             all_data.append(frame_data)
         else:
             time, frame = begin_timeline_scan()
@@ -2103,13 +2105,14 @@ def get_light_data(light: RILight):
     dir_light: RIDirectionalLight = None
     point_light: RIPointLight = None
     light_type = "NONE"
-    if type(light) is RISpotLight:
+    T = type(light)
+    if T is RISpotLight:
         spot_light = light
         light_type = "SPOT"
-    elif type(light) is RIPointLight:
+    elif T is RIPointLight:
         point_light = light
         light_type = "POINT"
-    elif type(light) is RIDirectionalLight:
+    elif T is RIDirectionalLight:
         dir_light = light
         light_type = "DIR"
     else:
@@ -2200,6 +2203,9 @@ def get_light_data(light: RILight):
 
 
 def get_camera_data(camera: RICamera):
+        T = type(camera)
+        if T is not RICamera:
+            return None
         link_id = get_link_id(camera, add_if_missing=True)
         name = camera.GetName()
         time = RGlobal.GetTime()
