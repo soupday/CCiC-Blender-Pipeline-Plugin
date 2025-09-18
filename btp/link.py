@@ -1533,6 +1533,9 @@ class DataLink(QObject):
     info_label_type: QLabel = None
     info_label_link_id: QLabel = None
     #
+    combo_ccic_export_level: QComboBox = None
+    combo_ccic_export_mode: QComboBox = None
+    #
     button_send: QPushButton = None
     button_rigify: QPushButton = None
     button_pose: QPushButton = None
@@ -1635,26 +1638,34 @@ class DataLink(QObject):
         # SEND
         #
         grid = qt.grid(layout)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(2, 2)
-        grid.setColumnStretch(3, 0)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 1)
         grid.setColumnStretch(4, 0)
+        grid.setColumnStretch(5, 2)
+        # 0
         qt.label(grid, "Send:", row=0, col=0)
-        qt.label(grid, f"Motion Prefix:", row=0, col=1)
+        # 1
+        EXPORT_LEVEL = prefs.CC_EXPORT_MAX_SUB_LEVEL if cc.is_cc() else prefs.IC_EXPORT_MAX_SUB_LEVEL
+        EXPORT_LEVELS = { -1: "SubD Current", 0: "SubD 0", 1: "SubD 1", 2: "SubD 2" }
+        self.combo_ccic_export_level = qt.combobox(grid, EXPORT_LEVELS[EXPORT_LEVEL], options = [
+                                                        "SubD Current", "SubD 0", "SubD 1", "SubD 2"
+                                                    ], update=self.update_combo_ccic_export_max_sub_level,
+                                                    row=0, col=1, style=qt.STYLE_RL_BOLD)
+        # 2
+        qt.label(grid, "With:", style=qt.STYLE_NONE, row=0, col=2)
+        # 3
+        EXPORT_MODE = prefs.CC_EXPORT_MODE if cc.is_cc() else prefs.IC_EXPORT_MODE
+        self.combo_ccic_export_mode = qt.combobox(grid, EXPORT_MODE, options = [
+                                                        "No Animation", "Current Pose", "Animation"
+                                                    ], update=self.update_combo_ccic_export_mode,
+                                                    row=0, col=3, style=qt.STYLE_RL_BOLD)
+        # 4
+        qt.label(grid, f"Prefix:", row=0, col=4)
+        # 5
         self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
-                                                     row=0, col=2, update=self.update_motion_prefix)
-        self.toggle_use_fake_user = qt.button(grid, "", self.update_toggle_use_fake_user,
-                                              icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
-                                              toggle=True, value=self.use_fake_user,
-                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=3,
-                                              tooltip="Use Fake User")
-        self.toggle_set_keyframes = qt.button(grid, "", self.update_toggle_set_keyframes,
-                                              icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
-                                              toggle=True, value=self.set_keyframes,
-                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
-                                              row=0, col=4,
-                                              tooltip="Set Keyframes")
+                                                     row=0, col=5, update=self.update_motion_prefix)
 
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
@@ -1687,10 +1698,12 @@ class DataLink(QObject):
                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                    icon_size=48, align_width=align_width)
 
+        grid_header = None
         # MORPH
         #
         if cc.is_cc():
-            qt.label(layout, "Morph:")
+            grid_header = qt.grid(layout)
+            qt.label(grid_header, "Morph:")
             grid = qt.grid(layout)
             grid.setColumnStretch(0,1)
             grid.setColumnStretch(1,1)
@@ -1705,7 +1718,10 @@ class DataLink(QObject):
 
         # LIGHTS & CAMERA
         #
-        qt.label(layout, "Lights & Camera:")
+        grid = qt.grid(layout)
+        qt.label(grid, "Lights & Camera:")
+        if not grid_header:
+            grid_header = grid
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
         grid.setColumnStretch(1,1)
@@ -1717,6 +1733,27 @@ class DataLink(QObject):
                                             row=0, col=1, icon=self.icon_eyes,
                                             width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                             icon_size=48, align_width=align_width)
+
+        grid_header.setColumnStretch(0,1)
+        grid_header.setColumnStretch(1,4)
+        grid_header.setColumnStretch(2,0)
+        grid_header.setColumnStretch(3,0)
+        # 2
+        qt.label(grid_header, "", row=0, col=2)
+        # 3
+        self.toggle_use_fake_user = qt.button(grid_header, "", self.update_toggle_use_fake_user,
+                                              icon=self.icon_fake_user_on if self.use_fake_user else self.icon_fake_user_off,
+                                              toggle=True, value=self.use_fake_user,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=3,
+                                              tooltip="Use Fake User")
+        # 4
+        self.toggle_set_keyframes = qt.button(grid_header, "", self.update_toggle_set_keyframes,
+                                              icon=self.icon_set_keyframes_on if self.set_keyframes else self.icon_set_keyframes_off,
+                                              toggle=True, value=self.set_keyframes,
+                                              style=qt.STYLE_BLENDER_TOGGLE, icon_size=22, width=32,
+                                              row=0, col=4,
+                                              tooltip="Set Keyframes")
 
         # SCENE
         #
@@ -1987,6 +2024,22 @@ class DataLink(QObject):
 
     def update_motion_prefix(self):
         self.motion_prefix = self.textbox_motion_prefix.text()
+
+    def update_combo_ccic_export_max_sub_level(self):
+        text = self.combo_ccic_export_level.currentText()
+        levels = { "SubD Current": -1, "SubD 0": 0, "SubD 1": 1, "SubD 2": 2 }
+        if cc.is_cc():
+            prefs.CC_EXPORT_MAX_SUB_LEVEL = levels[text]
+        else:
+            prefs.IC_EXPORT_MAX_SUB_LEVEL = levels[text]
+        prefs.write_temp_state()
+
+    def update_combo_ccic_export_mode(self):
+        if cc.is_cc():
+            prefs.CC_EXPORT_MODE = self.combo_ccic_export_mode.currentText()
+        else:
+            prefs.IC_EXPORT_MODE = self.combo_ccic_export_mode.currentText()
+        prefs.write_temp_state()
 
     def update_toggle_use_fake_user(self):
         if self.toggle_use_fake_user.isChecked():

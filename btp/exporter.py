@@ -933,6 +933,10 @@ class Exporter:
         export_fbx_setting.SetExportMotionFps(project_fps)
         export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
 
+        if (self.avatar and
+            hasattr(export_fbx_setting, "SetExportLevel")):
+            export_fbx_setting.SetExportLevel(0)
+
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
 

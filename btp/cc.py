@@ -272,26 +272,28 @@ class CCMeshJson():
         try_names.add(safe_export_name(search_mat_name))
         if search_mat_name.endswith("_Transparency"):
             try_names.add(search_mat_name[:-13])
+        json_try_names = set()
         for json_mat_name in self.materials:
-            trunc_mat_name = None
+            if json_mat_name.endswith("_Pbr"):
+                json_mat_name = json_mat_name[:-4]
+                json_try_names.add(json_mat_name)
             if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
-            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
-                return json_mat_name
+                json_mat_name = json_mat_name[:-13]
+                json_try_names.add(json_mat_name)
+            for json_mat_name in json_try_names:
+                if json_mat_name in try_names:
+                    return json_mat_name
         if exact:
             return None
         # try a partial match, but only if there is only one result
         partial_mat_name = None
         partial_mat_count = 0
         for json_mat_name in self.materials:
-            trunc_mat_name = None
-            if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
             for try_name in try_names:
-                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                if try_name in json_mat_name:
                     partial_mat_count += 1
                     if not partial_mat_name:
-                        partial_mat_name = json_mat_name
+                        partial_mat_name = try_name
                     # only count 1 match per try set
                     break
         if partial_mat_count == 1:
@@ -301,7 +303,7 @@ class CCMeshJson():
     def find_material(self, search_mat_name, exact=False):
         mat_name = self.find_material_name(search_mat_name, exact=exact)
         cc_mat_json: CCMaterialJson = None
-        if mat_name:
+        if mat_name and mat_name in self.materials:
             cc_mat_json = self.materials[mat_name]
         return cc_mat_json
 
@@ -358,26 +360,28 @@ class CCPhysicsMeshJson():
         try_names.add(safe_export_name(search_mat_name))
         if search_mat_name.endswith("_Transparency"):
             try_names.add(search_mat_name[:-13])
+        json_try_names = set()
         for json_mat_name in self.materials:
-            trunc_mat_name = None
+            if json_mat_name.endswith("_Pbr"):
+                json_mat_name = json_mat_name[:-4]
+                json_try_names.add(json_mat_name)
             if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
-            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
-                return json_mat_name
+                json_mat_name = json_mat_name[:-13]
+                json_try_names.add(json_mat_name)
+            for json_mat_name in json_try_names:
+                if json_mat_name in try_names:
+                    return json_mat_name
         if exact:
             return None
         # try a partial match, but only if there is only one result
         partial_mat_name = None
         partial_mat_count = 0
         for json_mat_name in self.materials:
-            trunc_mat_name = None
-            if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
             for try_name in try_names:
-                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                if try_name in json_mat_name:
                     partial_mat_count += 1
                     if not partial_mat_name:
-                        partial_mat_name = json_mat_name
+                        partial_mat_name = try_name
                     # only count 1 match per try set
                     break
         if partial_mat_count == 1:
@@ -387,7 +391,7 @@ class CCPhysicsMeshJson():
     def find_material(self, search_mat_name, exact=False):
         mat_name = self.find_material_name(search_mat_name, exact=exact)
         cc_mat_json: CCPhysicsMaterialJson = None
-        if mat_name:
+        if mat_name and mat_name in self.materials:
             cc_mat_json = self.materials[mat_name]
         return cc_mat_json
 
@@ -933,10 +937,11 @@ class CCMeshMaterial():
                     self.json_mat_name = self.mat_json.name
                 else:
                     utils.log_warn(f"Material JSON {self.mat_name} not found!")
-                if self.physx_object:
-                    self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name, exact=exact)
-                    if self.physx_mesh_json:
-                        self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name, exact=exact)
+                if self.mat_json:
+                    if self.physx_object:
+                        self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name, exact=exact)
+                        if self.physx_mesh_json:
+                            self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name, exact=exact)
             else:
                 utils.log_warn(f"Mesh JSON {self.obj_name}/{self.mesh_name} not found!")
 

@@ -159,7 +159,7 @@ class Preferences(QObject):
 
             qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=1, col=0)
             self.combo_cc_export_mode = qt.combobox(grid, CC_EXPORT_MODE, options = [
-                                                        "Bind Pose", "Current Pose", "Animation"
+                                                        "No Animation", "Current Pose", "Animation"
                                                     ], update=self.update_combo_cc_export_mode,
                                                     row=1, col=1)
 
@@ -196,7 +196,7 @@ class Preferences(QObject):
 
             qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=1, col=0)
             self.combo_ic_export_mode = qt.combobox(grid, IC_EXPORT_MODE, options = [
-                                                        "Bind Pose", "Current Pose", "Animation"
+                                                        "No Animation", "Current Pose", "Animation"
                                                     ], update=self.update_combo_ic_export_mode,
                                                     row=1, col=1)
 
@@ -231,6 +231,15 @@ class Preferences(QObject):
             self.textbox_blender_path.setText(BLENDER_PATH)
         if self.textbox_go_b_path:
             self.textbox_go_b_path.setText(DATALINK_FOLDER)
+        subd_levels = { -1: "Current", 0: "SubD 0", 1: "SubD 1", 2: "SubD 2" }
+        if self.combo_cc_export_max_sub_level:
+            self.combo_cc_export_max_sub_level.setCurrentText(subd_levels[CC_EXPORT_MAX_SUB_LEVEL])
+        if self.combo_ic_export_max_sub_level:
+            self.combo_ic_export_max_sub_level.setCurrentText(subd_levels[IC_EXPORT_MAX_SUB_LEVEL])
+        if self.combo_cc_export_mode:
+            self.combo_cc_export_mode.setCurrentText(CC_EXPORT_MODE)
+        if self.combo_ic_export_mode:
+            self.combo_ic_export_mode.setCurrentText(IC_EXPORT_MODE)
         self.no_update = False
 
     def on_show_hide(self, visible):
@@ -591,6 +600,8 @@ def read_temp_state():
             EXPORT_SUB_LEVEL = get_attr(temp_state_json, "export_sub_level", -1)
             TOOLBAR_STATE_CC = get_attr(temp_state_json, "toolbar_state_cc", True)
             TOOLBAR_STATE_IC = get_attr(temp_state_json, "toolbar_state_ic", True)
+    if CC_EXPORT_MODE == "Bind Pose": CC_EXPORT_MODE = "No Animation"
+    if IC_EXPORT_MODE == "Bind Pose": CC_EXPORT_MODE = "No Animation"
 
 
 def write_temp_state():
