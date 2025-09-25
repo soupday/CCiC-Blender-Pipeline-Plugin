@@ -752,7 +752,7 @@ class Importer:
                         if category != "Jaw" and category != "EyeLook" and category != "Head":
                             utils.log(f"Gathering Expressions for Category: {category}")
                             sliders.extend(categories_json[category])
-                    utils.log(f"Importing Gathered Expressions: {sliders}")
+                    utils.log(f"Importing Gathered Expressions: ...")
                     utils.log(f" - Path: {self.path}")
                     res: RLPy.RStatus = facial_profile.ImportMorphs(self.path, True, sliders, "Custom")
                     if res.IsError():

@@ -266,23 +266,25 @@ class CCMeshJson():
     def json(self):
         return self.mesh_json
 
-    def find_material_name(self, search_mat_name, exact=False):
+    def find_material_name(self, search_mat_name, exact=False, any=False):
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
         if search_mat_name.endswith("_Transparency"):
             try_names.add(search_mat_name[:-13])
-        json_try_names = set()
+        json_test_names = {}
         for json_mat_name in self.materials:
-            if json_mat_name.endswith("_Pbr"):
-                json_mat_name = json_mat_name[:-4]
-                json_try_names.add(json_mat_name)
-            if json_mat_name.endswith("_Transparency"):
-                json_mat_name = json_mat_name[:-13]
-                json_try_names.add(json_mat_name)
-            for json_mat_name in json_try_names:
-                if json_mat_name in try_names:
-                    return json_mat_name
+            test_name = json_mat_name
+            json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Pbr"):
+                test_name = test_name[:-4]
+                json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Transparency"):
+                test_name = test_name[:-13]
+                json_test_names[test_name] = json_mat_name
+        for try_name in try_names:
+            if try_name in json_test_names:
+                return json_test_names[try_name]
         if exact:
             return None
         # try a partial match, but only if there is only one result
@@ -293,10 +295,10 @@ class CCMeshJson():
                 if try_name in json_mat_name:
                     partial_mat_count += 1
                     if not partial_mat_name:
-                        partial_mat_name = try_name
+                        partial_mat_name = json_mat_name
                     # only count 1 match per try set
                     break
-        if partial_mat_count == 1:
+        if (any and partial_mat_count > 0) or partial_mat_count == 1:
             return partial_mat_name
         return None
 
@@ -354,23 +356,25 @@ class CCPhysicsMeshJson():
     def json(self):
         return self.physics_mesh_json
 
-    def find_material_name(self, search_mat_name, exact=False):
+    def find_material_name(self, search_mat_name, exact=False, any=False):
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
         if search_mat_name.endswith("_Transparency"):
             try_names.add(search_mat_name[:-13])
-        json_try_names = set()
+        json_test_names = {}
         for json_mat_name in self.materials:
-            if json_mat_name.endswith("_Pbr"):
-                json_mat_name = json_mat_name[:-4]
-                json_try_names.add(json_mat_name)
-            if json_mat_name.endswith("_Transparency"):
-                json_mat_name = json_mat_name[:-13]
-                json_try_names.add(json_mat_name)
-            for json_mat_name in json_try_names:
-                if json_mat_name in try_names:
-                    return json_mat_name
+            test_name = json_mat_name
+            json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Pbr"):
+                test_name = test_name[:-4]
+                json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Transparency"):
+                test_name = test_name[:-13]
+                json_test_names[test_name] = json_mat_name
+        for try_name in try_names:
+            if try_name in json_test_names:
+                return json_test_names[try_name]
         if exact:
             return None
         # try a partial match, but only if there is only one result
@@ -381,10 +385,10 @@ class CCPhysicsMeshJson():
                 if try_name in json_mat_name:
                     partial_mat_count += 1
                     if not partial_mat_name:
-                        partial_mat_name = try_name
+                        partial_mat_name = json_mat_name
                     # only count 1 match per try set
                     break
-        if partial_mat_count == 1:
+        if (any and partial_mat_count > 0) or partial_mat_count == 1:
             return partial_mat_name
         return None
 
