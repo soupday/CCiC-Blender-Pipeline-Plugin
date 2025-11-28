@@ -150,7 +150,8 @@ def add_menu_action(menu: QMenu, name, action=None, toggle=False, icon=None, bla
             to_remove.append(a)
     for a in to_remove:
         menu.removeAction(a)
-    menu_action = QAction(name, menu, checkable=toggle)
+    menu_action: QAction = menu.addAction(name)
+    menu_action.setCheckable(toggle)
     if toggle and on:
         menu_action.setChecked(on)
     if icon:
