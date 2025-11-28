@@ -347,16 +347,13 @@ def frame(layout: QLayout, style = "", line_width = 1):
     return f, l
 
 
-def group(layout: QLayout, style="", title="", vertical=True, horizontal=False):
+def group(layout: QLayout, style="", title=""):
     g = QGroupBox()
     if style:
         g.setStyleSheet(style)
     if title:
         g.setTitle(title)
-    if vertical:
-        l = QVBoxLayout(g)
-    elif horizontal:
-        l = QHBoxLayout(g)
+    l = QVBoxLayout(g)
     layout.addWidget(g)
     return g, l
 
@@ -561,6 +558,7 @@ def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_onl
 
 
 class DComboBox(QWidget):
+    parent = None
     combo: QComboBox = None
     obj = None
     prop = None
@@ -569,16 +567,17 @@ class DComboBox(QWidget):
     no_update: bool = False
     options: list = None
 
-    def __init__(self, layout: QLayout, obj, prop, value, options: list,
+    def __init__(self, parent, layout: QLayout, obj, prop, options: list,
                        row=-1, col=-1, row_span=1, col_span=1, style="",
                        update=None):
         super().__init__()
+        setattr(parent, f"_DComboBox_{prop}_{utils.random_string(20)}", self)
+        self.parent = parent
         self.obj = obj
         self.prop = prop
         value = self.get_value()
         self.default_value = value
         self.options = options
-
         self.combo = QComboBox()
         self.combo.setStyleSheet(style)
         if row >= 0 and col >= 0:
@@ -589,6 +588,8 @@ class DComboBox(QWidget):
             for i, option in enumerate(options):
                 if type(option) is list:
                     self.combo.addItem(option[1])
+                    if value == option[0]:
+                        self.combo.setCurrentIndex(i)
                 else:
                     self.combo.addItem(option)
                     if value == option:
@@ -632,7 +633,7 @@ class DComboBox(QWidget):
                 utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
-    def combo_value_changed(self):
+    def combo_value_changed(self, index):
         if not self.no_update:
             self.no_update = True
             index = self.combo.currentIndex()
@@ -645,8 +646,217 @@ class DComboBox(QWidget):
             self.valueChanged.emit()
             self.no_update = False
 
+    def setVisible(self, visible):
+        self.combo.setVisible(visible)
 
-class DFQSliderSpin(QWidget):
+
+class DCheckBox(QWidget):
+    parent = None
+    checkbox: QCheckBox = None
+    label: QLabel = None
+    obj = None
+    prop = None
+    default_value: bool = False
+    clicked = Signal()
+    valueChanged = Signal()
+    no_update: bool = False
+
+    def __init__(self, parent, layout: QLayout, label, obj, prop,
+                 readOnly=False, row=-1, col=-1, skip=0, label_style="", checkbox_style="",
+                 update=None, clicked=None, default_value=None):
+        super().__init__()
+        setattr(parent, f"_DCheckBox_{prop}_{utils.random_string(20)}", self)
+        self.parent = parent
+        self.obj = obj
+        self.prop = prop
+        value = self.get_value()
+        self.default_value = default_value if default_value is not None else value
+        #
+        if label:
+            self.label = QLabelClickable()
+            self.label.setText(label)
+            self.label.setStyleSheet(label_style)
+        #
+        self.checkbox = QCheckBox()
+        self.checkbox.setChecked(value)
+        self.checkbox.setStyleSheet(checkbox_style)
+        #
+        self.add_to_layout(layout, row, col, skip)
+        #
+        if update:
+            self.valueChanged.connect(update)
+        if clicked:
+            self.clicked.connect(clicked)
+        if self.label:
+            self.label.clicked.connect(self.reset)
+        self.checkbox.stateChanged.connect(self.checkbox_value_changed)
+
+    def add_to_layout(self, layout: QLayout, row, col, skip=0):
+        if row >= 0 and col >= 0:
+            if self.label:
+                layout.addWidget(self.label, row, col)
+                col += 1 + skip
+            layout.addWidget(self.checkbox, row, col)
+        else:
+            if self.label:
+                layout.addWidget(self.label)
+            layout.addWidget(self.checkbox)
+
+    def update_value(self):
+        value = self.get_value()
+        us = self.no_update
+        self.no_update = True
+        self.checkbox.setChecked(value)
+        self.no_update = us
+
+    def set_value(self, value: bool):
+        setattr(self.obj, self.prop, value)
+        us = self.no_update
+        self.no_update = True
+        self.checkbox.setChecked(value)
+        self.no_update = us
+
+    def get_value(self) -> bool:
+        value = None
+        if self.obj and self.prop:
+            if hasattr(self.obj, self.prop):
+                value = getattr(self.obj, self.prop)
+            else:
+                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+        return value
+
+    def reset(self):
+        self.set_value(self.default_value)
+        self.clicked.emit()
+        self.valueChanged.emit()
+
+    def checkbox_value_changed(self):
+        if not self.no_update:
+            self.no_update = True
+            value = self.checkbox.isChecked()
+            setattr(self.obj, self.prop, value)
+            self.valueChanged.emit()
+            self.no_update = False
+
+    def setVisible(self, visible):
+        self.checkbox.setVisible(visible)
+        if self.label:
+            self.label.setVisible(visible)
+
+
+class DSpinBox(QWidget):
+    parent = None
+    spinbox: QSpinBox = None
+    label: QLabel = None
+    obj = None
+    prop = None
+    scale: float = 100
+    min: float = 0
+    max: float = 1
+    step: float = 0.01
+    default_value: int = 0
+    clicked = Signal()
+    valueChanged = Signal()
+    no_update: bool = False
+
+    def __init__(self, parent, layout: QLayout, label, obj, prop, min, max, step, scale=100,
+                 readOnly=False, row=-1, col=-1, skip=0, label_style="", spinbox_style="",
+                 update=None, clicked=None, default_value=None):
+        super().__init__()
+        setattr(parent, f"_DSpinBox_{prop}_{utils.random_string(20)}", self)
+        self.parent = parent
+        self.obj = obj
+        self.prop = prop
+        self.scale = scale
+        self.min = min
+        self.max = max
+        self.step = step
+        value = self.get_value()
+        self.default_value = default_value if default_value is not None else value
+        min *= scale
+        max *= scale
+        step *= scale
+        value *= self.scale
+        #
+        if label:
+            self.label = QLabelClickable()
+            self.label.setText(label)
+            self.label.setStyleSheet(label_style)
+        #
+        self.spinbox = QSpinBox(readOnly=readOnly)
+        self.spinbox.setRange(min, max)
+        self.spinbox.setValue(value)
+        self.spinbox.setSingleStep(step)
+        self.spinbox.setStyleSheet(spinbox_style)
+        #
+        self.add_to_layout(layout, row, col, skip)
+        #
+        if update:
+            self.valueChanged.connect(update)
+        if clicked:
+            self.clicked.connect(clicked)
+        if self.label:
+            self.label.clicked.connect(self.reset)
+        self.spinbox.valueChanged.connect(self.spinbox_value_changed)
+
+    def add_to_layout(self, layout: QLayout, row, col, skip=0):
+        if row >= 0 and col >= 0:
+            if self.label:
+                layout.addWidget(self.label, row, col)
+                col += 1 + skip
+            layout.addWidget(self.spinbox, row, col)
+        else:
+            if self.label:
+                layout.addWidget(self.label)
+            layout.addWidget(self.spinbox)
+
+    def update_value(self):
+        value = self.get_value()
+        scaled = value * self.scale
+        us = self.no_update
+        self.no_update = True
+        self.spinbox.setValue(scaled)
+        self.no_update = us
+
+    def set_value(self, value: float):
+        setattr(self.obj, self.prop, value)
+        scaled = value * self.scale
+        us = self.no_update
+        self.no_update = True
+        self.spinbox.setValue(scaled)
+        self.no_update = us
+
+    def get_value(self):
+        value = None
+        if self.obj and self.prop:
+            if hasattr(self.obj, self.prop):
+                value = getattr(self.obj, self.prop)
+            else:
+                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+        return value
+
+    def reset(self):
+        self.set_value(self.default_value)
+        self.clicked.emit()
+        self.valueChanged.emit()
+
+    def spinbox_value_changed(self):
+        if not self.no_update:
+            self.no_update = True
+            value = self.spinbox.value()
+            descaled = value / self.scale
+            setattr(self.obj, self.prop, descaled)
+            self.valueChanged.emit()
+            self.no_update = False
+
+    def setVisible(self, visible):
+        self.spinbox.setVisible(visible)
+        if self.label:
+            self.label.setVisible(visible)
+
+
+class DSliderSpin(QWidget):
+    parent = None
     spinbox: QSpinBox = None
     label: QLabel = None
     slider: QSlider = None
@@ -660,27 +870,33 @@ class DFQSliderSpin(QWidget):
     clicked = Signal()
     valueChanged = Signal()
     no_update: bool = False
+    reset_props = None
 
-    def __init__(self, layout: QLayout, label, obj, prop, min, max, step, scale=100,
+    def __init__(self, parent, layout: QLayout, label, obj, prop, min, max, step, scale=100,
                  readOnly=False, row=-1, col=-1, skip=0, label_style="", slider_style="", spinbox_style="",
-                 update=None, clicked=None):
+                 update=None, clicked=None, default_value=None, reset_props=None, slider_span=1):
         super().__init__()
+        setattr(parent, f"_DSliderSpin_{prop}_{utils.random_string(20)}", self)
+        self.parent = parent
         self.obj = obj
         self.prop = prop
         self.scale = scale
         self.min = min
         self.max = max
         self.step = step
+        if reset_props:
+            self.reset_props = reset_props if reset_props is list else [reset_props]
         value = self.get_value()
-        self.default_value = value
+        self.default_value = default_value if default_value is not None else value
         min *= scale
         max *= scale
         step *= scale
         value *= self.scale
         #
-        self.label = QLabelClickable()
-        self.label.setText(label)
-        self.label.setStyleSheet(label_style)
+        if label:
+            self.label = QLabelClickable()
+            self.label.setText(label)
+            self.label.setStyleSheet(label_style)
         #
         self.slider = QSlider(HORIZONTAL)
         self.slider.setRange(min, max)
@@ -694,24 +910,30 @@ class DFQSliderSpin(QWidget):
         self.spinbox.setSingleStep(step)
         self.spinbox.setStyleSheet(spinbox_style)
         #
-        if row >= 0 and col >= 0:
-            layout.addWidget(self.label, row, col)
-            col += 1 + skip
-            layout.addWidget(self.slider, row, col)
-            col += 1 + skip
-            layout.addWidget(self.spinbox, row, col)
-        else:
-            layout.addWidget(self.label)
-            layout.addWidget(self.slider)
-            layout.addWidget(self.spinbox)
+        self.add_to_layout(layout, row, col, skip, slider_span)
         #
         if update:
             self.valueChanged.connect(update)
         if clicked:
             self.clicked.connect(clicked)
-        self.label.clicked.connect(self.label_clicked)
+        if self.label:
+            self.label.clicked.connect(self.reset)
         self.slider.valueChanged.connect(self.slider_value_changed)
         self.spinbox.valueChanged.connect(self.spinbox_value_changed)
+
+    def add_to_layout(self, layout: QLayout, row, col, skip=0, slider_span=1):
+        if row >= 0 and col >= 0:
+            if self.label:
+                layout.addWidget(self.label, row, col)
+                col += 1 + skip
+            layout.addWidget(self.slider, row, col, 1, slider_span)
+            col += slider_span + skip
+            layout.addWidget(self.spinbox, row, col)
+        else:
+            if self.label:
+                layout.addWidget(self.label)
+            layout.addWidget(self.slider)
+            layout.addWidget(self.spinbox)
 
     def update_value(self):
         value = self.get_value()
@@ -731,6 +953,10 @@ class DFQSliderSpin(QWidget):
         self.spinbox.setValue(scaled)
         self.no_update = us
 
+    def reset_value(self, value: float):
+        self.set_value(value)
+        self.default_value = value
+
     def get_value(self):
         value = None
         if self.obj and self.prop:
@@ -740,9 +966,16 @@ class DFQSliderSpin(QWidget):
                 utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
-    def label_clicked(self):
+    def reset(self):
         self.set_value(self.default_value)
+        if self.reset_props:
+            for prop in self.reset_props:
+                if prop:
+                    control = get_dcontrol(self.parent, self.obj, prop)
+                    if control and control != self:
+                        control.reset()
         self.clicked.emit()
+        self.valueChanged.emit()
 
     def spinbox_value_changed(self):
         if not self.no_update:
@@ -764,8 +997,14 @@ class DFQSliderSpin(QWidget):
             self.valueChanged.emit()
             self.no_update = False
 
+    def setVisible(self, visible):
+        self.spinbox.setVisible(visible)
+        self.label.setVisible(visible)
+        self.slider.setVisible(visible)
+
 
 class DColorPicker(QWidget):
+    parent = None
     button: QPushButton = None
     label: QLabel = None
     obj = None
@@ -773,9 +1012,11 @@ class DColorPicker(QWidget):
     default_color = QColor(255,255,255)
     valueChanged = Signal()
 
-    def __init__(self, layout, label, obj, prop, text="", width=0, height=0,
-                 row=-1, col=-1, skip=0, update=None, label_style="", tooltip=""):
+    def __init__(self, parent, layout, label, obj, prop, text="", width=0, height=BUTTON_HEIGHT,
+                 row=-1, col=-1, skip=0, update=None, reset=None, label_style="", tooltip=""):
         super().__init__()
+        setattr(parent, f"_DColorPicker_{prop}_{utils.random_string(20)}", self)
+        self.parent = parent
         self.obj = obj
         self.prop = prop
         color = self.get_color()
@@ -806,7 +1047,7 @@ class DColorPicker(QWidget):
         #
         self.button.clicked.connect(self.button_clicked)
         if label:
-            self.label.clicked.connect(self.label_clicked)
+            self.label.clicked.connect(self.reset)
 
     def update_color(self):
         color = self.get_color()
@@ -826,18 +1067,38 @@ class DColorPicker(QWidget):
             setattr(self.obj, self.prop, color)
             self.button.setStyleSheet(f"background-color: {color.name()}")
 
-    def label_clicked(self):
+    def reset_color(self, color):
+        self.set_color(color)
+        self.default_color = color
+
+    def reset(self):
         self.set_color(self.default_color)
+        self.valueChanged.emit()
 
     def button_clicked(self):
         color = self.get_color()
         color: QColor = QColorDialog.getColor(initial=color)
         if color.isValid():
+            color.setAlpha(255)
             self.set_color(color)
             self.valueChanged.emit()
 
+    def setVisible(self, visible):
+        self.button.setVisible(visible)
+        self.label.setVisible(visible)
 
 
+
+def get_dcontrol(parent, obj, prop):
+    members = dir(parent)
+    if obj and prop:
+        for member in members:
+            if member:
+                if member.startswith("_D") and prop in member:
+                    m = getattr(parent, member)
+                    if m and m.obj == obj and m.prop == prop:
+                        return m
+    return None
 
 
 def button(layout: QLayout, text, func=None, icon = None, style="",
@@ -1018,13 +1279,21 @@ def progress(layout, min, max, value, text, style = STYLE_NONE,
     return w
 
 
-def progress_range(w, min, max):
+def progress_range(w: QProgressBar, min, max):
     if w:
         w.setRange(min, max)
 
 
-def progress_update(w, value, text = None):
+def progress_update(w: QProgressBar, value, text = None):
     if w:
+        w.setValue(value)
+        if text is not None:
+            w.setFormat(text)
+
+
+def progress_increment(w: QProgressBar, inc, text = None):
+    if w:
+        value = w.value() + inc
         w.setValue(value)
         if text is not None:
             w.setFormat(text)
@@ -1054,7 +1323,7 @@ def hide(*widgets):
             w.setVisible(False)
 
 
-def browse_folder(title, start_folder=""):
+def browse_folder(title, start_folder):
     folder = QFileDialog.getExistingDirectory(None, title, start_folder, QFileDialog.Option.ShowDirsOnly)
     return folder
 
