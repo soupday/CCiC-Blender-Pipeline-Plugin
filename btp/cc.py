@@ -2222,7 +2222,7 @@ def is_camera_switch_active(camera: RICamera, frame, switch_data):
             active_obj = switch_obj
     if active_obj:
         return active_obj.GetID() == camera.GetID()
-    return RScene.GetCurrentCamera() == camera
+    return False
 
 
 def get_camera_data(camera: RICamera, frame, switch_data = None):
