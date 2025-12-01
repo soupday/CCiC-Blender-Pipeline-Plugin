@@ -933,6 +933,10 @@ class Exporter:
         export_fbx_setting.SetExportMotionFps(project_fps)
         export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
 
+        if (self.avatar and
+            hasattr(export_fbx_setting, "SetExportLevel")):
+            export_fbx_setting.SetExportLevel(0)
+
         result = RFileIO.ExportFbxFile(obj, file_path, export_fbx_setting)
         self.exported_paths.append(file_path)
 
@@ -972,7 +976,7 @@ class Exporter:
             utils.log_error("No valid json data could be found for the export ...")
             return
 
-        obj = self.avatar if self.avatar else self.prop if self.prop else self.camera if self.camera else self.light
+        obj = utils.first(self.avatar, self.prop, self.camera, self.light)
         if not obj: return
         if type(obj) is RILightAvatar: return
 
@@ -1028,9 +1032,10 @@ class Exporter:
                         root_json["Facial_Profile"]["Type"] = profile_type_string
                         categories = facial_profile.GetExpressionCategoryNames()
                         root_json["Facial_Profile"]["Categories"] = {}
-                        for category in categories:
-                            slider_names = facial_profile.GetExpressionSliderNames(category)
-                            root_json["Facial_Profile"]["Categories"][category] = slider_names
+                        if categories:
+                            for category in categories:
+                                slider_names = facial_profile.GetExpressionSliderNames(category)
+                                root_json["Facial_Profile"]["Categories"][category] = slider_names
 
                         self.update_progress(2, "Exported Facial Profile.", True)
                     else:
@@ -1063,41 +1068,43 @@ class Exporter:
                 expression_data = {}
                 bones = SC.GetSkinBones()
                 expressions = FC.GetExpressionNames("")
-                for expression in expressions:
-                    is_face = False
-                    if expression in IGNORE_EXPRESSIONS:
-                        continue
-                    for face_prefix in FACIAL_EXPRESSION_PREFIXES:
-                        if expression.startswith(face_prefix):
-                            is_face = True
-                            break
-                    bone_data = {}
-                    bone: RINode
-                    for bone in bones:
-                        bone_name = bone.GetName()
-                        if is_face and bone_name not in FACE_BONES:
+                if expressions:
+                    for expression in expressions:
+                        is_face = False
+                        if expression in IGNORE_EXPRESSIONS:
                             continue
-                        try:
-                            ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
-                        except:
-                            ERM = RMatrix3(1, 0, 0,
-                                           0, 1, 0,
-                                           0, 0, 1)
-                        ERQ = RQuaternion()
-                        ERQ.FromRotationMatrix(ERM)
-                        euler_angle_x, euler_angle_y, euler_angle_z = cc.quaternion_to_euler_xyz(ERQ, degrees=True)
-                        t = abs(euler_angle_x) + abs(euler_angle_y) + abs(euler_angle_z)
-                        if t > 0.1:
-                            bone_data[bone_name] = {
-                                    "Rotation": cc.quaternion_to_array(ERQ),
-                                }
-                    if bone_data:
-                        expression_data[expression] = { "Bones": bone_data }
-                json_data.set_expression_set(expression_data)
+                        for face_prefix in FACIAL_EXPRESSION_PREFIXES:
+                            if expression.startswith(face_prefix):
+                                is_face = True
+                                break
+                        bone_data = {}
+                        bone: RINode
+                        for bone in bones:
+                            bone_name = bone.GetName()
+                            if is_face and bone_name not in FACE_BONES:
+                                continue
+                            try:
+                                ERM: RMatrix3 = FC.GetExpressionBoneRotation(bone_name, expression)
+                            except:
+                                ERM = RMatrix3(1, 0, 0,
+                                            0, 1, 0,
+                                            0, 0, 1)
+                            ERQ = RQuaternion()
+                            ERQ.FromRotationMatrix(ERM)
+                            euler_angle_x, euler_angle_y, euler_angle_z = cc.quaternion_to_euler_xyz(ERQ, degrees=True)
+                            t = abs(euler_angle_x) + abs(euler_angle_y) + abs(euler_angle_z)
+                            if t > 0.1:
+                                bone_data[bone_name] = {
+                                        "Rotation": cc.quaternion_to_array(ERQ),
+                                    }
+                        if bone_data:
+                            expression_data[expression] = { "Bones": bone_data }
+                    json_data.set_expression_set(expression_data)
 
             self.update_progress(0, "Exporting Additional Physics ...", True)
 
-            self.export_physics(mesh_materials)
+            if mesh_materials:
+                self.export_physics(mesh_materials)
 
             self.update_progress(1, "Exported Additional Physics.", True)
 

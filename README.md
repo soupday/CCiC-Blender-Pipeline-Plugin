@@ -71,6 +71,12 @@ Known Issues
 Changelog
 =========
 
+### 2.3.3
+- Camera switch markers added to camera exports.
+- Fix to some material name mismatch errors.
+- Motions export only at SubD-0.
+- Fix to add menu shutdown crash.
+
 ### 2.3.2
 - Update to import for CC5 SubD characters and new shaders.
 - Export and Datalink options for SubD level exports.

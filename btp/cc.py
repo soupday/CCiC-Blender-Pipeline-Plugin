@@ -266,42 +266,46 @@ class CCMeshJson():
     def json(self):
         return self.mesh_json
 
-    def find_material_name(self, search_mat_name, exact=False):
+    def find_material_name(self, search_mat_name, exact=False, any=False):
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
         if search_mat_name.endswith("_Transparency"):
             try_names.add(search_mat_name[:-13])
+        json_test_names = {}
         for json_mat_name in self.materials:
-            trunc_mat_name = None
-            if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
-            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
-                return json_mat_name
+            test_name = json_mat_name
+            json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Pbr"):
+                test_name = test_name[:-4]
+                json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Transparency"):
+                test_name = test_name[:-13]
+                json_test_names[test_name] = json_mat_name
+        for try_name in try_names:
+            if try_name in json_test_names:
+                return json_test_names[try_name]
         if exact:
             return None
         # try a partial match, but only if there is only one result
         partial_mat_name = None
         partial_mat_count = 0
         for json_mat_name in self.materials:
-            trunc_mat_name = None
-            if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
             for try_name in try_names:
-                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                if try_name in json_mat_name:
                     partial_mat_count += 1
                     if not partial_mat_name:
                         partial_mat_name = json_mat_name
                     # only count 1 match per try set
                     break
-        if partial_mat_count == 1:
+        if (any and partial_mat_count > 0) or partial_mat_count == 1:
             return partial_mat_name
         return None
 
     def find_material(self, search_mat_name, exact=False):
         mat_name = self.find_material_name(search_mat_name, exact=exact)
         cc_mat_json: CCMaterialJson = None
-        if mat_name:
+        if mat_name and mat_name in self.materials:
             cc_mat_json = self.materials[mat_name]
         return cc_mat_json
 
@@ -352,42 +356,46 @@ class CCPhysicsMeshJson():
     def json(self):
         return self.physics_mesh_json
 
-    def find_material_name(self, search_mat_name, exact=False):
+    def find_material_name(self, search_mat_name, exact=False, any=False):
         try_names = set()
         try_names.add(search_mat_name)
         try_names.add(safe_export_name(search_mat_name))
         if search_mat_name.endswith("_Transparency"):
             try_names.add(search_mat_name[:-13])
+        json_test_names = {}
         for json_mat_name in self.materials:
-            trunc_mat_name = None
-            if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
-            if json_mat_name in try_names or (trunc_mat_name and trunc_mat_name in try_names):
-                return json_mat_name
+            test_name = json_mat_name
+            json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Pbr"):
+                test_name = test_name[:-4]
+                json_test_names[test_name] = json_mat_name
+            if test_name.endswith("_Transparency"):
+                test_name = test_name[:-13]
+                json_test_names[test_name] = json_mat_name
+        for try_name in try_names:
+            if try_name in json_test_names:
+                return json_test_names[try_name]
         if exact:
             return None
         # try a partial match, but only if there is only one result
         partial_mat_name = None
         partial_mat_count = 0
         for json_mat_name in self.materials:
-            trunc_mat_name = None
-            if json_mat_name.endswith("_Transparency"):
-                trunc_mat_name = json_mat_name[:-13]
             for try_name in try_names:
-                if try_name in json_mat_name or (trunc_mat_name and try_name in trunc_mat_name):
+                if try_name in json_mat_name:
                     partial_mat_count += 1
                     if not partial_mat_name:
                         partial_mat_name = json_mat_name
                     # only count 1 match per try set
                     break
-        if partial_mat_count == 1:
+        if (any and partial_mat_count > 0) or partial_mat_count == 1:
             return partial_mat_name
         return None
 
     def find_material(self, search_mat_name, exact=False):
         mat_name = self.find_material_name(search_mat_name, exact=exact)
         cc_mat_json: CCPhysicsMaterialJson = None
-        if mat_name:
+        if mat_name and mat_name in self.materials:
             cc_mat_json = self.materials[mat_name]
         return cc_mat_json
 
@@ -933,10 +941,11 @@ class CCMeshMaterial():
                     self.json_mat_name = self.mat_json.name
                 else:
                     utils.log_warn(f"Material JSON {self.mat_name} not found!")
-                if self.physx_object:
-                    self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name, exact=exact)
-                    if self.physx_mesh_json:
-                        self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name, exact=exact)
+                if self.mat_json:
+                    if self.physx_object:
+                        self.physx_mesh_json = self.json_data.find_physics_mesh(self.json_mesh_name, exact=exact)
+                        if self.physx_mesh_json:
+                            self.physx_mat_json = self.physx_mesh_json.find_material(self.json_mat_name, exact=exact)
             else:
                 utils.log_warn(f"Mesh JSON {self.obj_name}/{self.mesh_name} not found!")
 
@@ -1931,11 +1940,12 @@ def get_all_camera_light_data(no_animation=False):
     lights = RScene.FindObjects(EObjectType_Light | EObjectType_DirectionalLight |
                                 EObjectType_SpotLight | EObjectType_PointLight)
     cameras = RScene.FindObjects(EObjectType_Camera)
+    fps: RFps = RGlobal.GetFps()
+    switch_data = RScene.GetSwitchCameraFrameIndexs(fps)
     all_data = []
     if lights or cameras:
         if no_animation:
             time = RGlobal.GetTime()
-            fps: RFps = RGlobal.GetFps()
             frame = fps.GetFrameIndex(time)
             frame_lights = []
             frame_cameras = []
@@ -1950,7 +1960,7 @@ def get_all_camera_light_data(no_animation=False):
                 if light_data:
                     frame_lights.append(light_data)
             for camera in cameras:
-                camera_data = get_camera_data(camera)
+                camera_data = get_camera_data(camera, frame, switch_data)
                 if camera_data:
                     frame_cameras.append(camera_data)
             all_data.append(frame_data)
@@ -1969,10 +1979,12 @@ def get_all_camera_light_data(no_animation=False):
                 }
                 for light in lights:
                     light_data = get_light_data(light)
-                    frame_lights.append(light_data)
+                    if light_data:
+                        frame_lights.append(light_data)
                 for camera in cameras:
-                    camera_data = get_camera_data(camera)
-                    frame_cameras.append(camera_data)
+                    camera_data = get_camera_data(camera, frame, switch_data)
+                    if camera_data:
+                        frame_cameras.append(camera_data)
                 all_data.append(frame_data)
                 is_next, time, frame = next_timeline_scan()
             end_timeline_scan(start_time)
@@ -2202,72 +2214,86 @@ def get_light_data(light: RILight):
     return light_data
 
 
-def get_camera_data(camera: RICamera):
-        T = type(camera)
-        if T is not RICamera:
-            return None
-        link_id = get_link_id(camera, add_if_missing=True)
-        name = camera.GetName()
-        time = RGlobal.GetTime()
-        width = 0
-        height = 0
-        res = camera.GetAperture(width, height)
-        width = res[1]
-        height = res[2]
-        # Get the camera pivot transform values
-        pos = RVector3()
-        rot = RVector3()
-        camera.GetPivot(pos, rot)
-        focal_length = camera.GetFocalLength(time)
-        fov = camera.GetAngleOfView(time)
-        fit = ("HORIZONTAL" if camera.GetFitRenderRegionType() == ECameraFitResolution_Horizontal
-                            else "VERTICAL")
-        far_clip = camera.GetFarClippingPlane()
-        near_clip = camera.GetNearClippingPlane()
-        is_look_at = camera.IsLookAtMode(time)
-        dof_data: RCameraDofData = camera.GetDOFData()
-        dof_enable = dof_data.GetEnable()
-        dof_weight = dof_data.GetCenterColorWeight()
-        dof_decay = dof_data.GetEdgeDecayPower()
-        dof_far_blur = dof_data.GetFarBlurScale()
-        dof_near_blur = dof_data.GetNearBlurScale()
-        dof_far_transition = dof_data.GetFarTransitionRegion()
-        dof_near_transition = dof_data.GetNearTransitionRegion()
-        dof_focus = dof_data.GetFocus()
-        dof_min_blend_distance = dof_data.GetMinBlendDistance()
-        dof_range = dof_data.GetRange()
-        active = RScene.GetCurrentCamera() == camera
-        T: RTransform = camera.WorldTransform()
-        t: RVector3 = T.T()
-        r: RQuaternion = T.R()
-        s: RVector3 = T.S()
-        camera_data = {
-            "link_id": link_id,
-            "name": name,
-            "loc": [t.x, t.y, t.z],
-            "rot": [r.x, r.y, r.z, r.w],
-            "sca": [s.x, s.y, s.z],
-            "fov": fov,
-            "fit": fit,
-            "width": width,
-            "height": height,
-            "focal_length": focal_length,
-            "far_clip": far_clip,
-            "near_clip": near_clip,
-            "pos": [pos.x, pos.y, pos.z],
-            "dof_enable": dof_enable,
-            "dof_weight": dof_weight,           # Unknown?
-            "dof_decay": dof_decay,             # Unknown?
-            "dof_focus": dof_focus,             # Focus Distance
-            "dof_range": dof_range,             # Perfect Focus Range
-            "dof_far_blur": dof_far_blur,
-            "dof_near_blur": dof_near_blur,
-            "dof_far_transition": dof_far_transition,
-            "dof_near_transition": dof_near_transition,
-            "dof_min_blend_distance": dof_min_blend_distance, # Blur Edge Sampling Scale
-            "active": active,
-        }
-        return camera_data
+def is_camera_switch_active(camera: RICamera, frame, switch_data):
+    """Assumes switch frames are in frame order ..."""
+    active_obj = None
+    for switch_obj, switch_frame in switch_data:
+        if frame >= switch_frame:
+            active_obj = switch_obj
+    if active_obj:
+        return active_obj.GetID() == camera.GetID()
+    return False
+
+
+def get_camera_data(camera: RICamera, frame, switch_data = None):
+    if switch_data is None:
+        fps: RFps = RGlobal.GetFps()
+        switch_data = RScene.GetSwitchCameraFrameIndexs(fps)
+    T = type(camera)
+    if T is not RICamera:
+        return None
+    link_id = get_link_id(camera, add_if_missing=True)
+    name = camera.GetName()
+    time = RGlobal.GetTime()
+    width = 0
+    height = 0
+    res = camera.GetAperture(width, height)
+    width = res[1]
+    height = res[2]
+    # Get the camera pivot transform values
+    pos = RVector3()
+    rot = RVector3()
+    camera.GetPivot(pos, rot)
+    focal_length = camera.GetFocalLength(time)
+    fov = camera.GetAngleOfView(time)
+    fit = ("HORIZONTAL" if camera.GetFitRenderRegionType() == ECameraFitResolution_Horizontal
+                        else "VERTICAL")
+    far_clip = camera.GetFarClippingPlane()
+    near_clip = camera.GetNearClippingPlane()
+    is_look_at = camera.IsLookAtMode(time)
+    dof_data: RCameraDofData = camera.GetDOFData()
+    dof_enable = dof_data.GetEnable()
+    dof_weight = dof_data.GetCenterColorWeight()
+    dof_decay = dof_data.GetEdgeDecayPower()
+    dof_far_blur = dof_data.GetFarBlurScale()
+    dof_near_blur = dof_data.GetNearBlurScale()
+    dof_far_transition = dof_data.GetFarTransitionRegion()
+    dof_near_transition = dof_data.GetNearTransitionRegion()
+    dof_focus = dof_data.GetFocus()
+    dof_min_blend_distance = dof_data.GetMinBlendDistance()
+    dof_range = dof_data.GetRange()
+    active = is_camera_switch_active(camera, frame, switch_data)
+    T: RTransform = camera.WorldTransform()
+    t: RVector3 = T.T()
+    r: RQuaternion = T.R()
+    s: RVector3 = T.S()
+    camera_data = {
+        "link_id": link_id,
+        "name": name,
+        "loc": [t.x, t.y, t.z],
+        "rot": [r.x, r.y, r.z, r.w],
+        "sca": [s.x, s.y, s.z],
+        "fov": fov,
+        "fit": fit,
+        "width": width,
+        "height": height,
+        "focal_length": focal_length,
+        "far_clip": far_clip,
+        "near_clip": near_clip,
+        "pos": [pos.x, pos.y, pos.z],
+        "dof_enable": dof_enable,
+        "dof_weight": dof_weight,           # Unknown?
+        "dof_decay": dof_decay,             # Unknown?
+        "dof_focus": dof_focus,             # Focus Distance
+        "dof_range": dof_range,             # Perfect Focus Range
+        "dof_far_blur": dof_far_blur,
+        "dof_near_blur": dof_near_blur,
+        "dof_far_transition": dof_far_transition,
+        "dof_near_transition": dof_near_transition,
+        "dof_min_blend_distance": dof_min_blend_distance, # Blur Edge Sampling Scale
+        "active": active,
+    }
+    return camera_data
 
 
 def RGB_color(RGB):
