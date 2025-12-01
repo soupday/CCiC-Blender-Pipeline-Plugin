@@ -2885,6 +2885,9 @@ class DataLink(QObject):
         return encode_from_json(data)
 
     def encode_pose_frame_data(self, actors: list):
+        fps = get_fps()
+        time: RTime = RGlobal.GetTime()
+        frame = fps.GetFrameIndex(time)
         data = bytearray()
         data += struct.pack("!II", len(actors), get_current_frame())
         actor: LinkActor
@@ -2966,7 +2969,7 @@ class DataLink(QObject):
             elif actor_type == "CAMERA":
 
                 # pack animateable camera data
-                camera_data = cc.get_camera_data(actor.object)
+                camera_data = cc.get_camera_data(actor.object, frame)
                 if camera_data:
                     data += struct.pack("!f?fffffff",
                                      camera_data["focal_length"],
@@ -3143,8 +3146,11 @@ class DataLink(QObject):
     def send_camera_sync(self):
         self.update_link_status(f"Synchronizing View Camera")
         self.send_notify(f"Sync View Camera")
+        fps = get_fps()
+        time: RTime = RGlobal.GetTime()
+        frame = fps.GetFrameIndex(time)
         view_camera: RICamera = RScene.GetCurrentCamera()
-        camera_data = cc.get_camera_data(view_camera)
+        camera_data = cc.get_camera_data(view_camera, frame)
         pivot = self.get_selection_pivot()
         data = {
             "view_camera": camera_data,
