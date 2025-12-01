@@ -1979,10 +1979,12 @@ def get_all_camera_light_data(no_animation=False):
                 }
                 for light in lights:
                     light_data = get_light_data(light)
-                    frame_lights.append(light_data)
+                    if light_data:
+                        frame_lights.append(light_data)
                 for camera in cameras:
                     camera_data = get_camera_data(camera, frame, switch_data)
-                    frame_cameras.append(camera_data)
+                    if camera_data:
+                        frame_cameras.append(camera_data)
                 all_data.append(frame_data)
                 is_next, time, frame = next_timeline_scan()
             end_timeline_scan(start_time)
