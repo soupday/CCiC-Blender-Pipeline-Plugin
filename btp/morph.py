@@ -15,14 +15,12 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 from RLPy import *
-import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
-import os, shutil, socket, select, struct, time, json, random, atexit
-from . import blender, importer, exporter, cc, qt, prefs, tests, utils, vars
-from enum import IntEnum
+import os, shutil,atexit
+from . import utils, cc, qt, options
 
 CATEGORIES = {
     "Head": ESetCategory_Head,
@@ -66,12 +64,13 @@ class MorphSlider(QObject):
 
     def __init__(self, target_path, key_path):
         QObject.__init__(self)
+        OPTS = options.get_opts()
         dir, file = os.path.split(target_path)
         name, ext = os.path.splitext(file)
         self.target_path = target_path
         self.key_path = key_path
         self.morph_name = self.check_morph_name(name)
-        self.slider_path = prefs.DEFAULT_MORPH_SLIDER_PATH
+        self.slider_path = OPTS.DEFAULT_MORPH_SLIDER_PATH
         self.create_window()
         atexit.register(self.on_close)
 

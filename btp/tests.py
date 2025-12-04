@@ -16,7 +16,7 @@
 
 import os, json, RLPy
 from RLPy import *
-from . import cc, utils, vars
+from . import vars, utils, cc
 
 
 BONES = []
@@ -441,7 +441,7 @@ def test_frame_scan():
     print("DONE")
 
 
-def test():
+def dump_params():
     avatar = cc.get_first_avatar()
     material_component: RIMaterialComponent = avatar.GetMaterialComponent()
     print(material_component.GetShaderNames())
@@ -455,3 +455,34 @@ def test():
             params = material_component.GetShaderParameterNames(mesh, material)
             print (f"    - Params: {params}")
     return
+
+
+def copy_material():
+    avatar = cc.get_first_avatar()
+    material_component: RIMaterialComponent = avatar.GetMaterialComponent()
+    meshes = avatar.GetMeshNames()
+    for mesh in meshes:
+        if mesh.startswith("CC_"): continue
+        materials = material_component.GetMaterialNames(mesh)
+        if len(materials) > 1:
+            for i in range(len(materials)-1, 0, -1):
+                print(material_component.GetMaterialNames(mesh))
+                material_component.CopyMaterial(mesh, materials[0], mesh, materials[i])
+    return
+
+def copy_textures():
+    avatar = cc.get_first_avatar()
+    material_component: RIMaterialComponent = avatar.GetMaterialComponent()
+    meshes = avatar.GetMeshNames()
+    for mesh in meshes:
+        if mesh.startswith("CC_"): continue
+        materials = material_component.GetMaterialNames(mesh)
+        if len(materials) > 1:
+            for i in range(len(materials)-1, 0, -1):
+                img = material_component.GetImage(mesh, materials[0], EMaterialTextureChannel_Diffuse)
+                if img:
+                    material_component.SetImage(img, mesh, materials[i], EMaterialTextureChannel_Diffuse)
+    return
+
+def test():
+    copy_textures()

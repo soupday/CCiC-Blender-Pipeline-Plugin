@@ -15,7 +15,7 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
-from btp import vars, prefs, utils, cc, qt, tests, importer, exporter, morph, link, gob
+from btp import vars, prefs, options, utils, cc, qt, tests, importer, exporter, morph, link, gob
 
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
@@ -26,6 +26,7 @@ BLOCK_UPDATE = False
 
 def initialize_plugin():
     global BLOCK_UPDATE
+    OPTS = options.get_opts()
 
     BLOCK_UPDATE = True
 
@@ -56,7 +57,11 @@ def initialize_plugin():
     qt.add_menu_action(plugin_menu, "Settings", action=menu_settings, icon=icon_settings)
     qt.add_menu_action(plugin_menu, "Toolbar", action=menu_toolbar, toggle=True, on=True)
     qt.menu_separator(plugin_menu)
+    transformer_menu = plugin_menu.addMenu("Blender Scripts")
+    qt.add_menu_action(transformer_menu, "Daz Transformer Fix", menu_go_b_transformer)
+    qt.menu_separator(plugin_menu)
     qt.add_menu_action(plugin_menu, "Reload", action=menu_reload)
+
 
     toolbar = qt.find_add_toolbar("Blender Pipeline Toolbar", show_hide=fetch_toolbar_state)
     qt.clear_toolbar(toolbar)
@@ -71,7 +76,7 @@ def initialize_plugin():
     qt.add_toolbar_separator(toolbar)
     qt.add_toolbar_action(toolbar, icon_settings, "Blender Pipeline Settings", action=menu_settings, toggle=True)
 
-    if prefs.AUTO_START_SERVICE:
+    if OPTS.AUTO_START_SERVICE:
         link.link_auto_start()
 
     BLOCK_UPDATE = False
@@ -174,11 +179,17 @@ def menu_go_morph():
             show_settings()
 
 
+def menu_go_b_transformer():
+    file_path = RLPy.RUi.OpenFileDialog("Model Files(*.fbx)")
+    if file_path:
+        gob.go_b_transformer(file_path)
+
+
 def menu_reload():
     import importlib
     print("Reloading Scripts...")
     running, visible = link.link_stop()
-    modules = [ vars, prefs, utils, cc, qt, tests, importer, exporter, morph, link, gob ]
+    modules = [ vars, prefs, options, utils, cc, qt, tests, importer, exporter, morph, link, gob ]
     for module in modules:
         importlib.reload(module)
     print("Done Reloading Scripts.")

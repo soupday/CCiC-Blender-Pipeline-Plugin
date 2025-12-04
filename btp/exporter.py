@@ -16,13 +16,12 @@
 
 from RLPy import *
 del abs
-import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, struct, json
-from . import blender, cc, qt, prefs, utils, vars
+from . import utils, cc, qt, options
 
 RLX_ID_LIGHT = 0xCC01
 RLX_ID_CAMERA = 0xCC02
@@ -96,6 +95,7 @@ class Exporter:
     option_hik_data = False
     option_profile_data = False
     option_remove_hidden = False
+    option_fps = RFps.Fps60
     label_desc = None
     no_options = False
     # Callback
@@ -104,6 +104,8 @@ class Exporter:
 
 
     def __init__(self, objects, no_window=False):
+        OPTS = options.get_opts()
+
         if objects:
             if type(objects) is not list:
                 objects = [ objects ]
@@ -111,17 +113,18 @@ class Exporter:
         else:
             self.clear_objects()
 
-        self.option_preset = prefs.EXPORT_PRESET
-        self.option_bakehair = prefs.EXPORT_BAKE_HAIR
-        self.option_bakeskin = prefs.EXPORT_BAKE_SKIN
-        self.option_t_pose = prefs.EXPORT_T_POSE
-        self.option_current_pose = prefs.EXPORT_CURRENT_POSE
-        self.option_current_animation = prefs.EXPORT_CURRENT_ANIMATION
-        self.option_export_sub_level = prefs.EXPORT_SUB_LEVEL
-        self.option_animation_only = prefs.EXPORT_MOTION_ONLY
-        self.option_hik_data = prefs.EXPORT_HIK
-        self.option_profile_data = prefs.EXPORT_FACIAL_PROFILE
-        self.option_remove_hidden = prefs.EXPORT_REMOVE_HIDDEN
+        self.option_preset = OPTS.EXPORT_PRESET
+        self.option_bakehair = OPTS.EXPORT_BAKE_HAIR
+        self.option_bakeskin = OPTS.EXPORT_BAKE_SKIN
+        self.option_t_pose = OPTS.EXPORT_T_POSE
+        self.option_current_pose = OPTS.EXPORT_CURRENT_POSE
+        self.option_current_animation = OPTS.EXPORT_CURRENT_ANIMATION
+        self.option_export_sub_level = OPTS.EXPORT_SUB_LEVEL
+        self.option_animation_only = OPTS.EXPORT_MOTION_ONLY
+        self.option_hik_data = OPTS.EXPORT_HIK
+        self.option_profile_data = OPTS.EXPORT_FACIAL_PROFILE
+        self.option_remove_hidden = OPTS.EXPORT_REMOVE_HIDDEN
+        self.option_fps = RGlobal.GetFps()
 
         utils.log("======================")
         utils.log("New Export")
@@ -330,8 +333,12 @@ class Exporter:
 
         self.group_export_range, box = qt.group(layout, title="Export Range")
         box.setSpacing(0)
-        self.radio_export_pose = qt.radio_button(box, "Current Frame", False)
-        self.radio_export_anim = qt.radio_button(box, "All", True)
+        row = qt.row(box)
+        col_1 = qt.column(row)
+        col_2 = qt.column(row)
+        self.radio_export_pose = qt.radio_button(col_1, "Current Frame", False)
+        self.radio_export_anim = qt.radio_button(col_1, "All", True)
+        qt.DSpinBox(self, col_2, "Frame Rate:", self.option)
 
         qt.spacing(layout, 8)
 
@@ -512,38 +519,39 @@ class Exporter:
 
 
     def fetch_options(self):
+        OPTS = options.get_opts()
         self.option_preset = self.combo_export_mode.currentIndex()
-        prefs.EXPORT_PRESET = self.option_preset
+        OPTS.EXPORT_PRESET = self.option_preset
         if self.check_bakehair:
             self.option_bakehair = self.check_bakehair.isChecked()
-            prefs.EXPORT_BAKE_HAIR = self.option_bakehair
+            OPTS.EXPORT_BAKE_HAIR = self.option_bakehair
         if self.check_bakeskin:
             self.option_bakeskin = self.check_bakeskin.isChecked()
-            prefs.EXPORT_BAKE_SKIN = self.option_bakeskin
+            OPTS.EXPORT_BAKE_SKIN = self.option_bakeskin
         if self.radio_export_pose:
             self.option_current_pose = self.radio_export_pose.isChecked() if self.option_preset == 1 else False
-            prefs.EXPORT_CURRENT_POSE = self.option_current_pose
+            OPTS.EXPORT_CURRENT_POSE = self.option_current_pose
         if self.radio_export_sub_0 and self.radio_export_sub_1 and self.radio_export_sub_2:
             self.option_export_sub_level = 0 if self.radio_export_sub_0.isChecked() else \
                                            1 if self.radio_export_sub_1.isChecked() else \
                                            2 if self.radio_export_sub_2.isChecked() else -1
-            prefs.EXPORT_SUB_LEVEL = self.option_export_sub_level
+            OPTS.EXPORT_SUB_LEVEL = self.option_export_sub_level
         if self.check_animation_only:
             self.option_animation_only = self.check_animation_only.isChecked()
-            prefs.EXPORT_MOTION_ONLY = self.option_animation_only
+            OPTS.EXPORT_MOTION_ONLY = self.option_animation_only
         if self.check_hik_data:
             self.option_hik_data = self.check_hik_data.isChecked()
-            prefs.EXPORT_HIK = self.option_hik_data
+            OPTS.EXPORT_HIK = self.option_hik_data
         if self.check_profile_data:
             self.option_profile_data = self.check_profile_data.isChecked()
-            prefs.EXPORT_FACIAL_PROFILE = self.option_profile_data
+            OPTS.EXPORT_FACIAL_PROFILE = self.option_profile_data
         if self.check_t_pose:
             self.option_t_pose = self.check_t_pose.isChecked()
-            prefs.EXPORT_T_POSE = self.option_t_pose
+            OPTS.EXPORT_T_POSE = self.option_t_pose
         if self.check_remove_hidden:
             self.option_remove_hidden = self.check_remove_hidden.isChecked()
-            prefs.EXPORT_REMOVE_HIDDEN = self.option_remove_hidden
-        prefs.write_temp_state()
+            OPTS.EXPORT_REMOVE_HIDDEN = self.option_remove_hidden
+        OPTS.write_state()
 
     def preset_description(self, preset):
         if preset == 0:
@@ -643,60 +651,63 @@ class Exporter:
                     self.option_profile_data = True
                     return
 
-    def set_datalink_export(self, no_animation=False):
+    def set_datalink_export(self, no_animation=False, fps: RFps=None):
+        OPTS = options.get_opts()
         self.no_options = True
         self.option_t_pose = False
         self.option_animation_only = False
+        self.option_fps = fps if fps else RGlobal.GetFps()
         if cc.is_cc():
-            self.option_bakehair = prefs.CC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.CC_BAKE_TEXTURES
-            self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES
-            if prefs.CC_EXPORT_MODE == "Current Pose" or no_animation:
+            self.option_bakehair = OPTS.CC_BAKE_TEXTURES
+            self.option_bakeskin = OPTS.CC_BAKE_TEXTURES
+            self.option_remove_hidden = OPTS.CC_DELETE_HIDDEN_FACES
+            if OPTS.CC_EXPORT_MODE == "Current Pose" or no_animation:
                 self.option_current_animation = False
                 self.option_current_pose = True
-            elif prefs.CC_EXPORT_MODE == "Animation":
+            elif OPTS.CC_EXPORT_MODE == "Animation":
                 self.option_current_animation = True
                 self.option_current_pose = False
             else:
                 self.option_current_animation = False
                 self.option_current_pose = False
-            self.option_hik_data = prefs.CC_USE_HIK_PROFILE
-            self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE
-            self.option_export_sub_level = prefs.CC_EXPORT_MAX_SUB_LEVEL
+            self.option_hik_data = OPTS.CC_USE_HIK_PROFILE
+            self.option_profile_data = OPTS.CC_USE_FACIAL_PROFILE
+            self.option_export_sub_level = OPTS.CC_EXPORT_MAX_SUB_LEVEL
             self.check_non_standard_export()
 
         else:
-            self.option_bakehair = prefs.IC_BAKE_TEXTURES
-            self.option_bakeskin = prefs.IC_BAKE_TEXTURES
-            self.option_remove_hidden = prefs.IC_DELETE_HIDDEN_FACES
-            if prefs.IC_EXPORT_MODE == "Current Pose" or no_animation:
+            self.option_bakehair = OPTS.IC_BAKE_TEXTURES
+            self.option_bakeskin = OPTS.IC_BAKE_TEXTURES
+            self.option_remove_hidden = OPTS.IC_DELETE_HIDDEN_FACES
+            if OPTS.IC_EXPORT_MODE == "Current Pose" or no_animation:
                 self.option_current_animation = False
                 self.option_current_pose = True
-            elif prefs.IC_EXPORT_MODE == "Animation":
+            elif OPTS.IC_EXPORT_MODE == "Animation":
                 self.option_current_animation = True
                 self.option_current_pose = False
             else:
                 self.option_current_animation = False
                 self.option_current_pose = False
-            self.option_hik_data = prefs.IC_USE_HIK_PROFILE
-            self.option_profile_data = prefs.IC_USE_FACIAL_PROFILE
-            self.option_export_sub_level = prefs.IC_EXPORT_MAX_SUB_LEVEL
+            self.option_hik_data = OPTS.IC_USE_HIK_PROFILE
+            self.option_profile_data = OPTS.IC_USE_FACIAL_PROFILE
+            self.option_export_sub_level = OPTS.IC_EXPORT_MAX_SUB_LEVEL
 
     def set_update_replace_export(self, full_avatar=False):
+        OPTS = options.get_opts()
         self.no_options = True
         self.option_t_pose = False
-        self.option_bakehair = prefs.CC_BAKE_TEXTURES
-        self.option_bakeskin = prefs.CC_BAKE_TEXTURES
-        self.option_remove_hidden = prefs.CC_DELETE_HIDDEN_FACES if full_avatar else False
+        self.option_bakehair = OPTS.CC_BAKE_TEXTURES
+        self.option_bakeskin = OPTS.CC_BAKE_TEXTURES
+        self.option_remove_hidden = OPTS.CC_DELETE_HIDDEN_FACES if full_avatar else False
         self.option_current_animation = False
         self.option_current_pose = False
         self.option_animation_only = False
-        self.option_hik_data = prefs.CC_USE_HIK_PROFILE if full_avatar else False
-        self.option_profile_data = prefs.CC_USE_FACIAL_PROFILE if full_avatar else False
+        self.option_hik_data = OPTS.CC_USE_HIK_PROFILE if full_avatar else False
+        self.option_profile_data = OPTS.CC_USE_FACIAL_PROFILE if full_avatar else False
         if full_avatar:
             self.check_non_standard_export()
 
-    def set_datalink_motion_export(self):
+    def set_datalink_motion_export(self, fps: RFps=None):
         self.no_options = True
         self.option_t_pose = False
         self.option_bakehair = False
@@ -707,6 +718,7 @@ class Exporter:
         self.option_animation_only = True
         self.option_hik_data = False
         self.option_profile_data = False
+        self.option_fps = fps if fps else RGlobal.GetFps()
 
     def do_export(self, file_path=None, no_base_folder=False):
         self.exported_paths = []
@@ -797,8 +809,8 @@ class Exporter:
         else:
             self.update_progress(0, f"Exporting Camera: {obj.GetName()} ...", True)
 
-
-        utils.log(f"Exporting {cc.get_object_type(obj)} - {obj.GetName()} - FBX: {file_path}")
+        export_fps = self.option_fps
+        utils.log(f"Exporting {cc.get_object_type(obj)} - {obj.GetName()} - FBX: {file_path} ({export_fps.ToFloat()} fps)")
 
         options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
                                             | EExportFbxOptions_RemoveAllUnused
@@ -852,16 +864,18 @@ class Exporter:
 
         if export == "ANIMATION":
             export_fbx_setting.EnableExportMotion(True)
-            export_fbx_setting.SetExportMotionFps(project_fps)
+            export_fbx_setting.SetExportMotionFps(export_fps)
             export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
             utils.log_info(f"Exporting with current animation: {num_frames}")
         elif export == "CURRENT_POSE":
             export_fbx_setting.EnableExportMotion(True)
+            export_fbx_setting.SetExportMotionFps(export_fps)
             frame = project_fps.GetFrameIndex(RGlobal.GetTime())
             export_fbx_setting.SetExportMotionRange(RRangePair(frame, frame))
             utils.log_info(f"Exporting with current frame pose: {frame}")
         elif export == "EMPTY_POSE":
             export_fbx_setting.EnableExportMotion(True)
+            export_fbx_setting.SetExportMotionFps(export_fps)
             export_fbx_setting.SetExportMotionRange(RRangePair(0, 0))
             utils.log_info(f"Exporting with current frame (empty) pose: 0")
         else:
@@ -897,9 +911,10 @@ class Exporter:
             file_path = os.path.join(dir, f"{name}_Motion{ext}")
 
         obj = utils.first(self.avatar, self.prop, self.camera)
+        export_fps = self.option_fps
 
         self.update_progress(0, f"Exporting Motion - {obj.GetName()}", True)
-        utils.log(f"Exporting Motion FBX: {file_path}")
+        utils.log(f"Exporting Motion FBX: {file_path} ({export_fps.ToFloat()} fps)")
 
         options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
                                             | EExportFbxOptions_RemoveAllUnused
@@ -930,7 +945,7 @@ class Exporter:
         start_frame = project_fps.GetFrameIndex(RGlobal.GetStartTime())
         end_frame = project_fps.GetFrameIndex(RGlobal.GetEndTime())
         export_fbx_setting.EnableExportMotion(True)
-        export_fbx_setting.SetExportMotionFps(project_fps)
+        export_fbx_setting.SetExportMotionFps(export_fps)
         export_fbx_setting.SetExportMotionRange(RRangePair(start_frame, end_frame))
 
         if (self.avatar and
@@ -1190,7 +1205,7 @@ class Exporter:
 
     def export_light(self):
         if not self.all_camera_light_data:
-            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
+            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc(), fps=self.option_fps)
 
         light: RILight = self.light
 
@@ -1285,7 +1300,7 @@ class Exporter:
 
     def export_camera(self):
         if not self.all_camera_light_data:
-            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc())
+            self.all_camera_light_data = cc.get_all_camera_light_data(no_animation=cc.is_cc(), fps=self.option_fps)
 
         frame = 0
         link_id = cc.get_link_id(self.camera)

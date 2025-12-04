@@ -15,13 +15,12 @@
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 import RLPy
-import PySide2
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, time, shutil
-from . import blender, morph, cc, qt, prefs, utils, vars
+from . import vars, utils, cc, qt, options, morph
 
 
 FBX_IMPORTER = None
@@ -215,6 +214,7 @@ class Importer:
             qt.do_events()
 
     def set_datalink_import(self):
+        OPTS = options.get_opts()
         self.option_mesh = True
         self.option_textures = True
         self.option_parameters = True
@@ -222,9 +222,9 @@ class Importer:
         self.option_import_hik = False
         self.option_import_profile = False
         if cc.is_cc():
-            self.option_import_expressions = prefs.CC_USE_FACIAL_EXPRESSIONS
-            self.option_import_hik = prefs.CC_USE_HIK_PROFILE
-            self.option_import_profile = prefs.CC_USE_FACIAL_PROFILE
+            self.option_import_expressions = OPTS.CC_USE_FACIAL_EXPRESSIONS
+            self.option_import_hik = OPTS.CC_USE_HIK_PROFILE
+            self.option_import_profile = OPTS.CC_USE_FACIAL_PROFILE
 
 
     def import_fbx(self):
