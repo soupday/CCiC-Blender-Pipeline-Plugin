@@ -71,6 +71,12 @@ Known Issues
 Changelog
 =========
 
+### 2.3.4
+- Blender Scripts Transformer fix added.
+- DataLink export uses Blender scene FPS.
+    - Plugin will use Blender FPS settings once connected.
+- Go-B export animation FPS option added to main panel and preferences.
+
 ### 2.3.3
 - Camera switch markers added to camera exports.
 - Fix to some material name mismatch errors.
