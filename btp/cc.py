@@ -1062,9 +1062,17 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
 def is_cc():
     return RApplication.GetProductName() == "Character Creator"
 
+def is_cc5():
+    return RApplication.GetProductName() == "Character Creator" and RApplication.GetApiMajorVersion() == 5
+
+def is_cc4():
+    return RApplication.GetProductName() == "Character Creator" and RApplication.GetApiMajorVersion() == 4
 
 def is_iclone():
     return RApplication.GetProductName() == "iClone"
+
+def is_iclone8():
+    return RApplication.GetProductName() == "iClone" and RApplication.GetApiMajorVersion() == 8
 
 
 def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAvatar):
@@ -1149,6 +1157,16 @@ def get_selected_avatars():
         if obj in all_avatars and obj not in avatars:
             avatars.append(obj)
     return avatars
+
+
+def get_selected_props():
+    objects = get_selected_actor_objects()
+    all_props = RScene.GetProps() + RScene.GetMDProps()
+    props = []
+    for obj in objects:
+        if obj in all_props and obj not in props:
+            props.append(obj)
+    return props
 
 
 def get_selected_sendable(obj: RIObject):

@@ -1643,11 +1643,9 @@ class DataLink(QObject):
         #
         grid = qt.grid(layout)
         grid.setColumnStretch(0, 0)
-        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(1, 2)
         grid.setColumnStretch(2, 0)
-        grid.setColumnStretch(3, 1)
-        grid.setColumnStretch(4, 0)
-        grid.setColumnStretch(5, 2)
+        grid.setColumnStretch(3, 3)
         # 0
         qt.label(grid, "Send:", row=0, col=0)
         # 1
@@ -1665,11 +1663,19 @@ class DataLink(QObject):
                                                         "No Animation", "Current Pose", "Animation"
                                                     ], update=self.update_combo_ccic_export_mode,
                                                     row=0, col=3, style=qt.STYLE_RL_BOLD)
-        # 4
-        qt.label(grid, f"Prefix:", row=0, col=4)
-        # 5
-        self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix,
-                                                     row=0, col=5, update=self.update_motion_prefix)
+        # 0
+        qt.label(grid, f"Frame Rate:", row=1, col=0)
+        # 1
+        prop = "CC_EXPORT_FPS" if cc.is_cc() else "IC_EXPORT_FPS"
+        qt.DComboBox(self, grid, OPTS, prop,
+                               options=[(12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                               numeric=True, min=1, max=120, suffix="fps", style=qt.STYLE_RL_BOLD,
+                               row=1, col=1, update=OPTS.write_state())
+        # 2
+        qt.label(grid, f"Prefix:", row=1, col=2)
+        # 3
+        self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix, style=qt.STYLE_RL_BOLD,
+                                                row=1, col=3, update=self.update_motion_prefix)
 
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
@@ -2566,13 +2572,16 @@ class DataLink(QObject):
             self.send_lights_cameras(lights_cameras)
 
         actor: LinkActor
+
+        # send props
+        for actor in actors:
+            if actor.is_prop():
+                self.send_prop(actor)
+
+        # send avatars last
         for actor in actors:
             if actor.is_avatar():
                 self.send_avatar(actor)
-            elif actor.is_prop():
-                self.send_prop(actor)
-            else:
-                log_error("Unknown Actor type!")
 
     def send_update_replace(self):
         avatars = {}

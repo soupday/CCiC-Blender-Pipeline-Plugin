@@ -41,28 +41,53 @@ def go_b():
 
     GOB_OBJECTS = []
     GOB_LIGHTING = True
+    GOB_LIGHTS_CAMERAS = []
+    GOB_AVATARS = []
+    GOB_PROPS = []
+    GOB_OTHERS = []
     for obj in objects:
         obj_type = cc.get_object_type(obj)
         if obj_type == "LIGHT":
             GOB_LIGHTING = False
-        GOB_OBJECTS.append({
+        gob_object = {
             "name": obj.GetName(),
             "object": obj,
             "type": obj_type,
-        })
+        }
+        if obj_type == "LIGHT" or obj_type == "CAMERA":
+            GOB_LIGHTS_CAMERAS.append(gob_object)
+        elif obj_type == "PROP":
+            GOB_PROPS.append(gob_object)
+        elif obj_type == "AVATAR":
+            GOB_AVATARS.append(gob_object)
+        else:
+            GOB_OTHERS.append(gob_object)
+
+    GOB_OBJECTS = GOB_LIGHTS_CAMERAS + GOB_PROPS + GOB_AVATARS + GOB_OTHERS
 
     # prefer using avatar names over prop names
     avatars = cc.get_selected_avatars()
-    if cc.is_cc():
+    if cc.is_cc5():
+        if avatars:
+            name = f"CC5 - {avatars[0].GetName()}"
+        elif objects:
+            name = f"CC5 - {objects[0].GetName()}"
+    elif cc.is_cc4():
         if avatars:
             name = f"CC4 - {avatars[0].GetName()}"
         elif objects:
             name = f"CC4 - {objects[0].GetName()}"
-    else:
+    elif cc.is_iclone8:
         if avatars:
-            name = f"iClone - {avatars[0].GetName()}"
+            name = f"iClone8 - {avatars[0].GetName()}"
         elif objects:
-            name = f"iClone - {objects[0].GetName()}"
+            name = f"iClone8 - {objects[0].GetName()}"
+    else:
+        utils.log_warn(f"Unknown application version")
+        if avatars:
+            name = f"Project - {avatars[0].GetName()}"
+        elif objects:
+            name = f"Project - {objects[0].GetName()}"
 
     utils.log_info(f"Using project name: {name}")
 
