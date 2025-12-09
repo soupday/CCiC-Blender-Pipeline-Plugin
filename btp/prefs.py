@@ -105,7 +105,7 @@ class Preferences(QObject):
 
             qt.label(grid, "Go-B Frame Rate:", style=qt.STYLE_NONE, row=1, col=0)
             qt.DComboBox(self, grid, OPTS, "CC_EXPORT_FPS",
-                               options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps"))],
+                               options=[(0, "Use Project"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps"))],
                                numeric=True, min=1, max=120, suffix="fps",
                                row=1, col=1, update=self.write_options)
 
@@ -139,7 +139,7 @@ class Preferences(QObject):
 
             qt.label(grid, "Go-B Frame Rate:", style=qt.STYLE_NONE, row=1, col=0)
             qt.DComboBox(self, grid, OPTS, "IC_EXPORT_FPS",
-                               options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                               options=[(0, "Use Project"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
                                numeric=True, min=1, max=120, suffix="fps",
                                row=1, col=1, update=self.write_options)
 

@@ -341,7 +341,7 @@ class Exporter:
         self.radio_export_pose = qt.radio_button(col_1, "Current Frame", False)
         self.radio_export_anim = qt.radio_button(col_1, "All", True)
         qt.DComboBox(self, col_2, OPTS, "EXPORT_FPS",
-                           options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                           options=[(0, "Use Project"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
                            numeric=True, min=1, max=120, suffix="fps",
                            update=self.write_options)
 

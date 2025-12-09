@@ -1670,7 +1670,7 @@ class DataLink(QObject):
         # 1
         prop = "CC_EXPORT_FPS" if cc.is_cc() else "IC_EXPORT_FPS"
         qt.DComboBox(self, grid, OPTS, prop,
-                               options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                               options=[(0, "Use Project"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
                                numeric=True, min=1, max=120, suffix="fps", style=qt.STYLE_RL_BOLD,
                                row=1, col=1, update=self.write_options)
         # 2
