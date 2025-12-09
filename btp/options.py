@@ -33,7 +33,7 @@ class Options():
     CC_BAKE_TEXTURES: bool = False
     CC_EXPORT_MODE: str = "Animation"
     CC_EXPORT_MAX_SUB_LEVEL: int = -1
-    CC_EXPORT_FPS: float = 60.0
+    CC_EXPORT_FPS: float = 0.0
     IC_USE_FACIAL_PROFILE: bool = False
     IC_USE_HIK_PROFILE: bool = False
     IC_USE_FACIAL_EXPRESSIONS: bool = False
@@ -41,7 +41,7 @@ class Options():
     IC_BAKE_TEXTURES: bool = True
     IC_EXPORT_MODE: str = "Animation"
     IC_EXPORT_MAX_SUB_LEVEL: int = -1
-    IC_EXPORT_FPS: float = 60.0
+    IC_EXPORT_FPS: float = 0.0
     # Export prefs
     EXPORT_PRESET: int = 0
     EXPORT_BAKE_HAIR: bool = False
@@ -54,7 +54,7 @@ class Options():
     EXPORT_HIK: bool = False
     EXPORT_FACIAL_PROFILE: bool = False
     EXPORT_REMOVE_HIDDEN: bool = False
-    EXPORT_FPS: float = 60.0
+    EXPORT_FPS: float = 0.0
     #
     TOOLBAR_STATE_CC: bool = True
     TOOLBAR_STATE_IC: bool = True
