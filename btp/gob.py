@@ -16,6 +16,7 @@ BLENDER_PROCESS = None
 def go_b():
     global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING, GOB_SCENE_SELECTION
     OPTS = options.get_opts()
+
     GOB_QUEUE = []
     GOB_CONNECTED = False
     GOB_DONE = False
@@ -114,7 +115,7 @@ def go_b():
             "path": fbx_path,
         }
         export = exporter.Exporter(lights_cameras, no_window=True)
-        export.set_datalink_export(fps=OPTS.get_export_RFps())
+        export.set_datalink_export(fps=OPTS.get_link_RFps())
         export.do_export(file_path=fbx_path, no_base_folder=True)
         GOB_QUEUE.append(gob_data)
 
@@ -128,7 +129,7 @@ def go_b():
             gob_data["path"] = fbx_path
             export = exporter.Exporter(obj, no_window=True)
             prop_fix = gob_data["type"] == "PROP" and link.PROP_FIX
-            export.set_datalink_export(no_animation=prop_fix, fps=OPTS.get_export_RFps())
+            export.set_datalink_export(no_animation=prop_fix, fps=OPTS.get_link_RFps())
             export.do_export(file_path=fbx_path)
             GOB_QUEUE.append(gob_data)
             go_b_send()
@@ -182,6 +183,7 @@ def go_b_finish():
 def go_morph():
     global GOB_OBJECTS, GOB_CONNECTED, GOB_DONE, GOB_EXPORTED
     OPTS = options.get_opts()
+
     GOB_OBJECTS = []
     GOB_CONNECTED = False
     GOB_DONE = False
@@ -242,6 +244,7 @@ def go_morph_connected():
 def go_morph_finish():
     global GOB_CONNECTED, GOB_DONE, GOB_EXPORTED, GOB_OBJECTS
     OPTS = options.get_opts()
+
     # if Blender has connected back and the avatar(s) have finished exporting:
     if GOB_CONNECTED and GOB_EXPORTED and not GOB_DONE:
         GOB_DONE = True
@@ -265,6 +268,7 @@ def start_datalink():
 
 def get_go_b_paths(name):
     OPTS = options.get_opts()
+
     # paths have been checked by go_b / go_morph
     datalink_folder = OPTS.DATALINK_FOLDER
     project_folder = utils.get_unique_folder_path(datalink_folder, name, create=True)
@@ -289,7 +293,8 @@ def get_blender_script(script, *args):
 
 def write_go_b_script(script_path, blend_path):
     OPTS = options.get_opts()
-    code = get_blender_script("go_b.py", blend_path, int(OPTS.get_export_fps()))
+
+    code = get_blender_script("go_b.py", blend_path, int(OPTS.get_link_fps()))
     if code:
         utils.log_info(f"Writing Blender Launch Script: {script_path}")
         with open(script_path, 'w') as f:

@@ -215,6 +215,7 @@ class Importer:
 
     def set_datalink_import(self):
         OPTS = options.get_opts()
+
         self.option_mesh = True
         self.option_textures = True
         self.option_parameters = True

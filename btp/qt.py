@@ -638,6 +638,7 @@ class DComboBox(QWidget):
     obj = None
     prop = None
     default_value = None
+    default_index = 0
     valueChanged = Signal()
     no_update: bool = False
     options: list = None
@@ -645,7 +646,6 @@ class DComboBox(QWidget):
     min: int = 0
     max: int = 0
     suffix: str = ""
-
 
     def __init__(self, parent, layout: QLayout, obj, prop, options: list,
                        row=-1, col=-1, row_span=1, col_span=1, style="", numeric=False, min=0, max=0, suffix="",
@@ -680,39 +680,70 @@ class DComboBox(QWidget):
                 if type(option) is list or type(option) is tuple:
                     self.combo.addItem(option[1])
                     if value == option[0]:
-                        self.combo.setCurrentIndex(i)
+                        self.default_index = i
                 else:
                     self.combo.addItem(option)
                     if value == option:
-                        self.combo.setCurrentIndex(i)
+                        self.default_index = i
+        self.update_value()
         if update:
             self.valueChanged.connect(update)
         self.combo.currentIndexChanged.connect(self.combo_value_changed)
 
-    def update_value(self):
+    def check_value(self):
         value = self.get_value()
         us = self.no_update
         self.no_update = True
-        for i, option in enumerate(self.options):
-            if type(option) is list or type(option) is tuple:
-                if value == option[0]:
-                    self.combo.setCurrentIndex(i)
-            else:
-                if value == option:
-                    self.combo.setCurrentIndex(i)
+        if self.options and self.numeric:
+            has_value = False
+            for i, option in enumerate(self.options):
+                if type(option) is list or type(option) is tuple:
+                    if value == option[0]:
+                        has_value = True
+                        break
+                else:
+                    if value == option:
+                        has_value = True
+                        break
+            if not has_value:
+                if value >= self.min and value <= self.max:
+                    text = f"{str(value)} {self.suffix}" if self.suffix else str(value)
+                    self.options.append((value, text))
+                    self.combo.addItem(text)
+        self.no_update = us
+
+    def update_value(self):
+        self.check_value()
+        value = self.get_value()
+        us = self.no_update
+        self.no_update = True
+        if self.options:
+            for i, option in enumerate(self.options):
+                if type(option) is list or type(option) is tuple:
+                    if value == option[0]:
+                        self.combo.setCurrentIndex(i)
+                        break
+                else:
+                    if value == option:
+                        self.combo.setCurrentIndex(i)
+                        break
         self.no_update = us
 
     def set_value(self, value: float):
         setattr(self.obj, self.prop, value)
+        self.check_value()
         us = self.no_update
         self.no_update = True
-        for i, option in enumerate(self.options):
-            if type(option) is list or type(option) is tuple:
-                if value == option[1]:
-                    self.combo.setCurrentIndex(i)
-            else:
-                if value == option:
-                    self.combo.setCurrentIndex(i)
+        if self.options:
+            for i, option in enumerate(self.options):
+                if type(option) is list or type(option) is tuple:
+                    if value == option[1]:
+                        self.combo.setCurrentIndex(i)
+                        break
+                else:
+                    if value == option:
+                        self.combo.setCurrentIndex(i)
+                        break
         self.no_update = us
 
     def get_value(self):
@@ -728,7 +759,7 @@ class DComboBox(QWidget):
         if not self.no_update:
             self.no_update = True
             index = self.combo.currentIndex()
-            if self.numeric:
+            if self.options and self.numeric:
                 if index >= len(self.options):
                     try:
                         value = int(self.combo.currentText())
@@ -739,8 +770,7 @@ class DComboBox(QWidget):
                         self.options.append((value, text))
                         self.combo.setItemText(index, text)
                     else:
-                        self.set_value(self.default_value)
-                        return
+                        index = self.default_index
             option = self.options[index]
             if type(option) is list or type(option) is tuple:
                 value = option[0]

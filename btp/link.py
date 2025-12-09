@@ -22,7 +22,7 @@ from PySide2.QtGui import *
 from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, atexit, traceback, shutil
 from . import vars, utils, cc, qt, options, prefs, tests, importer, exporter, morph, gob
-from .utils import LI, LW, LD, log_info, log_detail, log_warn, log_error
+from . utils import LI, LW, LD, log_info, log_detail, log_warn, log_error
 from enum import IntEnum
 import math
 
@@ -1112,6 +1112,7 @@ class LinkService(QObject):
 
     def send_hello(self):
         OPTS = options.get_opts()
+
         self.local_app = RApplication.GetProductName()
         self.local_version = RApplication.GetProductVersion()
         prefs.check_paths(quiet=True, create=True)
@@ -1355,6 +1356,7 @@ class LinkService(QObject):
 
     def loop(self):
         OPTS = options.get_opts()
+
         try:
             current_time = time.time()
             delta_time = current_time - self.time
@@ -1668,15 +1670,17 @@ class DataLink(QObject):
         # 1
         prop = "CC_EXPORT_FPS" if cc.is_cc() else "IC_EXPORT_FPS"
         qt.DComboBox(self, grid, OPTS, prop,
-                               options=[(12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                               options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
                                numeric=True, min=1, max=120, suffix="fps", style=qt.STYLE_RL_BOLD,
-                               row=1, col=1, update=OPTS.write_state())
+                               row=1, col=1, update=self.write_options)
         # 2
         qt.label(grid, f"Prefix:", row=1, col=2)
         # 3
         self.textbox_motion_prefix = qt.textbox(grid, self.motion_prefix, style=qt.STYLE_RL_BOLD,
                                                 row=1, col=3, update=self.update_motion_prefix)
 
+        # ACTORS
+        #
         grid = qt.grid(layout)
         grid.setColumnStretch(0,1)
         grid.setColumnStretch(1,1)
@@ -1812,6 +1816,10 @@ class DataLink(QObject):
                 REventHandler.UnregisterCallback(self.callback_id)
                 self.callback = None
                 self.callback_id = None
+
+    def write_options(self):
+        OPTS = options.get_opts()
+        OPTS.write_state()
 
     def on_exit(self):
         if self.callback_id:
@@ -2037,6 +2045,7 @@ class DataLink(QObject):
 
     def update_combo_ccic_export_max_sub_level(self):
         OPTS = options.get_opts()
+
         text = self.combo_ccic_export_level.currentText()
         levels = { "SubD Current": -1, "SubD 0": 0, "SubD 1": 1, "SubD 2": 2 }
         if cc.is_cc():
@@ -2047,6 +2056,7 @@ class DataLink(QObject):
 
     def update_combo_ccic_export_mode(self):
         OPTS = options.get_opts()
+
         if cc.is_cc():
             OPTS.CC_EXPORT_MODE = self.combo_ccic_export_mode.currentText()
         else:
@@ -3370,8 +3380,9 @@ class DataLink(QObject):
 
     def abort_sequence(self):
         if self.is_sequence_running():
+            link_fps = self.get_link_fps()
             # as the next frame was never sent
-            self.data.sequence_current_frame_time = prev_frame(self.data.sequence_current_frame_time)
+            self.data.sequence_current_frame_time = prev_frame(self.data.sequence_current_frame_time, link_fps)
             self.data.sequence_current_frame -= 1
             self.update_link_status(f"Sequence Aborted: {self.data.sequence_current_frame}")
             self.stop_sequence()
@@ -3440,7 +3451,7 @@ class DataLink(QObject):
             self.stop_sequence()
             return
         # advance to next frame
-        self.data.sequence_current_frame_time = next_frame(self.data.sequence_current_frame_time)
+        self.data.sequence_current_frame_time = next_frame(self.data.sequence_current_frame_time, link_fps)
 
     def send_sequence_end(self, aborted=False):
         actors = self.data.sequence_actors
@@ -3894,6 +3905,7 @@ class DataLink(QObject):
 
     def receive_sequence_ack(self, data):
         OPTS = options.get_opts()
+
         json_data = decode_to_json(data)
         ack_frame = json_data["frame"]
         server_rate = json_data["rate"]

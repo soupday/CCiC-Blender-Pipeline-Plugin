@@ -55,11 +55,14 @@ class Preferences(QObject):
 
     def create_window(self):
         OPTS = options.get_opts()
+
         W = 500
         H = 540
         if cc.is_cc():
             H = 580
-        self.window, layout = qt.window(f"Blender Pipeline Plug-in Preferences", width=W, height=H, fixed=True, show_hide=self.on_show_hide)
+        self.window, layout = qt.window(f"Blender Pipeline Plug-in Preferences",
+                                        width=W, height=H, fixed=True,
+                                        show_hide=self.on_show_hide)
         self.window.SetFeatures(RLPy.EDockWidgetFeatures_Closable)
 
         qt.spacing(layout, 10)
@@ -72,20 +75,20 @@ class Preferences(QObject):
 
         # DataLink folder
         qt.label(grid, "DataLink Folder", row=1, col=0)
-        qt.DTextBox(self, grid, OPTS, "DATALINK_FOLDER", row=1, col=1, update=self.update_options)
+        qt.DTextBox(self, grid, OPTS, "DATALINK_FOLDER", row=1, col=1, update=self.write_options)
         qt.button(grid, "Find", func=self.browse_datalink_folder, height=26, width=64, row=1, col=2)
 
         # Blender exe
         qt.label(grid, "Blender Executable", row=2, col=0)
-        qt.DTextBox(self, grid, OPTS, "BLENDER_PATH", row=2, col=1, update=self.update_options)
+        qt.DTextBox(self, grid, OPTS, "BLENDER_PATH", row=2, col=1, update=self.write_options)
         qt.button(grid, "Find", func=self.browse_blender_exe, height=26, width=64, row=2, col=2)
 
         qt.spacing(layout, 10)
 
         col = qt.column(layout)
-        qt.DCheckBox(self, col, "Auto-start Link Server", OPTS, "AUTO_START_SERVICE", update=self.update_options)
-        qt.DCheckBox(self, col, "Match Client Rate", OPTS, "MATCH_CLIENT_RATE", update=self.update_options)
-        qt.DCheckBox(self, col, "Sequence Frame Sync", OPTS, "DATALINK_FRAME_SYNC", update=self.update_options)
+        qt.DCheckBox(self, col, "Auto-start Link Server", OPTS, "AUTO_START_SERVICE", update=self.write_options)
+        qt.DCheckBox(self, col, "Match Client Rate", OPTS, "MATCH_CLIENT_RATE", update=self.write_options)
+        qt.DCheckBox(self, col, "Sequence Frame Sync", OPTS, "DATALINK_FRAME_SYNC", update=self.write_options)
 
         qt.spacing(layout, 10)
         qt.separator(layout, 1)
@@ -98,75 +101,75 @@ class Preferences(QObject):
         qt.label(grid, "DataLink Send Settings:", style=qt.STYLE_RL_BOLD,
                  row=0, col=0, col_span=2)
 
-        subd_levels = { -1: "Current", 0: "SubD 0", 1: "SubD 1", 2: "SubD 2" }
         if cc.is_cc():
 
             qt.label(grid, "Go-B Frame Rate:", style=qt.STYLE_NONE, row=1, col=0)
             qt.DComboBox(self, grid, OPTS, "CC_EXPORT_FPS",
-                               options=[(12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps"))],
+                               options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps"))],
                                numeric=True, min=1, max=120, suffix="fps",
-                               row=1, col=1, update=self.update_options)
+                               row=1, col=1, update=self.write_options)
 
             qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=2, col=0)
             qt.DComboBox(self, grid, OPTS, "CC_EXPORT_MODE",
                                options=["No Animation", "Current Pose", "Animation"],
-                               row=2, col=1, update=self.update_options)
+                               row=2, col=1, update=self.write_options)
 
             qt.label(grid, "Default Morph Slider Path", row=3, col=0)
-            qt.DTextBox(self, grid, OPTS, "DEFAULT_MORPH_SLIDER_PATH", row=3, col=1, update=self.update_options)
+            qt.DTextBox(self, grid, OPTS, "DEFAULT_MORPH_SLIDER_PATH", row=3, col=1, update=self.write_options)
 
             qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=4, col=0)
             qt.DComboBox(self, grid, OPTS, "CC_EXPORT_MAX_SUB_LEVEL",
                                options=[[-1, "Current"], [0, "SubD 0"], [1, "SubD 1"], [2, "SubD 2"]],
-                               row=4, col=1, update=self.update_options)
+                               row=4, col=1, update=self.write_options)
 
             qt.DCheckBox(self, grid, "Use Facial Setting", OPTS, "CC_USE_FACIAL_PROFILE",
-                               row=5, col=0, col_span=2, update=self.update_options)
+                               row=5, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Use Facial Expressions", OPTS, "CC_USE_FACIAL_EXPRESSIONS",
-                               row=6, col=0, col_span=2, update=self.update_options)
+                               row=6, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Use HIK Profile", OPTS, "CC_USE_HIK_PROFILE",
-                               row=7, col=0, col_span=2, update=self.update_options)
+                               row=7, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Delete Hidden Faces", OPTS, "CC_DELETE_HIDDEN_FACES",
-                               row=8, col=0, col_span=2, update=self.update_options)
+                               row=8, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Bake Textures", OPTS, "CC_BAKE_TEXTURES",
-                               row=9, col=0, col_span=2, update=self.update_options)
+                               row=9, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Export Materials with Send Morph", OPTS, "EXPORT_MORPH_MATERIALS",
-                               row=10, col=0, col_span=2, update=self.update_options)
+                               row=10, col=0, col_span=2, update=self.write_options)
 
         else:
 
             qt.label(grid, "Go-B Frame Rate:", style=qt.STYLE_NONE, row=1, col=0)
             qt.DComboBox(self, grid, OPTS, "IC_EXPORT_FPS",
-                               options=[(12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                               options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
                                numeric=True, min=1, max=120, suffix="fps",
-                               row=1, col=1, update=self.update_options)
+                               row=1, col=1, update=self.write_options)
 
             qt.label(grid, "Export With:", style=qt.STYLE_NONE, row=2, col=0)
             qt.DComboBox(self, grid, OPTS, "IC_EXPORT_MODE",
                                options=["No Animation", "Current Pose", "Animation"],
-                               row=2, col=1, update=self.update_options)
+                               row=2, col=1, update=self.write_options)
 
             qt.label(grid, "Max SubD-Level:", style=qt.STYLE_NONE, row=3, col=0)
             qt.DComboBox(self, grid, OPTS, "IC_EXPORT_MAX_SUB_LEVEL",
                                options=[[-1, "Current"], [0, "SubD 0"], [1, "SubD 1"], [2, "SubD 2"]],
-                               row=3, col=1, update=self.update_options)
+                               row=3, col=1, update=self.write_options)
 
             qt.DCheckBox(self, grid, "Use Facial Setting", OPTS, "IC_USE_FACIAL_PROFILE",
-                               row=4, col=0, col_span=2, update=self.update_options)
+                               row=4, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Use Facial Expressions", OPTS, "IC_USE_FACIAL_EXPRESSIONS",
-                               row=5, col=0, col_span=2, update=self.update_options)
+                               row=5, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Use HIK Profile", OPTS, "IC_USE_HIK_PROFILE",
-                               row=6, col=0, col_span=2, update=self.update_options)
+                               row=6, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Delete Hidden Faces", OPTS, "IC_DELETE_HIDDEN_FACES",
-                               row=7, col=0, col_span=2, update=self.update_options)
+                               row=7, col=0, col_span=2, update=self.write_options)
             qt.DCheckBox(self, grid, "Bake Textures", OPTS, "IC_BAKE_TEXTURES",
-                               row=8, col=0, col_span=2, update=self.update_options)
+                               row=8, col=0, col_span=2, update=self.write_options)
 
         qt.spacing(layout, 10)
         qt.stretch(layout, 1)
 
     def refresh_ui(self):
         OPTS = options.get_opts()
+
         textbox_blender_path = qt.find_dcontrol(self, OPTS, "BLENDER_PATH")
         textbox_go_b_path = qt.find_dcontrol(self, OPTS, "DATALINK_FOLDER")
         combo_cc_export_max_sub_level = qt.find_dcontrol(self, OPTS, "CC_EXPORT_MAX_SUB_LEVEL")
@@ -193,12 +196,13 @@ class Preferences(QObject):
         else:
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender Pipeline Settings", False)
 
-    def update_options(self):
+    def write_options(self):
         OPTS = options.get_opts()
         OPTS.write_state()
 
     def detect_settings(self):
         OPTS = options.get_opts()
+
         # if datalink path is invalid, generate a new one
         if not check_datalink_path()[0]:
             OPTS.DATALINK_FOLDER = ""
@@ -210,6 +214,7 @@ class Preferences(QObject):
 
     def browse_datalink_folder(self):
         OPTS = options.get_opts()
+
         if OPTS.DATALINK_FOLDER:
             folder_path = qt.browse_folder("Datalink Folder", OPTS.DATALINK_FOLDER)
         else:
@@ -221,6 +226,7 @@ class Preferences(QObject):
 
     def browse_blender_exe(self):
         OPTS = options.get_opts()
+
         if OPTS.BLENDER_PATH:
             file_path = RLPy.RUi.OpenFileDialog("Blender Executable(*.exe)", OPTS.BLENDER_PATH)
         else:
@@ -331,11 +337,13 @@ def detect_paths():
 
 def get_blender_path():
     OPTS = options.get_opts()
+
     return OPTS.BLENDER_PATH
 
 
 def check_datalink_path(report=None, create=False, warn=False):
     OPTS = options.get_opts()
+
     if not report:
         report = ""
 
@@ -415,6 +423,7 @@ def check_paths(quiet=False, create=False):
 
 def export_animation():
     OPTS = options.get_opts()
+
     if cc.is_cc() and OPTS.CC_EXPORT_MODE == "Animation":
         return True
     if cc.is_iclone() and OPTS.IC_EXPORT_MODE == "Animation":

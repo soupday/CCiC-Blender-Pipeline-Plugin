@@ -65,6 +65,7 @@ class MorphSlider(QObject):
     def __init__(self, target_path, key_path):
         QObject.__init__(self)
         OPTS = options.get_opts()
+
         dir, file = os.path.split(target_path)
         name, ext = os.path.splitext(file)
         self.target_path = target_path

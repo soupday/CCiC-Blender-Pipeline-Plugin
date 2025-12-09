@@ -60,15 +60,33 @@ class Options():
     TOOLBAR_STATE_IC: bool = True
 
     def get_export_fps(self):
-        if is_cc():
-            return self.CC_EXPORT_FPS
-        else:
-            return self.IC_EXPORT_FPS
+        if self.EXPORT_FPS < 0.1:
+            return RLPy.RGlobal.GetFps().ToFloat()
+        return self.EXPORT_FPS
 
     def get_export_RFps(self):
+        if self.EXPORT_FPS < 0.1:
+            return RLPy.RGlobal.GetFps()
+        return RLPy.RFps(float(self.EXPORT_FPS))
+
+    def get_link_fps(self):
         if is_cc():
+            if self.CC_EXPORT_FPS < 0.1:
+                return RLPy.RGlobal.GetFps().ToFloat()
+            return self.CC_EXPORT_FPS
+        else:
+            if self.IC_EXPORT_FPS < 0.1:
+                return RLPy.RGlobal.GetFps().ToFloat()
+            return self.IC_EXPORT_FPS
+
+    def get_link_RFps(self):
+        if is_cc():
+            if self.CC_EXPORT_FPS < 0.1:
+                return RLPy.RGlobal.GetFps()
             return RLPy.RFps(float(self.CC_EXPORT_FPS))
         else:
+            if self.IC_EXPORT_FPS < 0.1:
+                return RLPy.RGlobal.GetFps()
             return RLPy.RFps(float(self.IC_EXPORT_FPS))
 
     def read_state(self):
@@ -101,8 +119,8 @@ class Options():
                 self.IC_EXPORT_MODE = get_attr(temp_state_json, "ic_export_mode", "Animation")
                 self.CC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "cc_export_max_sub_level", -1)
                 self.IC_EXPORT_MAX_SUB_LEVEL = get_attr(temp_state_json, "ic_export_max_sub_level", -1)
-                self.CC_EXPORT_FPS = get_attr(temp_state_json, "cc_export_fps", 60.0)
-                self.IC_EXPORT_FPS = get_attr(temp_state_json, "ic_export_fps", 60.0)
+                self.CC_EXPORT_FPS = get_attr(temp_state_json, "cc_export_fps", 0.0)
+                self.IC_EXPORT_FPS = get_attr(temp_state_json, "ic_export_fps", 0.0)
                 self.EXPORT_PRESET = get_attr(temp_state_json, "export_preset", -1)
                 self.EXPORT_BAKE_HAIR = get_attr(temp_state_json, "export_bake_hair", False)
                 self.EXPORT_BAKE_SKIN = get_attr(temp_state_json, "export_bake_skin", False)
@@ -116,7 +134,7 @@ class Options():
                 self.EXPORT_SUB_LEVEL = get_attr(temp_state_json, "export_sub_level", -1)
                 self.TOOLBAR_STATE_CC = get_attr(temp_state_json, "toolbar_state_cc", True)
                 self.TOOLBAR_STATE_IC = get_attr(temp_state_json, "toolbar_state_ic", True)
-                self.EXPORT_FPS = get_attr(temp_state_json, "export_fps", 60.0)
+                self.EXPORT_FPS = get_attr(temp_state_json, "export_fps", 0.0)
         if self.CC_EXPORT_MODE == "Bind Pose": self.CC_EXPORT_MODE = "No Animation"
         if self.IC_EXPORT_MODE == "Bind Pose": self.CC_EXPORT_MODE = "No Animation"
 

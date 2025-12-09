@@ -124,7 +124,7 @@ class Exporter:
         self.option_hik_data = OPTS.EXPORT_HIK
         self.option_profile_data = OPTS.EXPORT_FACIAL_PROFILE
         self.option_remove_hidden = OPTS.EXPORT_REMOVE_HIDDEN
-        self.option_fps = RGlobal.GetFps()
+        self.option_fps = OPTS.get_export_RFps()
 
         utils.log("======================")
         utils.log("New Export")
@@ -312,9 +312,11 @@ class Exporter:
             self.light_cookie_path = os.path.join(self.folder, self.character_id + ".png")
 
     def create_options_window(self):
+        OPTS = options.get_opts()
         W = 400
         H = 600
         TITLE = f"Blender Pipeline Export FBX"
+
         self.window, layout = qt.window(TITLE, width=W, height=H, fixed=True, show_hide=self.on_show_hide)
         self.window.SetFeatures(EDockWidgetFeatures_Closable)
 
@@ -338,7 +340,10 @@ class Exporter:
         col_2 = qt.column(row)
         self.radio_export_pose = qt.radio_button(col_1, "Current Frame", False)
         self.radio_export_anim = qt.radio_button(col_1, "All", True)
-        qt.DSpinBox(self, col_2, "Frame Rate:", self.option)
+        qt.DComboBox(self, col_2, OPTS, "EXPORT_FPS",
+                           options=[(0, "Project fps"), (12, "12 fps"), (24, "24 fps (Film)"), (25, "25 fps (PAL)"), (30, "30 fps (NTSC)"), ((60, "60 fps (iClone)"))],
+                           numeric=True, min=1, max=120, suffix="fps", style=qt.STYLE_RL_BOLD,
+                           update=self.write_options)
 
         qt.spacing(layout, 8)
 
@@ -385,6 +390,10 @@ class Exporter:
                 REventHandler.UnregisterCallback(self.callback_id)
                 self.callback = None
                 self.callback_id = None
+
+    def write_options(self):
+        OPTS = options.get_opts()
+        OPTS.write_state()
 
     def on_selection_change(self):
         selected = RScene.GetSelectedObjects()
@@ -520,6 +529,7 @@ class Exporter:
 
     def fetch_options(self):
         OPTS = options.get_opts()
+
         self.option_preset = self.combo_export_mode.currentIndex()
         OPTS.EXPORT_PRESET = self.option_preset
         if self.check_bakehair:
@@ -551,6 +561,7 @@ class Exporter:
         if self.check_remove_hidden:
             self.option_remove_hidden = self.check_remove_hidden.isChecked()
             OPTS.EXPORT_REMOVE_HIDDEN = self.option_remove_hidden
+        self.option_fps = OPTS.get_export_RFps()
         OPTS.write_state()
 
     def preset_description(self, preset):
@@ -653,10 +664,12 @@ class Exporter:
 
     def set_datalink_export(self, no_animation=False, fps: RFps=None):
         OPTS = options.get_opts()
+
         self.no_options = True
         self.option_t_pose = False
         self.option_animation_only = False
-        self.option_fps = fps if fps else RGlobal.GetFps()
+        self.option_fps = fps if fps else OPTS.get_export_RFps()
+
         if cc.is_cc():
             self.option_bakehair = OPTS.CC_BAKE_TEXTURES
             self.option_bakeskin = OPTS.CC_BAKE_TEXTURES
@@ -694,6 +707,7 @@ class Exporter:
 
     def set_update_replace_export(self, full_avatar=False):
         OPTS = options.get_opts()
+
         self.no_options = True
         self.option_t_pose = False
         self.option_bakehair = OPTS.CC_BAKE_TEXTURES
@@ -708,6 +722,8 @@ class Exporter:
             self.check_non_standard_export()
 
     def set_datalink_motion_export(self, fps: RFps=None):
+        OPTS = options.get_opts()
+
         self.no_options = True
         self.option_t_pose = False
         self.option_bakehair = False
@@ -718,7 +734,7 @@ class Exporter:
         self.option_animation_only = True
         self.option_hik_data = False
         self.option_profile_data = False
-        self.option_fps = fps if fps else RGlobal.GetFps()
+        self.option_fps = fps if fps else OPTS.get_export_RFps()
 
     def do_export(self, file_path=None, no_base_folder=False):
         self.exported_paths = []
