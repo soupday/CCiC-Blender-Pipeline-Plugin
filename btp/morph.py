@@ -294,6 +294,7 @@ class MorphSlider(QObject):
                     min_max = ASC.GetShapingMorphMinMax(morph_id)
                     utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
                     ASC.SetShapingMorphWeight(morph_id, min_max[1])
+                    RGlobal.ObjectModified(avatar, EObjectModifiedType_MorphWeight)
                     avatar.Update()
 
         self.clean_up_files()
@@ -312,3 +313,5 @@ def poke_morph_zero(avatar: RIAvatar):
         w = ASC.GetShapingMorphWeight(morph_0)
         ASC.SetShapingMorphWeight(morph_0, w + 1)
         ASC.SetShapingMorphWeight(morph_0, w)
+        RGlobal.ObjectModified(avatar, EObjectModifiedType_MorphWeight)
+        avatar.Update()

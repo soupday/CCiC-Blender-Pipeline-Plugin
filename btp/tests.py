@@ -484,5 +484,19 @@ def copy_textures():
                     material_component.SetImage(img, mesh, materials[i], EMaterialTextureChannel_Diffuse)
     return
 
+def test_displacement():
+    avatar = cc.get_first_avatar()
+    material_component: RIMaterialComponent = avatar.GetMaterialComponent()
+    meshes = avatar.GetMeshNames()
+    for mesh in meshes:
+        if mesh.startswith("CC_"): continue
+        materials = material_component.GetMaterialNames(mesh)
+        if len(materials) > 1:
+            for i in range(len(materials)-1, 0, -1):
+                img = material_component.GetImage(mesh, materials[0], EMaterialTextureChannel_Diffuse)
+                if img:
+                    material_component.SetImage(img, mesh, materials[i], EMaterialTextureChannel_Diffuse)
+    return
+
 def test():
-    copy_textures()
+    dump_params()

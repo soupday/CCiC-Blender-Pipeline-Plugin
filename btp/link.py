@@ -4029,7 +4029,7 @@ class DataLink(QObject):
                     if LI(): log_info(f"Replace Mesh: {obj_name} / {mesh_name} -> {cc_mesh_name}")
                     status = None
                     try:
-                        status: RStatus = avatar.ReplaceMesh(cc_mesh_name, obj_file_path)
+                        status: RStatus = avatar.ReplaceMesh(cc_mesh_name, obj_file_path, True, False)
                     except:
                         qt.message_box("Error", "Replace Mesh failed! Make sure you are using CC4 version 4.42.3004.1 or above!")
                         return

@@ -84,6 +84,15 @@ def fix_groups():
                 result = result or remap_vertex_groups(obj)
     return result
 
+def fix_scale():
+    result = False
+    try:
+        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        result = True
+    except: ...
+    return result
+
 def notify(code, msg=None):
     with open(NOTIFY_PATH, 'w') as f:
         if msg:
@@ -93,11 +102,13 @@ def notify(code, msg=None):
 
 try:
     bpy.ops.wm.fbx_import(filepath=FBX_PATH)
-    if fix_groups():
-        bpy.ops.export_scene.fbx(filepath=EXPORT_PATH)
-        file = os.path.split(EXPORT_PATH)[1]
+    result_groups = fix_groups()
+    result_scale = fix_scale()
+    bpy.ops.export_scene.fbx(filepath=EXPORT_PATH)
+    file = os.path.split(EXPORT_PATH)[1]
+    if result_groups:
         notify("FIXED", file)
     else:
-        notify("OK")
+        notify("OK", file)
 except:
     notify("ERROR")

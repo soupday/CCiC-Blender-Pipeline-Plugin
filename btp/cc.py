@@ -25,14 +25,14 @@ SHADER_MAPS = { # { "Json_shader_name" : "CC3_shader_name", }
     "Tra": "Traditional",
     "Pbr": "PBR",
     "RLEyeTearline": "Digital_Human Tear Line",
-    "RLEyeTearline_Plus": "New Digital_Human Tear Line",
+    "RLEyeTearline_Plus": "Digital_Human Tear Line (HD)",
     "RLHair": "Digital_Human Hair",
     "RLTeethGum": "Digital_Human Teeth Gums",
     "RLEye": "Digital_Human Eye",
     "RLHead": "Digital_Human Head",
     "RLSkin": "Digital_Human Skin",
     "RLEyeOcclusion": "Digital_Human Eye Occlusion",
-    "RLEyeOcclusion_Plus": "New Digital_Human Eye Occlusion",
+    "RLEyeOcclusion_Plus": "Digital_Human Eye Occlusion (HD)",
     "RLTongue": "Digital_Human Tongue",
     "RLSSS": "SSS",
 }
@@ -1003,6 +1003,7 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
                               exact=False):
 
     mesh_materials = []
+    done = []
 
     if avatar:
 
@@ -1025,6 +1026,11 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
             obj = find_actor_object(avatar, mesh_name)
             if obj:
 
+                oid = (obj.GetID(), mesh_name)
+                if oid in done:
+                    continue
+                done.append(oid)
+
                 utils.log_info(f"Actor Object: {obj.GetName()} ({mesh_name})")
                 utils.log_indent()
 
@@ -1036,6 +1042,12 @@ def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_
 
                     if material_filter and material_filter(mesh_name):
                         continue
+
+                    mid = (obj.GetID(), mesh_name, mat_name)
+                    if mid in done:
+                        utils.log_info(f" - Skipping Duplicate! ({mid})")
+                        continue
+                    done.append(mid)
 
                     utils.log_info(f"Mesh / Material: {mesh_name} / {mat_name}")
                     utils.log_indent()
@@ -1084,13 +1096,17 @@ def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAva
         # accessories can cause mesh renames with _0 _1 _2 suffixes added
         if imported_mesh_name[-1].isdigit() and imported_mesh_name[-2] == "_":
             try_names.add(imported_mesh_name[:-2])
+        if imported_mesh_name.endswith("_Shape"):
+            try_names.add(imported_mesh_name[:-6])
         safe_imported_obj_name = imported_obj_name
         if imported_obj_name:
             safe_imported_obj_name = safe_export_name(imported_obj_name)
             try_names.add(imported_obj_name)
             try_names.add(safe_imported_obj_name)
+            if imported_obj_name.endswith("_Shape"):
+                try_names.add(imported_obj_name[:-6])
 
-        #utils.log_info(f"Try Names: {try_names}")
+        utils.log_info(f"Try Names: {try_names}")
 
         # first try to match mesh names directly
         for obj in objects:

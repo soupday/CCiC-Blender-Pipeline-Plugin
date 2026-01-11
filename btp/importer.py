@@ -207,8 +207,14 @@ class Importer:
 
         self.window_progress.Show()
 
-    def update_progress(self, inc, text = "", events = False):
+    def update_progress(self, inc, text="", events=False, is_file=False):
         self.progress_count += inc
+        if is_file:
+            try:
+                dir, file = os.path.split(text)
+                name, ext = os.path.splitext(file)
+                text = name
+            except: ...
         qt.progress_update(self.progress_bar, self.progress_count, text)
         if events:
             qt.do_events()
@@ -344,6 +350,7 @@ class Importer:
             self.import_substance_textures(cc_mesh_materials)
             self.import_custom_textures(cc_mesh_materials)
             self.import_physics(cc_mesh_materials)
+            RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
 
         if not update: # do not update HIK / facial profiles on material updates
 
@@ -365,8 +372,6 @@ class Importer:
 
         time.sleep(1)
         self.close_progress_window()
-
-        RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Material)
 
         utils.log_timer("Import complete! Materials applied in: ")
 
@@ -398,8 +403,8 @@ class Importer:
                 wanted_shader = M.mat_json.get_shader()
                 # SSS skin on gamebase does not re-import correctly, use Pbr instead
                 # TODO Testing if this is fixed - It isn't.
-                if wanted_shader == "RLSSS" and M.mat_name.startswith("Ga_Skin_"):
-                    wanted_shader = "Pbr"
+                #if wanted_shader == "RLSSS" and M.mat_name.startswith("Ga_Skin_"):
+                #    wanted_shader = "Pbr"
                 if current_shader != wanted_shader:
                     utils.log_info(f"Changing shader ({M.obj_name} / {M.mat_name}): {current_shader} to {wanted_shader}")
                     if not M.set_shader(wanted_shader):
@@ -500,8 +505,12 @@ class Importer:
             if not F or F.mesh_name != M.mesh_name or M.mesh_name != "CC_Base_Body":
                 F = M
 
+            pid = M.mesh_name + " / " + M.mat_name
+            utils.log(f"Mesh: {M.mesh_name}, Material: {M.mat_name}")
+
             # substance texture import doesn't deal with duplicates well..
             if self.mat_count[M.mat_name] > 1:
+                utils.log(f" - Skipping duplicate material!")
                 continue
 
             # create folder with first material name in each mesh
@@ -512,7 +521,7 @@ class Importer:
             mat_index = F.increment_substance_index()
 
             pid = M.mesh_name + " / " + M.mat_name
-            utils.log(f"Mesh: {M.mesh_name}, Material: {M.mat_name}")
+            self.update_progress(0, pid, True)
 
             # for each texture channel that can be imported with the substance texture method:
             for json_channel in cc.TEXTURE_MAPS.keys():
@@ -527,9 +536,10 @@ class Importer:
                         if tex_name and os.path.exists(tex_path) and os.path.isfile(tex_path):
                             substance_name = F.mat_name + "_" + str(mat_index) + "_" + substance_postfix + tex_type
                             substance_path = os.path.normpath(os.path.join(substance_mat_folder, substance_name))
+                            #self.update_progress(0, f"{substance_name}", True)
                             utils.safe_copy_file(tex_path, substance_path)
 
-        self.update_progress(1, "Importing Substance Textures", True)
+        self.update_progress(1, "Substance Texture Import ...", True)
 
         # load all pbr textures in one go from the texture cache
         RLPy.RFileIO.LoadSubstancePainterTextures(self.avatar, temp_folder)
@@ -544,6 +554,8 @@ class Importer:
             shutil.rmtree(temp_folder)
 
         # done!
+
+        RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
         self.update_progress(self.num_materials, "Substance Textures Done!", True)
 
 
@@ -576,6 +588,7 @@ class Importer:
                         tex_path = M.mat_json.get_texture_full_path(shader_channel, self.folder)
                         if tex_path and os.path.exists(tex_path) and os.path.isfile(tex_path):
                             M.load_shader_texture(shader_channel, tex_path)
+                            #self.update_progress(0, tex_path, events=True, is_file=True)
 
                 # Pbr Textures
                 png_base_color = False
@@ -619,6 +632,7 @@ class Importer:
                         if os.path.exists(tex_path) and os.path.isfile(tex_path):
                             if load_texture:
                                 M.load_channel_image(rl_channel, tex_path)
+                                #self.update_progress(0, tex_path, events=True, is_file=True)
                             M.set_uv_mapping(rl_channel, offset, tiling, rotation)
                             if shader_channel == "Displacement":
                                 displacement_strength = strength
@@ -633,15 +647,18 @@ class Importer:
                             M.set_attribute("TessellationLevel", level)
                             M.set_attribute("TessellationMultiplier", multiplier)
                             M.set_attribute("TessellationThreshold", threshold * 100)
+                            RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
 
                 # displacement strength overrides normal strength which overrides bump, so only set one.
                 if displacement_strength > -1:
                     M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Displacement, displacement_strength)
-                elif normal_strength > -1:
+                    RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
+                if normal_strength > -1:
                     M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Normal, normal_strength)
-                elif bump_strength > -1:
+                    RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
+                if bump_strength > -1:
                     M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Bump, bump_strength)
-
+                    RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
 
             if self.option_parameters:
 
@@ -678,6 +695,7 @@ class Importer:
                     brightness = 100 * brightness - 100
                     M.set_channel_image_color(cc.TextureChannel.DIFFUSE, 0.0, hue, saturation, brightness, 0, 0,0,0)
 
+            RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
             self.update_progress(1, pid, True)
 
         utils.log_recess()
@@ -737,6 +755,7 @@ class Importer:
                     utils.log_warn(f"No facial profile at: {self.profile_path}")
 
                 self.update_progress(2, "Importing Facial Profile", True)
+                RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_MorphWeight)
 
             if self.option_import_expressions:
 
@@ -753,22 +772,26 @@ class Importer:
                         if category != "Jaw" and category != "EyeLook" and category != "Head":
                             utils.log(f"Gathering Expressions for Category: {category}")
                             sliders.extend(categories_json[category])
-                    utils.log(f"Importing Gathered Expressions: ...")
-                    utils.log(f" - Path: {self.path}")
-                    res: RLPy.RStatus = facial_profile.ImportMorphs(self.path, True, sliders, "Custom")
+                            utils.log(f"Importing Gathered Expressions: ...")
+                            utils.log(f" - Path: {self.path}")
+                            res: RLPy.RStatus = facial_profile.ImportMorphs(self.path, False, sliders, "CUSTOM")
+
                     if res.IsError():
                         utils.log_error(f"Expression import failed!")
 
-                self.update_progress(2, "Importing Expressions", True)
+                self.update_progress(2, "Imported Expressions", True)
+                RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_MorphWeight)
 
 
     def import_hik_profile(self):
+        avatar = self.avatar
         if self.option_import_hik:
             self.update_progress(0, "Importing HIK Profile", True)
             if os.path.exists(self.hik_path):
                 utils.log(f"Restoring HIK Profile: {self.hik_path}")
                 self.avatar.DoCharacterization(self.hik_path, True, True, True)
-            self.update_progress(2, "Importing HIK Profile", True)
+            self.update_progress(2, "Imported HIK Profile", True)
+            RLPy.RGlobal.ObjectModified(avatar, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_MorphWeight)
 
 
     def final(self, cc_mesh_materials):
