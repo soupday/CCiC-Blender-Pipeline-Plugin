@@ -23,6 +23,7 @@ from shiboken2 import wrapInstance
 import os, socket, select, struct, time, json, atexit, traceback, shutil
 from . import vars, utils, cc, qt, options, prefs, tests, importer, exporter, morph, gob
 from . utils import LI, LW, LD, log_info, log_detail, log_warn, log_error
+from . error import ErrorCode, error_report, error_reset, error_show
 from enum import IntEnum
 import math
 
@@ -2149,6 +2150,7 @@ class DataLink(QObject):
             link_service.service_disconnect()
 
     def parse(self, op_code, data):
+        error_reset()
 
         if op_code == OpCodes.DEBUG:
             self.receive_debug(data)
@@ -2203,6 +2205,8 @@ class DataLink(QObject):
 
         if op_code == OpCodes.CONFIRM:
             self.receive_confirm(data)
+
+        error_show()
 
 
     def on_connected(self):
@@ -3691,6 +3695,7 @@ class DataLink(QObject):
         self.send(OpCodes.CONFIRM, encode_from_json(json_data))
 
     def receive_confirm(self, data):
+        error_reset()
         json_data = decode_to_json(data)
         request_type = json_data.get("type", "NONE")
         actors_data = json_data.get("actors", [])
@@ -3706,6 +3711,7 @@ class DataLink(QObject):
             self.send_sequence()
         elif request_type in ["SCENE", "MOTIONS", "ACTORS"]:
             self.do_send_update_actors(actors_data, request_type)
+        error_show()
         return
 
     def receive_pose(self, data):
@@ -4023,24 +4029,26 @@ class DataLink(QObject):
         actor = LinkActor.find_actor(link_id, search_name=actor_name, search_type=character_type)
         if actor:
             avatar: RIAvatar = actor.object
+            if LI(): log_info(f"Replace Mesh: {obj_name} / {mesh_name}")
             results = cc.find_actor_source_meshes(mesh_name, obj_name, avatar)
             if results:
                 for cc_mesh_name in results:
-                    if LI(): log_info(f"Replace Mesh: {obj_name} / {mesh_name} -> {cc_mesh_name}")
+                    if LI(): log_info(f" - Trying Replace Mesh: {cc_mesh_name}")
                     status = None
                     try:
                         status: RStatus = avatar.ReplaceMesh(cc_mesh_name, obj_file_path, True, False)
                     except:
-                        qt.message_box("Error", "Replace Mesh failed! Make sure you are using CC4 version 4.42.3004.1 or above!")
-                        return
-                    if status == RStatus.Success:
+                        error_report(ErrorCode.REPLACE_MESH_01)
+                    if status and status == RStatus.Success:
                         RGlobal.ForceViewportUpdate()
+                        if LI(): log_info(f" - Replace mesh success!")
                         self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
-                        if LI(): log_info(f"Replace mesh success!")
                         return
                     else:
-                        log_error(f"Replace mesh failed!")
-            qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
+                        if LI(): log_info(f" - Replace mesh failed: {cc_mesh_name}")
+                qt.message_box("Error", f"Replace Mesh Failed!: {obj_name} / {mesh_name}")
+            else:
+                qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
             return
         qt.message_box("Error", f"Unable to find actor: {actor_name} / {character_type}")
         return

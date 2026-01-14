@@ -18,6 +18,7 @@ from RLPy import *
 del abs
 import os, json, math
 from . import vars, utils
+from . error import ErrorCode, error_report, error_reset, error_show
 from enum import IntEnum
 
 
@@ -1108,22 +1109,32 @@ def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAva
 
         utils.log_info(f"Try Names: {try_names}")
 
+        found = []
+
         # first try to match mesh names directly
         for obj in objects:
             obj_name = obj.GetName()
             rl_meshes = obj.GetMeshNames()
             if rl_meshes:
-                #utils.log_info(f"Object: {obj.GetName()}, Mesh Names: {rl_meshes}")
                 for mesh_name in rl_meshes:
                     if mesh_name in try_names:
-                        return [mesh_name]
+                        found.append(mesh_name)
+            # the object name also works in avatars
+            if obj_name in try_names:
+                found.append(obj_name)
+
+        if found:
+            return found
 
         # then try to match object names
-        if imported_obj_name:
-            for obj in objects:
-                obj_name = obj.GetName()
-                if obj_name == imported_obj_name or obj_name == safe_imported_obj_name:
-                    return obj.GetMeshNames()
+        #if imported_obj_name:
+        #    for obj in objects:
+        #        obj_name = obj.GetName()
+        #        if obj_name == imported_obj_name or obj_name == safe_imported_obj_name:
+        #            mesh_names = obj.GetMeshNames()
+        #            for mesh_name in mesh_names:
+        #                if mesh_name not in found:
+        #                    found.append(mesh_name)
 
         # try a partial match, but only if there is only one result
         partial_mesh_match = None
@@ -1140,7 +1151,7 @@ def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAva
                         # only count 1 match per try set
                         break
         if partial_mesh_count == 1:
-            return [partial_mesh_match]
+            found.append(partial_mesh_match)
 
         # try a partial match on the object names
         partial_obj_match = None
@@ -1152,9 +1163,9 @@ def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAva
                 if not partial_obj_match:
                     partial_obj_match = obj
         if partial_obj_count == 1:
-            return partial_obj_match.GetMeshNames()
+            found.extend(partial_obj_match.GetMeshNames())
 
-        return []
+        return found
 
 
 def get_first_avatar():
@@ -2174,15 +2185,15 @@ def get_light_data(light: RILight):
     multiplier: float = light.GetMultiplier()
     current_time = RGlobal.GetTime()
 
-    light_range: float = 1000
-    angle: float = 0
-    falloff: float = 100
-    attenuation: float = 100
+    light_range: float = 1000.0
+    angle: float = 60.0
+    falloff: float = 100.0
+    attenuation: float = 100.0
     transmission: bool = False
     is_tube: bool = False
-    tube_length: float = 0
-    tube_radius: float = 0
-    tube_soft_radius: float = 0
+    tube_length: float = 0.0
+    tube_radius: float = 0.0
+    tube_soft_radius: float = 0.0
     is_rectangle: bool = False
     rect: RVector2 = RVector2(0,0)
     cast_shadow: bool = False
@@ -2191,7 +2202,10 @@ def get_light_data(light: RILight):
 
     if spot_light:
         light_range = spot_light.GetRange()
-        status, angle, falloff, attenuation = spot_light.GetSpotLightBeam(angle, falloff, attenuation)
+        try:
+            status, angle, falloff, attenuation = spot_light.GetSpotLightBeam(angle, falloff, attenuation)
+        except:
+            error_report(ErrorCode.SPOTLIGHT_01)
         transmission = spot_light.GetTransmission()
         inverse_square = spot_light.GetInverseSquare()
         is_tube = spot_light.IsTubeShape()

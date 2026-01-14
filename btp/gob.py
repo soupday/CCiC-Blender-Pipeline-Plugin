@@ -3,6 +3,7 @@ import subprocess
 import os
 import RLPy
 from . import utils, cc, options, prefs, exporter, link
+from . error import ErrorCode, error_report, error_reset, error_show
 from . qt import do_events
 
 GOB_QUEUE = None
@@ -16,6 +17,7 @@ BLENDER_PROCESS = None
 def go_b():
     global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING, GOB_SCENE_SELECTION
     OPTS = options.get_opts()
+    error_reset()
 
     GOB_QUEUE = []
     GOB_CONNECTED = False
@@ -177,7 +179,7 @@ def go_b_finish():
     LINK.send_save()
     cc.restore_scene_selection(GOB_SCENE_SELECTION)
     GOB_SCENE_SELECTION = None
-
+    error_show()
 
 
 def go_morph():
