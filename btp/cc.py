@@ -1114,14 +1114,14 @@ def find_actor_source_meshes(imported_mesh_name, imported_obj_name, actor: RIAva
         # first try to match mesh names directly
         for obj in objects:
             obj_name = obj.GetName()
+            # the object name also works in avatars
+            if obj_name in try_names:
+                found.append(obj_name)
             rl_meshes = obj.GetMeshNames()
             if rl_meshes:
                 for mesh_name in rl_meshes:
                     if mesh_name in try_names:
                         found.append(mesh_name)
-            # the object name also works in avatars
-            if obj_name in try_names:
-                found.append(obj_name)
 
         if found:
             return found
