@@ -1554,6 +1554,7 @@ class DataLink(QObject):
     button_pose: QPushButton = None
     button_sequence: QPushButton = None
     button_animation: QPushButton = None
+    button_face_edit: QPushButton = None
     button_update_replace: QPushButton = None
     button_morph: QPushButton = None
     button_morph_update: QPushButton = None
@@ -1719,10 +1720,14 @@ class DataLink(QObject):
                                          row=2, col=0, icon="Motion.png",
                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                          icon_size=48, align_width=align_width)
+        self.button_face_edit = qt.icon_button(grid, "Face Edit", self.send_face_edit_request,
+                                               row=2, col=1, icon="Morph.png",
+                                               width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                               icon_size=48, align_width=align_width)
 
         if cc.is_cc():
             self.button_update_replace = qt.icon_button(grid, "Update / Replace", self.send_update_replace,
-                                                   row=2, col=1, icon=self.icon_replace_avatar,
+                                                   row=3, col=0, icon=self.icon_replace_avatar,
                                                    width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                    icon_size=48, align_width=align_width)
 
@@ -2749,6 +2754,39 @@ class DataLink(QObject):
         for actor in actors:
             if actor.is_avatar():
                 self.send_avatar(actor)
+
+    def send_replace_mesh(self):
+        actors = self.get_selected_actors()
+        actor: LinkActor
+        for actor in actors:
+            self._send_replace_mesh(actor)
+
+    def _send_replace_mesh(self, actor: LinkActor):
+        self.update_link_status(f"Exporting Morph: {actor.name}", True)
+        self.send_notify(f"Exporting Morph: {actor.name}")
+        # Determine export path
+        export_folder = self.get_actor_export_folder(actor.name)
+        export_file = actor.name + ".obj"
+        export_path = os.path.join(export_folder, export_file)
+        if not export_path: return
+        if LI(): log_info(f"Export Path: {export_path}")
+        # Export Morph Obj
+        save_options = EExport3DFileOption_ExportFacialAnimation | EExport3DFileOption_AxisYUp
+        RFileIO.ExportObjFile(actor.object, export_path, save_options)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send OBJ
+        self.send_notify(f"OBJ Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "remote_id": remote_id,
+            "name": actor.name,
+            "type": actor.get_type(),
+            "link_id": actor.get_link_id(),
+        })
+
+        self.send(OpCodes.REPLACE_MESH, export_data)
+        self.update_link_status(f"OBJ Sent: {actor.name}")
 
     def send_update_replace(self):
         avatars = {}
@@ -3871,6 +3909,13 @@ class DataLink(QObject):
             # disable buttons for further requests ...
             self.allow_request_type(request_type, False)
 
+    def send_face_edit_request(self):
+        if not self.is_connected():
+            gob.go_b()
+        else:
+            cc.deduplicate_scene_objects()
+            self.send_request("FACE")
+
     def send_pose_request(self):
         self.send_request("POSE")
 
@@ -3927,6 +3972,8 @@ class DataLink(QObject):
         elif request_type in ["SCENE", "MOTIONS", "ACTORS"]:
             self.do_send_update_actors(actors_data, request_type)
             self.allow_request_type(request_type, True)
+        elif request_type == "FACE":
+            self.send_replace_mesh()
         error_show()
         return
 
@@ -4243,6 +4290,15 @@ class DataLink(QObject):
         character_type = json_data["type"]
         link_id = json_data["link_id"]
         actor = LinkActor.find_actor(link_id, search_name=actor_name, search_type=character_type)
+        if not actor:
+            # Blender round-trips can come back with a stale type or actor name.
+            actor = LinkActor.find_actor(link_id, search_name=actor_name, search_type=None)
+        if not actor and cc.is_cc():
+            # As a last resort for replace mesh, target the current scene avatar.
+            avatar = cc.get_first_avatar()
+            if avatar:
+                actor = LinkActor(avatar)
+                actor.add_alias(link_id)
         if actor:
             avatar: RIAvatar = actor.object
             if LI(): log_info(f"Replace Mesh: {obj_name} / {mesh_name}")
