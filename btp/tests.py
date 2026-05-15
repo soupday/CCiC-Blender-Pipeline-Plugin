@@ -502,5 +502,14 @@ def test_displacement():
                     material_component.SetImage(img, mesh, materials[i], EMaterialTextureChannel_Diffuse)
     return
 
+
+def prop_clip_test():
+    objects = RScene.GetSelectedObjects()
+    for obj in objects:
+        SC: RISkeletonComponent = obj.GetSkeletonComponent()
+        clip: RIClip = SC.AddClip(RGlobal.GetStartTime())
+        clip.SetLength(RGlobal.GetEndTime())
+        RGlobal.ObjectModified(obj, EObjectModifiedType_Motion)
+
 def test():
     dump_params()

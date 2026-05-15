@@ -14,6 +14,7 @@ GOB_SCENE_SELECTION = None
 
 BLENDER_PROCESS = None
 
+#region Go B
 def go_b():
     global GOB_CONNECTED, GOB_DONE, GOB_QUEUE, GOB_LIGHTING, GOB_SCENE_SELECTION
     OPTS = options.get_opts()
@@ -181,8 +182,10 @@ def go_b_finish():
     cc.restore_scene_selection(GOB_SCENE_SELECTION)
     GOB_SCENE_SELECTION = None
     error_show()
+#endregion
 
 
+#region Go Morph
 def go_morph():
     global GOB_OBJECTS, GOB_CONNECTED, GOB_DONE, GOB_EXPORTED
     OPTS = options.get_opts()
@@ -220,13 +223,13 @@ def go_morph():
         object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
         obj_path = os.path.join(object_folder, name + ".obj")
         gob_data["path"] = obj_path
-        obj_options = (RLPy.EExport3DFileOption_ResetToBindPose |
-                       RLPy.EExport3DFileOption_FullBodyPart |
+        obj_options = (RLPy.EExport3DFileOption_FullBodyPart |
                        RLPy.EExport3DFileOption_AxisYUp |
                        RLPy.EExport3DFileOption_GenerateDrmProtectedFile |
                        RLPy.EExport3DFileOption_TextureMapsAreShaderGenerated |
                        RLPy.EExport3DFileOption_GenerateMeshGroupIni |
-                       RLPy.EExport3DFileOption_ExportExtraMaterial)
+                       RLPy.EExport3DFileOption_ExportExtraMaterial |
+                       RLPy.EExport3DFileOption_ResetToBindPose)
         if OPTS.EXPORT_MORPH_MATERIALS:
             obj_options |= RLPy.EExport3DFileOption_ExportMaterial
         RLPy.RFileIO.ExportObjFile(avatar, obj_path, obj_options)
@@ -262,6 +265,83 @@ def go_morph_finish():
         GOB_EXPORTED = False
         GOB_CONNECTED = False
         GOB_OBJECTS = None
+#endregion
+
+
+#region Go Mesh
+def go_mesh():
+    global GOB_OBJECTS, GOB_CONNECTED, GOB_DONE, GOB_EXPORTED
+    OPTS = options.get_opts()
+
+    GOB_OBJECTS = []
+    GOB_CONNECTED = False
+    GOB_DONE = False
+    GOB_EXPORTED = False
+
+    avatar = cc.get_first_avatar()
+    if not avatar:
+        return
+
+    GOB_OBJECTS.append({
+        "name": avatar.GetName(),
+        "object": avatar,
+    })
+
+    name = f"Mesh Modify - {avatar.GetName()}"
+    utils.log_info(f"Using project name: {name}")
+
+    LINK = link.get_data_link()
+    if not LINK.is_connected():
+        LINK.link_start()
+        LINK.service.connected.connect(go_mesh_connected)
+
+    project_folder, script_path, blend_path, import_folder, export_folder = get_go_b_paths(name)
+    write_go_b_script(script_path, blend_path)
+    launch_blender(script_path)
+
+    # export the avatar nude obj in bind pose while Blender launches
+    for gob_data in GOB_OBJECTS:
+        name = gob_data["name"]
+        obj = gob_data["object"]
+        object_folder = utils.get_unique_folder_path(import_folder, name, create=True)
+        obj_path = os.path.join(object_folder, name + ".obj")
+        gob_data["path"] = obj_path
+        obj_options = RLPy.EExport3DFileOption_AxisYUp
+        if cc.is_avatar(obj):
+            obj_options |= RLPy.EExport3DFileOption_ExportFacialAnimation
+        RLPy.RFileIO.ExportObjFile(avatar, obj_path, obj_options)
+
+    GOB_EXPORTED = True
+
+    # try to finish after exporting the avatar(s)
+    go_mesh_finish()
+
+
+def go_mesh_connected():
+    global GOB_CONNECTED
+    GOB_CONNECTED = True
+    # try to finish after connecting
+    go_mesh_finish()
+
+
+def go_mesh_finish():
+    global GOB_CONNECTED, GOB_DONE, GOB_EXPORTED, GOB_OBJECTS
+    OPTS = options.get_opts()
+
+    # if Blender has connected back and the avatar(s) have finished exporting:
+    if GOB_CONNECTED and GOB_EXPORTED and not GOB_DONE:
+        GOB_DONE = True
+        LINK = link.get_data_link()
+        LINK.service.connected.disconnect(go_mesh_connected)
+        LINK.send_camera_sync()
+        for gob_data in GOB_OBJECTS:
+            LINK.send_mesh_exported(gob_data["object"], gob_data["path"])
+        LINK.send_save()
+        GOB_EXPORTED = False
+        GOB_CONNECTED = False
+        GOB_OBJECTS = None
+#endregion
+
 
 
 def start_datalink():

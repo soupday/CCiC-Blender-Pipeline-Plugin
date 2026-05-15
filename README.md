@@ -71,6 +71,11 @@ Known Issues
 Changelog
 =========
 
+### 2.4.1
+- Mesh modify pipeline.
+    - Sends mesh only (no armature) for exact replace mesh updates.
+    - Used mainly for direct facial expression editing with the facial profile editor.
+
 ### 2.4.0
 - Fix/Update to mesh replace.
 - Fix to expression import/update for Go-CC.

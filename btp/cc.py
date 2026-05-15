@@ -417,8 +417,8 @@ class CCJsonData():
         self.json_path = json_path
         self.fbx_path = fbx_path
         self.character_id = character_id
-        if self.read():
-            self.parse()
+        self.read()
+        self.parse()
 
     def read(self):
         self.valid = False
@@ -1641,6 +1641,10 @@ def get_avatar_profile_name(avatar: RIAvatar):
         if profile_type in vars.FACIAL_PROFILES.keys():
             profile_type_string = vars.FACIAL_PROFILES[profile_type]
     return profile_type_string
+
+
+def is_avatar_hik(avatar: RIAvatar):
+    return is_avatar_standard(avatar) or is_avatar_non_standard(avatar)
 
 
 def is_avatar_non_standard(avatar: RIAvatar):

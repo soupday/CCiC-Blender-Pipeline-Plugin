@@ -831,13 +831,14 @@ class Exporter:
         options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
                                             | EExportFbxOptions_RemoveAllUnused
                                             | EExportFbxOptions_ExportPbrTextureAsImageInFormatDirectory
-                                            | EExportFbxOptions_ExportRootMotion
                                             )
         if self.avatar:
             if self.option_remove_hidden:
                 options1 = options1 | EExportFbxOptions_RemoveHiddenMesh
             else:
                 options1 = options1 | EExportFbxOptions_FbxKey
+            if cc.is_avatar_hik(self.avatar):
+                options1 = options1 | EExportFbxOptions_ExportRootMotion
 
         options2 = (EExportFbxOptions2__None | EExportFbxOptions2_ResetBoneScale
                                              | EExportFbxOptions2_ResetSelfillumination
@@ -936,10 +937,11 @@ class Exporter:
 
         options1 = (EExportFbxOptions__None | EExportFbxOptions_AutoSkinRigidMesh
                                             | EExportFbxOptions_RemoveAllUnused
-                                            | EExportFbxOptions_ExportRootMotion
                                             | EExportFbxOptions_RemoveUnusedMorph)
         if self.avatar:
             options1 = options1 | EExportFbxOptions_RemoveAllMeshKeepMorph
+            if cc.is_avatar_hik(self.avatar):
+                options1 = options1 | EExportFbxOptions_ExportRootMotion
 
         options2 = (EExportFbxOptions2__None | EExportFbxOptions2_ResetBoneScale
                                              | EExportFbxOptions2_ResetSelfillumination
@@ -1000,16 +1002,17 @@ class Exporter:
             json_data = cc.generate_base_json_data(self.json_path, self.character_id, generation)
 
         json_data = cc.CCJsonData(self.json_path, self.fbx_path, self.character_id)
+
+        if not json_data.valid:
+            utils.log_error("No valid json data could be found for the export ...")
+            return
+
         root_json = json_data.get_root_json()
 
         if self.light:
             light_data = cc.get_light_data(self.light)
             if light_data:
                 root_json["Object"][self.character_id]["Light"] = light_data
-
-        if json_data is None:
-            utils.log_error("No valid json data could be found for the export ...")
-            return
 
         obj = utils.first(self.avatar, self.prop, self.camera, self.light)
         if not obj: return
@@ -1030,7 +1033,7 @@ class Exporter:
             generation = json_data.set_character_generation(generation_type)
             utils.log(f"Avatar Generation: {generation}")
 
-            if self.option_hik_data:
+            if self.option_hik_data and cc.is_avatar_hik(self.avatar):
 
                 self.update_progress(0, "Exporting HIK Profile ...", True)
 

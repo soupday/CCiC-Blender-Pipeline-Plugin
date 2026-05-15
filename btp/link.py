@@ -56,6 +56,7 @@ class OpCodes(IntEnum):
     FPS = 80
     MORPH = 90
     MORPH_UPDATE = 91
+    MESH = 92
     REPLACE_MESH = 95
     MATERIALS = 96
     CHARACTER = 100
@@ -1556,6 +1557,7 @@ class DataLink(QObject):
     button_animation: QPushButton = None
     button_update_replace: QPushButton = None
     button_morph: QPushButton = None
+    button_mesh_modify: QPushButton = None
     button_morph_update: QPushButton = None
     button_sync_lights: QPushButton = None
     button_sync_camera: QPushButton = None
@@ -1730,8 +1732,18 @@ class DataLink(QObject):
         # MORPH
         #
         if cc.is_cc():
-            grid_header = qt.grid(layout)
-            qt.label(grid_header, "Morph:")
+            grid = qt.grid(layout)
+            grid_header = grid
+            qt.label(grid, "Mesh Modify:", row=0, col=0)
+            grid = qt.grid(layout)
+            self.button_mesh_modify = qt.icon_button(grid, "Send Mesh", self.send_mesh_modify,
+                                          row=0, col=0, icon="HeadMesh.png",
+                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                          icon_size=48, align_width=align_width)
+            qt.label(grid, "", row=0, col=1)
+
+            grid = qt.grid(layout)
+            qt.label(grid, "Morph:", row=0, col=0)
             grid = qt.grid(layout)
             grid.setColumnStretch(0,1)
             grid.setColumnStretch(1,1)
@@ -1747,7 +1759,7 @@ class DataLink(QObject):
         # LIGHTS & CAMERA
         #
         grid = qt.grid(layout)
-        qt.label(grid, "Lights & Camera:")
+        qt.label(grid, "Lights & Camera:", row=0, col=0)
         if not grid_header:
             grid_header = grid
         grid = qt.grid(layout)
@@ -1912,6 +1924,7 @@ class DataLink(QObject):
         num_total = num_avatars + num_props + num_lights + num_cameras
         num_posable = num_avatars + num_props + num_lights + num_cameras
         num_sendable = num_avatars + num_props + num_lights + num_cameras
+        num_mesh = num_avatars + num_props
         num_types = min(1,num_avatars) + min(1, num_props) + min(1, num_lights) + min(1, num_cameras)
 
         # button text
@@ -1949,6 +1962,8 @@ class DataLink(QObject):
                 self.button_send.setText(f"Send {type_name}")
             if self.button_morph:
                 self.button_morph.setText(f"Send Morph")
+            if self.button_mesh_modify:
+                self.button_mesh_modify.setText(f"Send Mesh")
             if self.button_send_scene:
                 self.button_send_scene.setText(f"Send Scene")
         else:
@@ -1956,6 +1971,8 @@ class DataLink(QObject):
                 self.button_send.setText(f"Go-B {type_name}")
             if self.button_morph:
                 self.button_morph.setText(f"Go-B Morph")
+            if self.button_mesh_modify:
+                self.button_mesh_modify.setText(f"Go-B Mesh")
             if self.button_send_scene:
                 self.button_send_scene.setText(f"Go-B Scene")
         self.button_send.setIcon(icon)
@@ -1977,7 +1994,8 @@ class DataLink(QObject):
         qt.disable(self.button_send, self.button_rigify,
                    self.button_pose, self.button_sequence,
                    self.button_animation, self.button_update_replace,
-                   self.button_morph, self.button_morph_update,
+                   self.button_morph, self.button_mesh_modify,
+                   self.button_morph_update,
                    self.button_sync_lights, self.button_sync_camera,
                    self.button_send_scene)
 
@@ -1990,11 +2008,16 @@ class DataLink(QObject):
                 qt.enable(self.button_morph, self.button_morph_update)
             if num_rigable > 0:
                 qt.enable(self.button_rigify)
+            if num_mesh > 0:
+                qt.enable(self.button_mesh_modify)
             qt.enable(self.button_sync_lights, self.button_sync_camera)
         else:
             if num_sendable > 0:
                 qt.enable(self.button_send)
+            if num_standard > 0:
                 qt.enable(self.button_morph)
+            if num_mesh > 0:
+                qt.enable(self.button_mesh_modify)
         qt.enable(self.button_send_scene)
 
         # fps
@@ -2888,13 +2911,13 @@ class DataLink(QObject):
         if not export_path: return
         if LI(): log_info(f"Export Path: {export_path}")
         # Export Morph Obj
-        obj_options = (EExport3DFileOption_ResetToBindPose |
-                       EExport3DFileOption_FullBodyPart |
+        obj_options = (EExport3DFileOption_FullBodyPart |
                        EExport3DFileOption_AxisYUp |
                        EExport3DFileOption_GenerateDrmProtectedFile |
                        EExport3DFileOption_TextureMapsAreShaderGenerated |
                        EExport3DFileOption_GenerateMeshGroupIni |
-                       EExport3DFileOption_ExportExtraMaterial)
+                       EExport3DFileOption_ExportExtraMaterial |
+                       EExport3DFileOption_ResetToBindPose)
         if not update and OPTS.EXPORT_MORPH_MATERIALS:
             obj_options |= EExport3DFileOption_ExportMaterial
         RFileIO.ExportObjFile(actor.object, export_path, obj_options)
@@ -2924,6 +2947,60 @@ class DataLink(QObject):
             for actor in actors:
                 if actor.is_standard():
                     self.send_avatar_morph(actor)
+
+    def send_mesh_modify(self):
+        if not self.is_connected():
+            gob.go_mesh()
+        else:
+            actors = self.get_selected_actors()
+            actor: LinkActor
+            for actor in actors:
+                self.send_mesh(actor)
+
+    def send_mesh(self, actor: LinkActor):
+        OPTS = options.get_opts()
+        self.update_link_status(f"Exporting Mesh: {actor.name}", True)
+        self.send_notify(f"Exporting Mesh: {actor.name}")
+        # Determine export path
+        export_folder = self.get_actor_export_folder(actor.name)
+        export_file = actor.name + ".obj"
+        export_path = os.path.join(export_folder, export_file)
+        if not export_path: return
+        if LI(): log_info(f"Export Path: {export_path}")
+        # Export Mesh Obj
+        obj_options = EExport3DFileOption_AxisYUp
+        if actor.is_avatar():
+            obj_options |= EExport3DFileOption_ExportFacialAnimation
+        RFileIO.ExportObjFile(actor.object, export_path, obj_options)
+        # Send Remote Files First
+        remote_id = self.send_remote_files(export_folder)
+        # Send Mesh
+        self.send_notify(f"Mesh Import: {actor.name}")
+        export_data = encode_from_json({
+            "path": export_path,
+            "remote_id": remote_id,
+            "name": actor.name,
+            "type": actor.get_type(),
+            "link_id": actor.get_link_id(),
+        })
+        self.send(OpCodes.MESH, export_data)
+        self.update_link_status(f"Morph Sent: {actor.name}")
+
+    def send_mesh_exported(self, avatar=None, obj_path=None):
+        """Send a pre-exported mesh obj through the DataLink (Go-Mesh, Local Only)"""
+
+        actor = LinkActor(avatar)
+        self.update_link_status(f"Exporting Mesh: {actor.name}", True)
+        self.send_notify(f"Exporting Mesh: {actor.name}")
+        export_data = encode_from_json({
+            "path": obj_path,
+            "remote_id": "",
+            "name": actor.name,
+            "type": actor.get_type(),
+            "link_id": actor.get_link_id(),
+        })
+        self.send(OpCodes.MESH, export_data)
+        self.update_link_status(f"Mesh Sent: {actor.name}")
 
     def send_morph_update(self):
         actors = self.get_selected_actors()
@@ -3705,10 +3782,14 @@ class DataLink(QObject):
                 obj = skin_def["object"]
                 SC: RISkeletonComponent = skin_def["SC"]
                 RGlobal.RemoveAllAnimations(obj)
-                clip = SC.AddClip(t0)
+                clip0 = SC.GetClip(0)
+                if clip0:
+                    SC.DeleteClip(clip0)
+                clip: RIClip = SC.AddClip(t0)
                 if clip:
                     clip.SetLength(length)
                     skin_def["clip"] = clip
+                    RGlobal.ObjectModified(obj, EObjectModifiedType_Motion | EObjectModifiedType_Attribute)
                 else:
                     skin_def["clip"] = None
                     log_error(f"Unable to create animation clip: {obj.GetName()} ({obj_id})")
@@ -4002,11 +4083,13 @@ class DataLink(QObject):
                 apply_transform(actor, scene_time2, actor_data["transform"])
                 apply_camera(actor, scene_time, actor_data["camera"])
                 apply_camera(actor, scene_time2, actor_data["camera"])
-        for actor_data in pose_frame_data["actors"]:
-            actor: LinkActor = actor_data["actor"]
-            RScene.SelectObject(actor.object)
         # set the scene time to the end of the clip(s)
         RGlobal.SetTime(scene_time)
+        # update modifications and select
+        for actor_data in pose_frame_data["actors"]:
+            actor: LinkActor = actor_data["actor"]
+            RGlobal.ObjectModified(actor.object, EObjectModifiedType_Attribute | EObjectModifiedType_Transform | EObjectModifiedType_Motion)
+            RScene.SelectObject(actor.object)
         RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
@@ -4242,29 +4325,35 @@ class DataLink(QObject):
         mesh_name = json_data["mesh_name"]
         character_type = json_data["type"]
         link_id = json_data["link_id"]
+        morph = json_data.get("morph", False)
         actor = LinkActor.find_actor(link_id, search_name=actor_name, search_type=character_type)
         if actor:
             avatar: RIAvatar = actor.object
             if LI(): log_info(f"Replace Mesh: {obj_name} / {mesh_name}")
-            results = cc.find_actor_source_meshes_2(mesh_name, obj_name, avatar)
-            if results:
-                tried = []
-                for mesh in results:
-                    tried.append(mesh.GetName())
-                    cc_mesh_name = mesh.GetName()
-                    if LI(): log_info(f" - Trying Replace Mesh: {cc_mesh_name}")
-                    success = cc.safe_replace_mesh(avatar, mesh, obj_name, cc_mesh_name, obj_file_path)
-                    if success:
-                        RGlobal.ForceViewportUpdate()
-                        if LI(): log_info(f" - Replace mesh success!")
-                        self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
-                        return
-                    else:
-                        if LI(): log_info(f" - Replace mesh failed: {cc_mesh_name}")
-                qt.message_box("Error", f"Replace Mesh Failed!: {obj_name} / {mesh_name}\n    Tried meshes: {tried}")
+            if morph:
+                status = avatar.ReplaceMesh("CC_Base_Body", obj_file_path, False, False)
+                log_info(f"Replace Mesh: {(status == RStatus.Success)}")
+                return
             else:
-                qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
-            return
+                results = cc.find_actor_source_meshes_2(mesh_name, obj_name, avatar)
+                if results:
+                    tried = []
+                    for mesh in results:
+                        tried.append(mesh.GetName())
+                        cc_mesh_name = mesh.GetName()
+                        if LI(): log_info(f" - Trying Replace Mesh: {cc_mesh_name}")
+                        success = cc.safe_replace_mesh(avatar, mesh, obj_name, cc_mesh_name, obj_file_path)
+                        if success:
+                            RGlobal.ForceViewportUpdate()
+                            if LI(): log_info(f" - Replace mesh success!")
+                            self.update_link_status(f"Replace Mesh: {actor.name} / {cc_mesh_name}")
+                            return
+                        else:
+                            if LI(): log_info(f" - Replace mesh failed: {cc_mesh_name}")
+                    qt.message_box("Error", f"Replace Mesh Failed!: {obj_name} / {mesh_name}\n    Tried meshes: {tried}")
+                else:
+                    qt.message_box("Error", f"Unable to determine source mesh for replacement: {obj_name} / {mesh_name}")
+                return
         qt.message_box("Error", f"Unable to find actor: {actor_name} / {character_type}")
         return
 

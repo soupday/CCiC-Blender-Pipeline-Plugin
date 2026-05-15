@@ -1534,8 +1534,11 @@ def message_box(title, msg):
     RLPy.RUi.ShowMessageBox(title, str(msg), RLPy.EMsgButton_Ok)
 
 
-def do_events():
+def do_events(t=0):
     QApplication.processEvents()
+    if t:
+        time.sleep(t)
+        QApplication.processEvents()
 
 
 def delay_run(func, interval_msec):
