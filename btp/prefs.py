@@ -266,7 +266,6 @@ def detect_paths():
     OPTS = options.get_opts()
 
     utils.log_info("Reading settings...")
-    OPTS.read_state()
 
     changed = False
 

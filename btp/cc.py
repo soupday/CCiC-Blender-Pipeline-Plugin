@@ -71,15 +71,15 @@ TEXTURE_MAPS = { # { "json_channel_name": [RL_Texture_Channel, is_Substance_Pain
     "Specular": [EMaterialTextureChannel_Specular, True, "specular"],
     "Roughness": [EMaterialTextureChannel_Shininess, True, "roughness"],
     "Glow": [EMaterialTextureChannel_Glow, True, "glow"],
-    "Displacement": [EMaterialTextureChannel_Displacement, True, "displacement"],
+    "Displacement": [EMaterialTextureChannel_Displacement, False, "displacement"],
     "Opacity": [EMaterialTextureChannel_Opacity, True, "opacity"],
     "Blend": [EMaterialTextureChannel_DiffuseBlend, False, ""],
     "Reflection": [EMaterialTextureChannel_Reflection, False, ""],
     "Refraction": [EMaterialTextureChannel_Refraction, False, ""],
     "Cube": [EMaterialTextureChannel_Cube, False, ""],
     "AO": [EMaterialTextureChannel_AmbientOcclusion, True, "ao"],
-    "Bump": [EMaterialTextureChannel_Bump, True, "bump"],
-    "Normal": [EMaterialTextureChannel_Normal, True, "normal"],
+    "Bump": [EMaterialTextureChannel_Bump, False, "bump"],
+    "Normal": [EMaterialTextureChannel_Normal, False, "normal"],
 }
 
 

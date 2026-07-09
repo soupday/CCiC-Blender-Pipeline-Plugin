@@ -76,6 +76,7 @@ def initialize_plugin():
     qt.add_toolbar_separator(toolbar)
     qt.add_toolbar_action(toolbar, icon_settings, "Blender Pipeline Settings", action=menu_settings, toggle=True)
 
+    link.get_data_link()
     if OPTS.AUTO_START_SERVICE:
         link.link_auto_start()
 

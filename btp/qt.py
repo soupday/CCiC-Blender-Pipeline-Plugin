@@ -56,7 +56,7 @@ ICON_BUTTON_HEIGHT = 64
 STYLE_ICON_BUTTON = ""
 BLANK_ICON: QIcon = None
 
-def window(title, width=400, height=0, fixed=False, show_hide=None):
+def window(title, width=400, height=0, fixed=False, show_hide=None, event_filter=None):
     window: RLPy.RIDockWidget
     window = RLPy.RUi.CreateRDockWidget()
     window.SetWindowTitle(title)
@@ -78,6 +78,9 @@ def window(title, width=400, height=0, fixed=False, show_hide=None):
 
     if show_hide:
         dock.visibilityChanged.connect(show_hide)
+
+    if event_filter:
+        dock.installEventFilter(event_filter)
 
     return window, layout
 

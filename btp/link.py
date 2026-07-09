@@ -1588,6 +1588,7 @@ class DataLink(QObject):
 
 
     def __init__(self):
+        self.dock = None
         QObject.__init__(self)
         self.create_window()
         atexit.register(self.on_exit)
@@ -1610,10 +1611,17 @@ class DataLink(QObject):
     def is_shown(self):
         return self.window.IsVisible() if self.window else False
 
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.Close and source == self.dock:
+            # link window close event
+            ...
+        return False
+
     def create_window(self):
         OPTS = options.get_opts()
 
-        self.window, window_layout = qt.window("Blender DataLink", width=440, height=524, show_hide=self.on_show_hide)
+        self.window, window_layout = qt.window("Blender DataLink", width=440, height=524, show_hide=self.on_show_hide, event_filter=self)
+        self.dock = qt.get_dock_widget(self.window)
 
         scroll, layout = qt.scroll_area(window_layout, vertical=True, horizontal=False)
 
@@ -4383,7 +4391,7 @@ def link_auto_start():
     if LI(): log_info("Auto-starting Data-link!")
     if not LINK:
         LINK = DataLink()
-        LINK.link_start()
+    LINK.link_start()
 
 def get_data_link():
     global LINK
