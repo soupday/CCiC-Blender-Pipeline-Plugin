@@ -1713,22 +1713,24 @@ class DataLink(QObject):
                                      row=0, col=0, icon=self.icon_avatar,
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
-        self.button_rigify = qt.icon_button(grid, "Rigify Character", self.send_rigify_request,
-                                       row=0, col=1, icon="PostEffect.png",
-                                       width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                       icon_size=48, align_width=align_width)
+        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motions_request,
+                                     row=0, col=1, icon="Animation.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48, align_width=align_width)
+
         self.button_pose = qt.icon_button(grid, "Send Pose", self.send_pose_request,
                                      row=1, col=0, icon="Pose.png",
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
-        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motions_request,
-                                          row=1, col=1, icon="Animation.png",
-                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                          icon_size=48, align_width=align_width)
-        self.button_sequence = qt.icon_button(grid, "Live Sequence", self.send_sequence_request,
-                                         row=2, col=0, icon="Motion.png",
-                                         width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                         icon_size=48, align_width=align_width)
+        self.button_sequence = qt.icon_button(grid, "Send Sequence", self.send_sequence_request,
+                                     row=1, col=1, icon="Motion.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48, align_width=align_width)
+
+        self.button_rigify = qt.icon_button(grid, "Rigify Character", self.send_rigify_request,
+                                     row=2, col=0, icon="PostEffect.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48, align_width=align_width)
 
         if cc.is_cc():
             self.button_update_replace = qt.icon_button(grid, "Update / Replace", self.send_update_replace,
@@ -2196,7 +2198,7 @@ class DataLink(QObject):
             self.button_sequence.setText("Stop Sequence")
             self.button_sequence.toggleOn()
         else:
-            self.button_sequence.setText("Live Sequence")
+            self.button_sequence.setText("Send Sequence")
             self.button_sequence.toggleOff()
 
         self.update_ui()
@@ -4101,7 +4103,7 @@ class DataLink(QObject):
         RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
-        self.update_link_status(f"Receiving Live Sequence ...")
+        self.update_link_status(f"Receiving Sequence ...")
         json_data = decode_to_json(data)
         # sequence frame range
         link_fps = self.set_link_fps(json_data["fps"])
@@ -4208,10 +4210,10 @@ class DataLink(QObject):
         self.data.sequence_actors = None
         self.data.sequence_type = None
         if not aborted:
-            self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
+            self.update_link_status(f"Sequence Complete: {num_frames} frames")
             RGlobal.Play(scene_start_time, scene_end_time)
         else:
-            self.update_link_status(f"Live Sequence Aborted!")
+            self.update_link_status(f"Sequence Aborted!")
         #utils.log_timer("apply_world_fk_pose", name="apply_world_fk_pose")
         #utils.log_timer("try_get_pose_bone", name="try_get_pose_bone")
         #utils.log_timer("fetch_transforms", name="fetch_transforms")
