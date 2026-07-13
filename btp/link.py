@@ -1588,6 +1588,7 @@ class DataLink(QObject):
 
 
     def __init__(self):
+        self.dock = None
         QObject.__init__(self)
         self.create_window()
         atexit.register(self.on_exit)
@@ -1610,10 +1611,17 @@ class DataLink(QObject):
     def is_shown(self):
         return self.window.IsVisible() if self.window else False
 
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.Close and source == self.dock:
+            # link window close event
+            ...
+        return False
+
     def create_window(self):
         OPTS = options.get_opts()
 
-        self.window, window_layout = qt.window("Blender DataLink", width=440, height=524, show_hide=self.on_show_hide)
+        self.window, window_layout = qt.window("Blender DataLink", width=440, height=524, show_hide=self.on_show_hide, event_filter=self)
+        self.dock = qt.get_dock_widget(self.window)
 
         scroll, layout = qt.scroll_area(window_layout, vertical=True, horizontal=False)
 
@@ -1705,22 +1713,24 @@ class DataLink(QObject):
                                      row=0, col=0, icon=self.icon_avatar,
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
-        self.button_rigify = qt.icon_button(grid, "Rigify Character", self.send_rigify_request,
-                                       row=0, col=1, icon="PostEffect.png",
-                                       width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                       icon_size=48, align_width=align_width)
+        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motions_request,
+                                     row=0, col=1, icon="Animation.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48, align_width=align_width)
+
         self.button_pose = qt.icon_button(grid, "Send Pose", self.send_pose_request,
                                      row=1, col=0, icon="Pose.png",
                                      width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                      icon_size=48, align_width=align_width)
-        self.button_animation = qt.icon_button(grid, "Send Motion", self.send_motions_request,
-                                          row=1, col=1, icon="Animation.png",
-                                          width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                          icon_size=48, align_width=align_width)
-        self.button_sequence = qt.icon_button(grid, "Live Sequence", self.send_sequence_request,
-                                         row=2, col=0, icon="Motion.png",
-                                         width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
-                                         icon_size=48, align_width=align_width)
+        self.button_sequence = qt.icon_button(grid, "Send Sequence", self.send_sequence_request,
+                                     row=1, col=1, icon="Motion.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48, align_width=align_width)
+
+        self.button_rigify = qt.icon_button(grid, "Rigify Character", self.send_rigify_request,
+                                     row=2, col=0, icon="PostEffect.png",
+                                     width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
+                                     icon_size=48, align_width=align_width)
 
         if cc.is_cc():
             self.button_update_replace = qt.icon_button(grid, "Update / Replace", self.send_update_replace,
@@ -1734,7 +1744,7 @@ class DataLink(QObject):
         if cc.is_cc():
             grid = qt.grid(layout)
             grid_header = grid
-            qt.label(grid, "Mesh Modify:", row=0, col=0)
+            qt.label(grid, "Morph & Mesh Modify:", row=0, col=0)
             grid = qt.grid(layout)
             self.button_mesh_modify = qt.icon_button(grid, "Send Mesh", self.send_mesh_modify,
                                           row=0, col=0, icon="HeadMesh.png",
@@ -1742,24 +1752,19 @@ class DataLink(QObject):
                                           icon_size=48, align_width=align_width)
             qt.label(grid, "", row=0, col=1)
 
-            grid = qt.grid(layout)
-            qt.label(grid, "Morph:", row=0, col=0)
-            grid = qt.grid(layout)
-            grid.setColumnStretch(0,1)
-            grid.setColumnStretch(1,1)
             self.button_morph = qt.icon_button(grid, "Send Morph", self.send_morph,
-                                          row=0, col=0, icon="FullBodyMorph.png",
+                                          row=1, col=0, icon="FullBodyMorph.png",
                                           width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                           icon_size=48, align_width=align_width)
             self.button_morph_update = qt.icon_button(grid, "Update Morph", self.send_morph_update,
-                                                 row=0, col=1, icon="Morph.png",
+                                                 row=1, col=1, icon="Morph.png",
                                                  width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                  icon_size=48, align_width=align_width)
 
-        # LIGHTS & CAMERA
+        # SCENE
         #
         grid = qt.grid(layout)
-        qt.label(grid, "Lights & Camera:", row=0, col=0)
+        qt.label(grid, "Scene:", row=0, col=0)
         if not grid_header:
             grid_header = grid
         grid = qt.grid(layout)
@@ -1795,18 +1800,12 @@ class DataLink(QObject):
                                               row=0, col=4,
                                               tooltip="Set Keyframes")
 
-        # SCENE
-        #
-        qt.label(layout, "Scene:")
-        grid = qt.grid(layout)
-        grid.setColumnStretch(0,1)
-        grid.setColumnStretch(1,1)
         self.button_select_scene = qt.icon_button(grid, "Select Scene", self.select_scene,
-                                                row=0, col=0, icon=self.icon_set,
+                                                row=1, col=0, icon=self.icon_set,
                                                 width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                 icon_size=48, align_width=align_width)
         self.button_send_scene = qt.icon_button(grid, "Send Scene", self.send_scene,
-                                                row=0, col=1, icon=self.icon_scene,
+                                                row=1, col=1, icon=self.icon_scene,
                                                 width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                 icon_size=48, align_width=align_width)
 
@@ -2188,7 +2187,7 @@ class DataLink(QObject):
             self.button_sequence.setText("Stop Sequence")
             self.button_sequence.toggleOn()
         else:
-            self.button_sequence.setText("Live Sequence")
+            self.button_sequence.setText("Send Sequence")
             self.button_sequence.toggleOff()
 
         self.update_ui()
@@ -4093,7 +4092,7 @@ class DataLink(QObject):
         RGlobal.ForceViewportUpdate()
 
     def receive_sequence(self, data):
-        self.update_link_status(f"Receiving Live Sequence ...")
+        self.update_link_status(f"Receiving Sequence ...")
         json_data = decode_to_json(data)
         # sequence frame range
         link_fps = self.set_link_fps(json_data["fps"])
@@ -4200,10 +4199,10 @@ class DataLink(QObject):
         self.data.sequence_actors = None
         self.data.sequence_type = None
         if not aborted:
-            self.update_link_status(f"Live Sequence Complete: {num_frames} frames")
+            self.update_link_status(f"Sequence Complete: {num_frames} frames")
             RGlobal.Play(scene_start_time, scene_end_time)
         else:
-            self.update_link_status(f"Live Sequence Aborted!")
+            self.update_link_status(f"Sequence Aborted!")
         #utils.log_timer("apply_world_fk_pose", name="apply_world_fk_pose")
         #utils.log_timer("try_get_pose_bone", name="try_get_pose_bone")
         #utils.log_timer("fetch_transforms", name="fetch_transforms")
@@ -4383,7 +4382,7 @@ def link_auto_start():
     if LI(): log_info("Auto-starting Data-link!")
     if not LINK:
         LINK = DataLink()
-        LINK.link_start()
+    LINK.link_start()
 
 def get_data_link():
     global LINK

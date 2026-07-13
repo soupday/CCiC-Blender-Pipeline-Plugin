@@ -501,11 +501,10 @@ class Importer:
             # and the LoadSubstancePainterTextures() does not overrule this.
             # This causes major problems with texture channel loading later on,
             # so we need to remove all the existing normals and bump maps now:
-            if True:
-                if M.channel_has_image(RLPy.EMaterialTextureChannel_Bump):
-                    M.remove_channel_image(RLPy.EMaterialTextureChannel_Bump)
-                if M.channel_has_image(RLPy.EMaterialTextureChannel_Normal):
-                    M.remove_channel_image(RLPy.EMaterialTextureChannel_Normal)
+            #if M.channel_has_image(RLPy.EMaterialTextureChannel_Bump):
+            #    M.remove_channel_image(RLPy.EMaterialTextureChannel_Bump)
+            #if M.channel_has_image(RLPy.EMaterialTextureChannel_Normal):
+            #    M.remove_channel_image(RLPy.EMaterialTextureChannel_Normal)
 
             if not F or F.mesh_name != M.mesh_name or M.mesh_name != "CC_Base_Body":
                 F = M
@@ -598,9 +597,6 @@ class Importer:
                 # Pbr Textures
                 png_base_color = False
                 has_opacity_map = M.mat_json.has_texture("Opacity")
-                displacement_strength = -1
-                normal_strength = -1
-                bump_strength = -1
 
                 for shader_channel in cc.TEXTURE_MAPS.keys():
 
@@ -639,14 +635,8 @@ class Importer:
                                 M.load_channel_image(rl_channel, tex_path)
                                 #self.update_progress(0, tex_path, events=True, is_file=True)
                             M.set_uv_mapping(rl_channel, offset, tiling, rotation)
-                            if shader_channel == "Displacement":
-                                displacement_strength = strength
-                            elif shader_channel == "Normal":
-                                normal_strength = strength
-                            elif shader_channel == "Bump":
-                                bump_strength = strength
-                            else:
-                                M.set_channel_texture_weight(rl_channel, strength)
+                            M.set_channel_texture_weight(rl_channel, strength)
+                            RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
                         if shader_channel == "Displacement":
                             level, multiplier, threshold = M.mat_json.get_tessellation()
                             M.set_attribute("TessellationLevel", level)
@@ -654,16 +644,6 @@ class Importer:
                             M.set_attribute("TessellationThreshold", threshold * 100)
                             RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
 
-                # displacement strength overrides normal strength which overrides bump, so only set one.
-                if displacement_strength > -1:
-                    M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Displacement, displacement_strength)
-                    RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
-                if normal_strength > -1:
-                    M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Normal, normal_strength)
-                    RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
-                if bump_strength > -1:
-                    M.set_channel_texture_weight(RLPy.EMaterialTextureChannel_Bump, bump_strength)
-                    RLPy.RGlobal.ObjectModified(M.actor, RLPy.EObjectModifiedType_Attribute | RLPy.EObjectModifiedType_Material)
 
             if self.option_parameters:
 

@@ -33,7 +33,7 @@ STYLE_VERSION = "font: italic 10px; text-align: right; color: #888888"
 STYLE_RL_BOLD = "color: #d2ff7b; font: bold"
 STYLE_BUTTON = ""
 STYLE_ICON_BUTTON_PADDED = "text-align: left;"
-STYLE_ICON_BUTTON_PADDED_BOLD = "color: white; font: bold 14px; text-align: left;"
+STYLE_ICON_BUTTON_PADDED_BOLD = "font: bold 14px; text-align: left;"
 STYLE_BLENDER_TOGGLE = """QPushButton { border: 1px solid #505050; }
                           QPushButton:hover { border: 1px solid 505050; background-color: #505050; }
                           QPushButton:pressed { border: 1px solid 505050; background-color: #4772b3; }
@@ -56,7 +56,7 @@ ICON_BUTTON_HEIGHT = 64
 STYLE_ICON_BUTTON = ""
 BLANK_ICON: QIcon = None
 
-def window(title, width=400, height=0, fixed=False, show_hide=None):
+def window(title, width=400, height=0, fixed=False, show_hide=None, event_filter=None):
     window: RLPy.RIDockWidget
     window = RLPy.RUi.CreateRDockWidget()
     window.SetWindowTitle(title)
@@ -78,6 +78,9 @@ def window(title, width=400, height=0, fixed=False, show_hide=None):
 
     if show_hide:
         dock.visibilityChanged.connect(show_hide)
+
+    if event_filter:
+        dock.installEventFilter(event_filter)
 
     return window, layout
 
@@ -278,6 +281,7 @@ def add_toolbar_separator(toolbar: QToolBar):
 
 
 class QLabelClickable(QLabel):
+
     clicked=Signal()
 
     def mousePressEvent(self, ev):
@@ -561,13 +565,8 @@ def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_onl
 
 
 class DTextBox(QWidget):
-    parent = None
-    textbox: QLineEdit = None
-    obj = None
-    prop = None
-    default_value = None
+
     valueChanged = Signal()
-    no_update: bool = False
 
     def __init__(self, parent, layout: QLayout, obj, prop,
                        width=0, height=0, row=-1, col=-1, row_span=1, col_span=1, style="",
@@ -581,6 +580,7 @@ class DTextBox(QWidget):
         self.default_value = value
         self.textbox = QLineEdit()
         self.textbox.setText(value)
+        self.no_update = False
         if style:
             self.textbox.setStyleSheet(style)
         if row >= 0 and col >= 0:
@@ -633,19 +633,8 @@ class DTextBox(QWidget):
 
 
 class DComboBox(QWidget):
-    parent = None
-    combo: QComboBox = None
-    obj = None
-    prop = None
-    default_value = None
-    default_index = 0
+
     valueChanged = Signal()
-    no_update: bool = False
-    options: list = None
-    numeric: bool = False
-    min: int = 0
-    max: int = 0
-    suffix: str = ""
 
     def __init__(self, parent, layout: QLayout, obj, prop, options: list,
                        row=-1, col=-1, row_span=1, col_span=1, style="", numeric=False, min=0, max=0, suffix="",
@@ -657,6 +646,7 @@ class DComboBox(QWidget):
         self.prop = prop
         value = self.get_value()
         self.default_value = value
+        self.default_index = 0
         self.options = options
         self.numeric = numeric
         self.min = min
@@ -664,6 +654,7 @@ class DComboBox(QWidget):
         self.suffix = suffix
         self.combo = QComboBox()
         self.combo.setStyleSheet(style)
+        self.no_update = False
         if numeric:
             self.combo.setEditable(True)
             if min or max:
@@ -785,15 +776,9 @@ class DComboBox(QWidget):
 
 
 class DCheckBox(QWidget):
-    parent = None
-    checkbox: QCheckBox = None
-    label: QLabel = None
-    obj = None
-    prop = None
-    default_value: bool = False
+
     clicked = Signal()
     valueChanged = Signal()
-    no_update: bool = False
 
     def __init__(self, parent, layout: QLayout, label, obj, prop,
                  readOnly=False, row=-1, col=-1, row_span=1, col_span=1, skip=0,
@@ -804,8 +789,10 @@ class DCheckBox(QWidget):
         self.parent = parent
         self.obj = obj
         self.prop = prop
+        self.label: QLabel = None
         value = self.get_value()
-        self.default_value = default_value if default_value is not None else value
+        self.default_value: bool = default_value if default_value is not None else value
+        self.no_update = False
         #
         #if label:
         #    self.label = QLabelClickable()
@@ -886,19 +873,9 @@ class DCheckBox(QWidget):
 
 
 class DSpinBox(QWidget):
-    parent = None
-    spinbox: QSpinBox = None
-    label: QLabel = None
-    obj = None
-    prop = None
-    scale: float = 100
-    min: float = 0
-    max: float = 1
-    step: float = 0.01
-    default_value: int = 0
+
     clicked = Signal()
     valueChanged = Signal()
-    no_update: bool = False
 
     def __init__(self, parent, layout: QLayout, label, obj, prop, min, max, step, scale=100,
                  readOnly=False, row=-1, col=-1, row_span=1, col_span=1, skip=0,
@@ -909,10 +886,11 @@ class DSpinBox(QWidget):
         self.parent = parent
         self.obj = obj
         self.prop = prop
-        self.scale = scale
-        self.min = min
-        self.max = max
-        self.step = step
+        self.scale: float = scale
+        self.min: float = min
+        self.max: float = max
+        self.step: float = step
+        self.no_update: bool = False
         value = self.get_value()
         self.default_value = default_value if default_value is not None else value
         min *= scale
@@ -920,6 +898,7 @@ class DSpinBox(QWidget):
         step *= scale
         value *= self.scale
         #
+        self.label: QLabel = None
         if label:
             self.label = QLabelClickable()
             self.label.setText(label)
@@ -998,21 +977,9 @@ class DSpinBox(QWidget):
 
 
 class DSliderSpin(QWidget):
-    parent = None
-    spinbox: QSpinBox = None
-    label: QLabel = None
-    slider: QSlider = None
-    obj = None
-    prop = None
-    scale: float = 100
-    min: float = 0
-    max: float = 1
-    step: float = 0.01
-    default_value: int = 0
+
     clicked = Signal()
     valueChanged = Signal()
-    no_update: bool = False
-    reset_props = None
 
     def __init__(self, parent, layout: QLayout, label, obj, prop, min, max, step, scale=100,
                  readOnly=False, row=-1, col=-1, skip=0, label_style="", slider_style="", spinbox_style="",
@@ -1022,19 +989,22 @@ class DSliderSpin(QWidget):
         self.parent = parent
         self.obj = obj
         self.prop = prop
-        self.scale = scale
-        self.min = min
-        self.max = max
-        self.step = step
+        self.scale: float = scale
+        self.min: float = min
+        self.max: float = max
+        self.step: float = step
+        self.no_update: bool = False
+        self.reset_props = None
         if reset_props:
             self.reset_props = reset_props if reset_props is list else [reset_props]
         value = self.get_value()
-        self.default_value = default_value if default_value is not None else value
+        self.default_value: int = default_value if default_value is not None else value
         min *= scale
         max *= scale
         step *= scale
         value *= self.scale
         #
+        self.label: QLabelClickable = None
         if label:
             self.label = QLabelClickable()
             self.label.setText(label)
@@ -1146,12 +1116,7 @@ class DSliderSpin(QWidget):
 
 
 class DColorPicker(QWidget):
-    parent = None
-    button: QPushButton = None
-    label: QLabel = None
-    obj = None
-    prop = None
-    default_color = QColor(255,255,255)
+
     valueChanged = Signal()
 
     def __init__(self, parent, layout, label, obj, prop, text="", width=0, height=BUTTON_HEIGHT,
@@ -1162,11 +1127,12 @@ class DColorPicker(QWidget):
         self.obj = obj
         self.prop = prop
         color = self.get_color()
-        self.default_color = color
+        self.default_color: QColor = color
         self.button = QPushButton(text, minimumHeight=height, minimumWidth=width)
         self.button.setStyleSheet(f"background-color: {color.name()}")
         if tooltip:
             self.button.setToolTip(tooltip)
+        self.label: QLabelClickable = None
         if label:
             self.label = QLabelClickable()
             self.label.setText(label)
@@ -1281,9 +1247,12 @@ def button(layout: QLayout, text, func=None, icon = None, style="",
 
 class QAlignedIconButton(QPushButton):
 
-    align_width: int = 0
-    last_width: int = 0
-    toggle: bool = False
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.align_width: int = 0
+        self.last_width: int = 0
+        self.toggle: bool = False
+        self.color: str = "white"
 
     def setAlignWidth(self, x):
         self.align_width = x
@@ -1335,6 +1304,7 @@ def icon_button(layout: QLayout, text, func=None, icon = None,
             w.setIcon(icon)
             if icon_size > 0:
                 w.setIconSize(QSize(icon_size, icon_size))
+
     if row >= 0 and col >= 0:
         layout.addWidget(w, row, col, row_span, col_span)
     else:

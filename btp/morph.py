@@ -261,6 +261,10 @@ class MorphSlider(QObject):
     def create_slider(self):
         if os.path.exists(self.target_path) and os.path.exists(self.key_path):
 
+            avatar = cc.get_first_avatar()
+            RScene.ClearSelectObjects()
+            RScene.SelectObject(avatar)
+
             slider_setting = RMorphSliderSetting()
             unique_morph_name = self.check_morph_name(self.morph_name)
             slider_setting.SetMorphName(unique_morph_name)
@@ -276,7 +280,6 @@ class MorphSlider(QObject):
 
             utils.log_info(f"Creating Morph Slider: name: {unique_morph_name}, path: {self.slider_path}")
 
-            avatar = cc.get_first_avatar()
             ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
 
             slider_folder = os.path.normpath(RApplication.GetCustomContentFolder(ETemplateRootFolder_AvatarControl))
@@ -288,13 +291,16 @@ class MorphSlider(QObject):
                 utils.log_error(f"Failed to create morph: {unique_morph_name} from {self.target_path}")
                 qt.message_box("Error", f"Failed to create morph: {unique_morph_name} from {self.target_path}")
                 return
+            else:
+                utils.log_info(f"Created Morph ID: {morph_id}")
             if self.auto_apply:
                 if morph_id:
-                    utils.log_info(f"Created Morph ID: {morph_id}")
+                    #morph_id = "2026-05-27-00-00-40_untitled"
                     min_max = ASC.GetShapingMorphMinMax(morph_id)
-                    utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]}")
+                    weight = ASC.GetShapingMorphWeight(morph_id)
+                    utils.log_info(f"Morph Min/Max: {min_max[0]}/{min_max[1]} {weight}")
                     ASC.SetShapingMorphWeight(morph_id, min_max[1])
-                    RGlobal.ObjectModified(avatar, EObjectModifiedType_MorphWeight)
+                    RGlobal.ObjectModified(avatar, EObjectModifiedType_Transform | EObjectModifiedType_Motion | EObjectModifiedType_Attribute | EObjectModifiedType_MorphWeight)
                     avatar.Update()
 
         self.clean_up_files()

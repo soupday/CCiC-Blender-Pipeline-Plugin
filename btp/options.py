@@ -59,6 +59,9 @@ class Options():
     TOOLBAR_STATE_CC: bool = True
     TOOLBAR_STATE_IC: bool = True
 
+    def __init__(self):
+        self.read_state()
+
     def get_export_animation(self):
         if is_cc():
             return self.CC_EXPORT_MODE

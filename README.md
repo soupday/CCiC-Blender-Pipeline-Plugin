@@ -71,6 +71,10 @@ Known Issues
 Changelog
 =========
 
+### 2.4.2
+- Fix to SubD1 & 2 normal maps on import.
+- DataLink UI update.
+
 ### 2.4.1
 - Mesh modify pipeline.
     - Sends mesh only (no armature) for exact replace mesh updates.
