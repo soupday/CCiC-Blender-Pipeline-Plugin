@@ -1744,7 +1744,7 @@ class DataLink(QObject):
         if cc.is_cc():
             grid = qt.grid(layout)
             grid_header = grid
-            qt.label(grid, "Mesh Modify:", row=0, col=0)
+            qt.label(grid, "Morph & Mesh Modify:", row=0, col=0)
             grid = qt.grid(layout)
             self.button_mesh_modify = qt.icon_button(grid, "Send Mesh", self.send_mesh_modify,
                                           row=0, col=0, icon="HeadMesh.png",
@@ -1752,24 +1752,19 @@ class DataLink(QObject):
                                           icon_size=48, align_width=align_width)
             qt.label(grid, "", row=0, col=1)
 
-            grid = qt.grid(layout)
-            qt.label(grid, "Morph:", row=0, col=0)
-            grid = qt.grid(layout)
-            grid.setColumnStretch(0,1)
-            grid.setColumnStretch(1,1)
             self.button_morph = qt.icon_button(grid, "Send Morph", self.send_morph,
-                                          row=0, col=0, icon="FullBodyMorph.png",
+                                          row=1, col=0, icon="FullBodyMorph.png",
                                           width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                           icon_size=48, align_width=align_width)
             self.button_morph_update = qt.icon_button(grid, "Update Morph", self.send_morph_update,
-                                                 row=0, col=1, icon="Morph.png",
+                                                 row=1, col=1, icon="Morph.png",
                                                  width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                  icon_size=48, align_width=align_width)
 
-        # LIGHTS & CAMERA
+        # SCENE
         #
         grid = qt.grid(layout)
-        qt.label(grid, "Lights & Camera:", row=0, col=0)
+        qt.label(grid, "Scene:", row=0, col=0)
         if not grid_header:
             grid_header = grid
         grid = qt.grid(layout)
@@ -1805,18 +1800,12 @@ class DataLink(QObject):
                                               row=0, col=4,
                                               tooltip="Set Keyframes")
 
-        # SCENE
-        #
-        qt.label(layout, "Scene:")
-        grid = qt.grid(layout)
-        grid.setColumnStretch(0,1)
-        grid.setColumnStretch(1,1)
         self.button_select_scene = qt.icon_button(grid, "Select Scene", self.select_scene,
-                                                row=0, col=0, icon=self.icon_set,
+                                                row=1, col=0, icon=self.icon_set,
                                                 width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                 icon_size=48, align_width=align_width)
         self.button_send_scene = qt.icon_button(grid, "Send Scene", self.send_scene,
-                                                row=0, col=1, icon=self.icon_scene,
+                                                row=1, col=1, icon=self.icon_scene,
                                                 width=qt.ICON_BUTTON_HEIGHT, height=qt.ICON_BUTTON_HEIGHT,
                                                 icon_size=48, align_width=align_width)
 
