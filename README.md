@@ -71,6 +71,9 @@ Known Issues
 Changelog
 =========
 
+### 2.4.3
+- Fix to Mesh Modify update.
+
 ### 2.4.2
 - Fix to SubD1 & 2 normal maps on import.
 - DataLink UI update.
