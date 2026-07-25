@@ -1839,6 +1839,7 @@ class DataLink(QObject):
             if not self.callback_id:
                 self.callback = LinkEventCallback(self)
                 self.callback_id = REventHandler.RegisterCallback(self.callback)
+            self.update_ui()
         else:
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender DataLink", False)
             if self.callback_id:
