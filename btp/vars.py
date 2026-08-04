@@ -16,7 +16,7 @@
 
 from RLPy import *
 
-VERSION = "2.4.2"
+VERSION = "2.4.3"
 DEV = False
 #DEV = True
 DEV_NAME = "SOUPDEV"

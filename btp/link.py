@@ -353,9 +353,10 @@ class LinkActor():
         actor: LinkActor = None
         obj = cc.find_object_by_link_id(link_id)
         if obj:
-            if not search_type or LinkActor.get_actor_type(obj) == search_type:
+            if not search_type or LinkActor.get_actor_type(obj) == search_type or search_type == "MESH":
                 actor = LinkActor(obj)
                 return actor
+            log_detail(f"Link id found but type mismatch! {LinkActor.get_actor_type(obj)} != {search_type}")
         if LD: log_detail(f"Chr not found by link_id")
 
         if search_name:
@@ -1838,6 +1839,7 @@ class DataLink(QObject):
             if not self.callback_id:
                 self.callback = LinkEventCallback(self)
                 self.callback_id = REventHandler.RegisterCallback(self.callback)
+            self.update_ui()
         else:
             qt.toggle_toolbar_action("Blender Pipeline Toolbar", "Blender DataLink", False)
             if self.callback_id:
