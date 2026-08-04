@@ -2,7 +2,7 @@
 import subprocess
 import os
 import RLPy
-from . import utils, cc, options, prefs, exporter, link
+from . import utils, cc, options, prefs, exporter, link, vars
 from . error import ErrorCode, error_report, error_reset, error_show
 from . qt import do_events
 
@@ -28,20 +28,21 @@ def go_b():
 
     cc.deduplicate_scene_objects()
 
+    project_name = cc.get_project_name()
     objects = cc.get_selected_actor_objects()
 
     #RLPy.RGlobal.SetTime(RLPy.RGlobal.GetStartTime())
 
-    if cc.is_cc():
-        name = "Untitled"
-        # in CC4, if nothing selected, use the available character, if there is one
-        if not objects:
-            avatar = cc.get_first_avatar()
-            RLPy.RScene.SelectObject(avatar)
-            if avatar:
-                objects = [avatar]
-    else:
-        name = "iClone Project"
+    #if cc.is_cc():
+    #    name = "Untitled"
+    #    # in CC4, if nothing selected, use the available character, if there is one
+    #    if not objects:
+    #        avatar = cc.get_first_avatar()
+    #        RLPy.RScene.SelectObject(avatar)
+    #        if avatar:
+    #            objects = [avatar]
+    #else:
+    #    name = "iClone Project"
 
     GOB_OBJECTS = []
     GOB_LIGHTING = True
@@ -70,30 +71,13 @@ def go_b():
     GOB_OBJECTS = GOB_LIGHTS_CAMERAS + GOB_PROPS + GOB_AVATARS + GOB_OTHERS
 
     # prefer using avatar names over prop names
-    avatars = cc.get_selected_avatars()
-    if cc.is_cc(5.0):
-        if avatars:
-            name = f"CC5 - {avatars[0].GetName()}"
-        elif objects:
-            name = f"CC5 - {objects[0].GetName()}"
-    elif cc.is_cc(4.0):
-        if avatars:
-            name = f"CC4 - {avatars[0].GetName()}"
-        elif objects:
-            name = f"CC4 - {objects[0].GetName()}"
-    elif cc.is_iclone(8.0):
-        if avatars:
-            name = f"iClone8 - {avatars[0].GetName()}"
-        elif objects:
-            name = f"iClone8 - {objects[0].GetName()}"
+    #avatars = cc.get_selected_avatars()
+    vf = cc.get_version_float()
+    if cc.is_cc():
+        go_b_name = f"CC{vf:.2f} - {project_name}"
     else:
-        utils.log_warn(f"Unknown application version")
-        if avatars:
-            name = f"Project - {avatars[0].GetName()}"
-        elif objects:
-            name = f"Project - {objects[0].GetName()}"
-
-    utils.log_info(f"Using project name: {name}")
+        go_b_name = f"iClone{vf:.2f} - {project_name}"
+    utils.log_info(f"Using project name: {go_b_name}")
 
     LINK = link.get_data_link()
     if not LINK.is_connected():
@@ -101,7 +85,7 @@ def go_b():
         LINK.service.connected.connect(go_b_connected)
         LINK.show()
 
-    project_folder, script_path, blend_path, import_folder, export_folder = get_go_b_paths(name)
+    project_folder, script_path, blend_path, import_folder, export_folder = get_go_b_paths(go_b_name)
     write_go_b_script(script_path, blend_path)
     launch_blender(script_path)
 
@@ -204,7 +188,8 @@ def go_morph():
         "object": avatar,
     })
 
-    name = f"Morph Edit - {avatar.GetName()}"
+    vf = cc.get_version_float()
+    name = f"CC{vf:.2f} Morph - {avatar.GetName()}"
     utils.log_info(f"Using project name: {name}")
 
     LINK = link.get_data_link()
@@ -287,7 +272,8 @@ def go_mesh():
         "object": avatar,
     })
 
-    name = f"Mesh Modify - {avatar.GetName()}"
+    vf = cc.get_version_float()
+    name = f"CC{vf:.2f} Mesh Modify - {avatar.GetName()}"
     utils.log_info(f"Using project name: {name}")
 
     LINK = link.get_data_link()

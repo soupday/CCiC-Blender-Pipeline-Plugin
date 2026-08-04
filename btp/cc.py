@@ -21,6 +21,48 @@ from . import vars, utils
 from . error import ErrorCode, error_report, error_reset, error_show
 from enum import IntEnum
 
+PROJECT_FILE_NAME = None
+CALLBACK = None
+CALLBACK_ID = None
+
+
+class BTPEventCallback(REventCallback):
+
+    def __init__(self):
+       REventCallback.__init__(self)
+
+    def OnObjectDataChanged(self):
+        return super().OnObjectDataChanged()
+
+    def OnAfterFileLoadedWithPath(self, nFileType, strFilePath):
+        global PROJECT_FILE_NAME
+        if nFileType == ESaveFileType_Project:
+            dir, file = os.path.split(strFilePath)
+            name, ext = os.path.splitext(file)
+            PROJECT_FILE_NAME = name
+        return super().OnAfterFileLoadedWithPath(nFileType, strFilePath)
+
+
+def register(state=None):
+    global PROJECT_FILE_NAME, CALLBACK, CALLBACK_ID
+    if state:
+        PROJECT_FILE_NAME = state["PROJECT_FILE_NAME"]
+    if not CALLBACK:
+        CALLBACK = BTPEventCallback()
+        CALLBACK_ID = REventHandler.RegisterCallback(CALLBACK)
+
+
+def unregister():
+    global CALLBACK, CALLBACK_ID
+    state = {
+        "PROJECT_FILE_NAME": PROJECT_FILE_NAME
+    }
+    if CALLBACK and CALLBACK_ID:
+        REventHandler.UnregisterCallback(CALLBACK_ID)
+        CALLBACK = None
+        CALLBACK_ID = None
+    return state
+
 
 SHADER_MAPS = { # { "Json_shader_name" : "CC3_shader_name", }
     "Tra": "Traditional",
@@ -2718,3 +2760,21 @@ def generate_base_json_data(path, name, generation):
     with open(path, "w") as write_file:
         write_file.write(json_string)
     return json_data
+
+
+def get_project_name():
+    global PROJECT_FILE_NAME
+    if PROJECT_FILE_NAME:
+        return PROJECT_FILE_NAME
+    selection = RScene.GetSelectedObjects()
+    for obj in selection:
+        avatar = find_parent_avatar(obj)
+        if avatar:
+            return avatar.GetName()
+    for obj in selection:
+        prop = find_parent_avatar_or_prop(obj)
+        if prop:
+            return prop.GetName()
+    return "Default" if RApplication.GetProductName() == "Character Creator" else "DefScene"
+
+

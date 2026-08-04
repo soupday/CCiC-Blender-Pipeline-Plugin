@@ -14,9 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
-import RLPy
+import RLPy, os
 from btp import vars, prefs, error, options, utils, cc, qt, tests, importer, exporter, morph, link, gob
-
 
 rl_plugin_info = { "ap": "iClone", "ap_version": "8.0" }
 
@@ -27,6 +26,7 @@ BLOCK_UPDATE = False
 def initialize_plugin():
     global BLOCK_UPDATE
     OPTS = options.get_opts()
+    cc.register()
 
     BLOCK_UPDATE = True
 
@@ -188,11 +188,14 @@ def menu_go_b_transformer():
 
 def menu_reload():
     import importlib
-    print("Reloading Scripts...")
+    print("Reloading Scripts ...")
     running, visible = link.link_stop()
     modules = [ vars, prefs, error, options, utils, cc, qt, tests, importer, exporter, morph, link, gob ]
+    cc_state = cc.unregister()
     for module in modules:
         importlib.reload(module)
+    cc.register(cc_state)
+    print(cc.get_project_name())
     print("Done Reloading Scripts.")
     print("")
     initialize_plugin()
