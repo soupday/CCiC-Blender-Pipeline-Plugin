@@ -73,7 +73,8 @@ Changelog
 
 ### 2.4.3
 - Fix to Mesh Modify update.
-- Update DataLink UI when returning to window.
+- Update DataLink UI when not active or visible.
+- Prop motion functions disabled for now.
 
 ### 2.4.2
 - Fix to SubD1 & 2 normal maps on import.
