@@ -1923,8 +1923,10 @@ class DataLink(QObject):
                 num_props += 1
 
         num_total = num_avatars + num_props + num_lights + num_cameras
-        num_posable = num_avatars + num_props + num_lights + num_cameras
+        #num_posable = num_avatars + num_props + num_lights + num_cameras
+        num_posable = num_avatars + num_lights + num_cameras
         num_sendable = num_avatars + num_props + num_lights + num_cameras
+        num_updatable = num_avatars
         num_mesh = num_avatars + num_props
         num_types = min(1,num_avatars) + min(1, num_props) + min(1, num_lights) + min(1, num_cameras)
 
@@ -2004,7 +2006,9 @@ class DataLink(QObject):
             if num_posable > 0:
                 qt.enable(self.button_pose, self.button_sequence, self.button_animation)
             if num_sendable > 0:
-                qt.enable(self.button_send, self.button_update_replace)
+                qt.enable(self.button_send)
+            if num_updatable > 0:
+                qt.enable(self.button_update_replace)
             if num_standard > 0:
                 qt.enable(self.button_morph, self.button_morph_update)
             if num_rigable > 0:
@@ -2847,7 +2851,8 @@ class DataLink(QObject):
         if actors and type(actors) is not list:
             actors = [actors]
         if not actors:
-            actors = self.get_selected_actors()
+            #actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+            actors = self.get_selected_actors(of_types=["AVATAR", "LIGHT", "CAMERA"])
 
         actor: LinkActor
         for actor in actors:
@@ -2943,7 +2948,7 @@ class DataLink(QObject):
         if not self.is_connected():
             gob.go_morph()
         else:
-            actors = self.get_selected_actors()
+            actors = self.get_selected_actors(of_types=["AVATAR"])
             actor: LinkActor
             for actor in actors:
                 if actor.is_standard():
@@ -2953,7 +2958,7 @@ class DataLink(QObject):
         if not self.is_connected():
             gob.go_mesh()
         else:
-            actors = self.get_selected_actors()
+            actors = self.get_selected_actors(of_types=["AVATAR", "PROP"])
             actor: LinkActor
             for actor in actors:
                 self.send_mesh(actor)
@@ -3004,7 +3009,7 @@ class DataLink(QObject):
         self.update_link_status(f"Mesh Sent: {actor.name}")
 
     def send_morph_update(self):
-        actors = self.get_selected_actors()
+        actors = self.get_selected_actors(of_types=["AVATAR"])
         actor: LinkActor
         for actor in actors:
             if actor.is_standard():
@@ -3118,7 +3123,7 @@ class DataLink(QObject):
             self.update_link_status(f"Update Sent: {actor.name}")
 
     def send_rigify_request(self):
-        actors = self.get_selected_actors()
+        actors = self.get_selected_actors(of_types=["AVATAR"])
         actor: LinkActor
         for actor in actors:
             if type(actor.object) is RIAvatar or type(actor.object) is RILightAvatar:
@@ -3647,7 +3652,8 @@ class DataLink(QObject):
         self.data.stored_selection = RScene.GetSelectedObjects()
         # get actors
         if not self.data.sequence_actors:
-            self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+            #self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+            self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "LIGHT", "CAMERA"])
         actors = self.data.sequence_actors
         if actors:
             self.update_link_status(f"Sending Pose Set")
@@ -3694,7 +3700,8 @@ class DataLink(QObject):
         self.data.stored_selection = RScene.GetSelectedObjects()
         # get actors
         if not self.data.sequence_actors:
-            self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+            #self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "PROP", "LIGHT", "CAMERA"])
+            self.data.sequence_actors = self.get_selected_actors(of_types=["AVATAR", "LIGHT", "CAMERA"])
         actors = self.data.sequence_actors
         RScene.ClearSelectObjects()
         if actors:
@@ -3940,7 +3947,10 @@ class DataLink(QObject):
 
     def send_request(self, request_type):
         # get actors
-        actors = self.get_selected_actors()
+        of_types = None
+        if request_type in ["POSE", "SEQUENCE", "MOTIONS"]:
+            of_types = ["AVATAR", "LIGHT", "CAMERA"]
+        actors = self.get_selected_actors(of_types=of_types)
         if actors:
             self.update_link_status(f"Sending Request, waiting for response ...")
             self.send_notify(f"Request")
