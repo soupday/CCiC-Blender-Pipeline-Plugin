@@ -2842,14 +2842,26 @@ def find_morph_id(avatar: RIAvatar, morph_name):
     for i, name in enumerate(names):
         if name == morph_name:
             return ids[i]
+    # try by categories
+    categories = ASC.GetShapingMorphCatergoryNames()
+    for category in categories:
+        ids = ASC.GetShapingMorphIDs(category)
+        names = ASC.GetShapingMorphDisplayNames(category)
+        for i, name in enumerate(names):
+            if name == morph_name:
+                return ids[i]
     return None
 
 
-def set_morph_slider(avatar: RIAvatar, slider_name, weight):
+def set_morph_slider(avatar: RIAvatar, slider_name, weight, fall_back_id=None):
+    ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
     morph_id = find_morph_id(avatar, slider_name)
     if morph_id:
-        ASC: RIAvatarShapingComponent = avatar.GetAvatarShapingComponent()
         ASC.SetShapingMorphWeight(morph_id, weight)
+    else:
+        utils.log_error(f"Morph: {slider_name} not found!")
+        if fall_back_id:
+            ASC.SetShapingMorphWeight(fall_back_id, weight)
 
 
 def matrix_to_euler_xyz(M: RMatrix3, degrees=False):
