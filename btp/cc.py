@@ -17,6 +17,7 @@
 from RLPy import *
 del abs
 import os, json, math
+from typing import List
 from . import vars, utils
 from . error import ErrorCode, error_report, error_reset, error_show
 from enum import IntEnum
