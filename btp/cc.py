@@ -899,6 +899,7 @@ class CCMeshMaterial():
             res = material_component.GetImageColor(self.mesh_name, self.mat_name, channel)
             if len(res) == 7:
                 return True
+
         return False
 
     def set_uv_mapping(self, channel, offset_vector, tiling_vector, rotation):
@@ -2751,13 +2752,13 @@ def get_camera_data(camera: RICamera, fps: RFps, frame, switch_data = None):
     return camera_data
 
 
-def RGB_color(RGB):
+def RGB_color(RGB) -> RRgb:
     c = RRgb()
     c.From(RGB[0], RGB[1], RGB[2])
     return c
 
 
-def rgb_color(rgb):
+def rgb_color(rgb) -> RRgb:
     c = RRgb(rgb[0], rgb[1], rgb[2])
     return c
 
