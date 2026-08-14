@@ -842,6 +842,7 @@ class CCMeshMaterial():
         material_component = self.material_component()
         if material_component:
             material_component.LoadMaterial(self.mesh_name, self.mat_name, material_path)
+            self.update_modified()
 
     def get_shader(self):
         material_component = self.material_component()
