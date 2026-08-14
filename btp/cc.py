@@ -1228,7 +1228,7 @@ def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=
 
 def get_avatar_mesh_materials(avatar, exclude_mesh_names=None, exclude_material_names=None,
                               mesh_filter=None, material_filter=None, json_data=None,
-                              exact=False):
+                              exact=False) -> List[CCMeshMaterial]:
 
     mesh_materials = []
     done = []
@@ -1318,6 +1318,25 @@ def is_iclone(version: float=None):
         return RApplication.GetProductName() == "iClone" and fver >= version
     else:
         return RApplication.GetProductName() == "iClone"
+
+
+def has_child_obj(obj, search):
+    if obj == search:
+        return True
+    else:
+        children = obj.GetChildren()
+        for child in children:
+            if has_child_obj(child, search):
+                return True
+    return False
+
+
+def get_standard_eye(avatar: RIAvatar):
+    parts = avatar.GetAvatarParts()
+    for part in parts:
+        if part.GetName() == "CC_Base_Eye":
+            return part
+    return None
 
 
 def find_actor_source_meshes_2(imported_mesh_name, imported_obj_name, actor: RIAvatar):
@@ -2398,8 +2417,6 @@ def get_all_camera_light_data(no_animation=False, fps: RFps=None):
     return all_data
 
 
-IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
-
 def append_if(list: list, item):
     if item not in list:
         list.append(item)
@@ -2410,6 +2427,10 @@ def extend_if(base: list, list: list):
         if item not in base:
             base.append(item)
     return base
+
+
+IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
+
 
 def get_actor_objects(actor):
     objects = []
@@ -2465,8 +2486,8 @@ def get_actor_physics_object(actor, mesh_name, mat_name):
             if physics_component:
                 if mesh_name in physics_component.GetSoftPhysicsMeshNameList():
                     if mat_name in physics_component.GetSoftPhysicsMaterialNameList(mesh_name):
-                        return obj
-    return None
+                        return obj, physics_component
+    return None, None
 
 
 def get_actor_physics_components(actor: RIAvatar):
@@ -2507,6 +2528,15 @@ def safe_export_name(name, is_material = False):
     if is_material:
         if name[0] in DIGITS:
             name = f"_{name}"
+    return name
+
+
+def deduplicate_name(name: str):
+    """Remove any _01 from the material name"""
+    if len(name) >= 3 and name[-3] == "_" and name[-2:].isdigit():
+            name = name[:-3]
+    elif len(name) >= 2 and name[-2] == "_" and name[-1].isdigit():
+            name = name[:-2]
     return name
 
 
