@@ -703,7 +703,7 @@ class CCMeshMaterial():
                  mesh_name = None, mat_name = None,
                  duf_mesh = None, duf_material = None,
                  physx_object = None, cc_json_data = None,
-                 duf=None):
+                 exact=False, duf=None):
         self.actor = actor
         self.duf = duf
         self.actor_name: str = None
@@ -733,7 +733,7 @@ class CCMeshMaterial():
             self.duf_mesh = duf_material.mesh
         self.json_data = cc_json_data
         if self.json_data:
-            self.find_json_data()
+            self.find_json_data(exact)
 
     def material_component(self):
         if not self.mat_component and self.actor:
