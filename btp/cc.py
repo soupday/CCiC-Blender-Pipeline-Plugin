@@ -736,12 +736,12 @@ class CCMeshMaterial():
             self.find_json_data(exact)
 
     def material_component(self):
-        if not self.mat_component and self.actor:
+        if not self.mat_component and self.actor and hasattr(self.actor, "GetMaterialComponent"):
             self.mat_component = self.actor.GetMaterialComponent()
         return self.mat_component
 
     def physics_component(self):
-        if not self.physx_component and self.physx_object:
+        if not self.physx_component and self.physx_object and hasattr(self.physx_object, "GetPhysicsComponent"):
             self.physx_component = self.physx_object.GetPhysicsComponent()
         return self.physx_component
 
@@ -775,22 +775,35 @@ class CCMeshMaterial():
     def set_diffuse(self, rgb):
         material_component = self.material_component()
         if material_component:
-            c = rgb_color(rgb)
-            material_component.AddDiffuseKey(key_zero(), self.mesh_name, self.mat_name, c)
-            self.update_modified()
+            try:
+                c = rgb_color(rgb)
+                material_component.AddDiffuseKey(key_zero(), self.mesh_name, self.mat_name, c)
+                self.update_modified()
+            except Exception as e:
+                utils.log_error(f"Unable to set diffuse color value ({rgb})", e)
 
     def set_ambient(self, rgb):
         material_component = self.material_component()
         if material_component:
-            c = rgb_color(rgb)
-            material_component.AddAmbientKey(key_zero(), self.mesh_name, self.mat_name, c)
-            self.update_modified()
+            try:
+                c = rgb_color(rgb)
+                material_component.AddAmbientKey(key_zero(), self.mesh_name, self.mat_name, c)
+                self.update_modified()
+            except Exception as e:
+                utils.log_error(f"Unable to set ambient color value ({rgb})", e)
 
     def set_specular(self, specular):
         material_component = self.material_component()
         if material_component:
-            material_component.AddSpecularKey(key_zero(), self.mesh_name, self.mat_name, specular)
-            self.update_modified()
+            try:
+                if type(specular) is list or type(specular) is tuple:
+                    specular = rgb_color(specular)
+                else:
+                    specular = float(specular)
+                material_component.AddSpecularKey(key_zero(), self.mesh_name, self.mat_name, specular)
+                self.update_modified()
+            except Exception as e:
+                utils.log_error(f"Unable to set specular value ({specular})", e)
 
     def set_opacity(self, opacity):
         material_component = self.material_component()
