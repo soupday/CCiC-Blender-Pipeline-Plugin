@@ -566,7 +566,7 @@ def spinbox(layout: QLayout, min, max, step, value, style = STYLE_NONE, read_onl
 
 class DTextBox(QWidget):
 
-    valueChanged = Signal()
+    valueChanged = Signal(str)
 
     def __init__(self, parent, layout: QLayout, obj, prop,
                        width=0, height=0, row=-1, col=-1, row_span=1, col_span=1, style="",
@@ -625,7 +625,7 @@ class DTextBox(QWidget):
             self.no_update = True
             value = self.textbox.text()
             setattr(self.obj, self.prop, value)
-            self.valueChanged.emit()
+            self.valueChanged.emit(value)
             self.no_update = False
 
     def setVisible(self, visible):

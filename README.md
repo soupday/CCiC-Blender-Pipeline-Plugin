@@ -71,6 +71,9 @@ Known Issues
 Changelog
 =========
 
+### 2.4.4
+- Fix for errors due to API changes for Go-CC.
+
 ### 2.4.3
 - Fix to Mesh Modify update.
 - Update DataLink UI when not active or visible.
