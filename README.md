@@ -71,6 +71,9 @@ Known Issues
 Changelog
 =========
 
+### 2.4.5
+Fix to physics import.
+
 ### 2.4.4
 - Fix for errors due to API changes for Go-CC.
 
