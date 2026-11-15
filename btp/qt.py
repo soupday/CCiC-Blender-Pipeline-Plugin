@@ -1,18 +1,18 @@
 # Copyright (C) 2023 Victor Soupday
 # This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CCiC-Blender-Pipeline-Plugin>
 #
-# CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
+# This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CC/iC-Blender-Pipeline-Plugin is distributed in the hope that it will be useful,
+# This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import RLPy
 import time
@@ -31,6 +31,7 @@ STYLE_ITALIC = "font: italic 13px"
 STYLE_ITALIC_SMALL = "font: italic 10px"
 STYLE_VERSION = "font: italic 10px; text-align: right; color: #888888"
 STYLE_RL_BOLD = "color: #d2ff7b; font: bold"
+STYLE_WARN_BOLD = "color: #ff7b7b; font: bold"
 STYLE_BUTTON = ""
 STYLE_ICON_BUTTON_PADDED = "text-align: left;"
 STYLE_ICON_BUTTON_PADDED_BOLD = "font: bold 14px; text-align: left;"
@@ -43,6 +44,8 @@ STYLE_BUTTON_WAITING = "background-color: #505050; color: white; font: bold"
 STYLE_BUTTON_ACTIVE = "background-color: #82be0f; color: black; font: bold"
 STYLE_BUTTON_ACTIVE_ALT = "background-color: #dfdf12; color: black; font: bold"
 STYLE_BUTTON_BOLD = "color: white; font: bold 14px"
+STYLE_BUTTON_RL_BOLD = "color: #d2ff7b; font: bold 14px"
+STYLE_BUTTON_WARN_BOLD = "color: #ff7b7b; font: bold 14px"
 STYLE_RL_DESC = "color: #d2ff7b; font: italic 13px"
 STYLE_RL_TITLEBAR = "background-color: #82be0f; color: black; font: bold"
 STYLE_RL_TAB = "background-color: none; color: white; font: bold"
@@ -430,7 +433,7 @@ def page(tab_widget: QTabWidget, name: str):
     tab_widget.addTab(p, name)
     layout = QVBoxLayout()
     p.setLayout(layout)
-    return layout
+    return p, layout
 
 
 def checkbox(layout: QLayout, label, checked, style = STYLE_NONE,
@@ -614,10 +617,18 @@ class DTextBox(QWidget):
     def get_value(self):
         value = None
         if self.obj and self.prop:
-            if hasattr(self.obj, self.prop):
-                value = getattr(self.obj, self.prop)
-            else:
-                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+            TO = type(self.obj)
+            TV = type(self.prop)
+            if TO is list or TO is tuple or TO is dict:
+                try:
+                    value = self.obj[self.prop]
+                except:
+                    utils.log_error(f"Object: {self.obj} has no key: {self.prop}")
+            elif TV is str:
+                if hasattr(self.obj, self.prop):
+                    value = getattr(self.obj, self.prop)
+                else:
+                    utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
     def textbox_value_changed(self):
@@ -740,10 +751,18 @@ class DComboBox(QWidget):
     def get_value(self):
         value = None
         if self.obj and self.prop:
-            if hasattr(self.obj, self.prop):
-                value = getattr(self.obj, self.prop)
-            else:
-                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+            TO = type(self.obj)
+            TV = type(self.prop)
+            if TO is list or TO is tuple or TO is dict:
+                try:
+                    value = self.obj[self.prop]
+                except:
+                    utils.log_error(f"Object: {self.obj} has no key: {self.prop}")
+            elif TV is str:
+                if hasattr(self.obj, self.prop):
+                    value = getattr(self.obj, self.prop)
+                else:
+                    utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
     def combo_value_changed(self, index):
@@ -847,10 +866,18 @@ class DCheckBox(QWidget):
     def get_value(self) -> bool:
         value = None
         if self.obj and self.prop:
-            if hasattr(self.obj, self.prop):
-                value = getattr(self.obj, self.prop)
-            else:
-                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+            TO = type(self.obj)
+            TV = type(self.prop)
+            if TO is list or TO is tuple or TO is dict:
+                try:
+                    value = self.obj[self.prop]
+                except:
+                    utils.log_error(f"Object: {self.obj} has no key: {self.prop}")
+            elif TV is str:
+                if hasattr(self.obj, self.prop):
+                    value = getattr(self.obj, self.prop)
+                else:
+                    utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
     def reset(self):
@@ -950,10 +977,18 @@ class DSpinBox(QWidget):
     def get_value(self):
         value = None
         if self.obj and self.prop:
-            if hasattr(self.obj, self.prop):
-                value = getattr(self.obj, self.prop)
-            else:
-                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+            TO = type(self.obj)
+            TV = type(self.prop)
+            if TO is list or TO is tuple or TO is dict:
+                try:
+                    value = self.obj[self.prop]
+                except:
+                    utils.log_error(f"Object: {self.obj} has no key: {self.prop}")
+            elif TV is str:
+                if hasattr(self.obj, self.prop):
+                    value = getattr(self.obj, self.prop)
+                else:
+                    utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
     def reset(self):
@@ -1072,10 +1107,18 @@ class DSliderSpin(QWidget):
     def get_value(self):
         value = None
         if self.obj and self.prop:
-            if hasattr(self.obj, self.prop):
-                value = getattr(self.obj, self.prop)
-            else:
-                utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
+            TO = type(self.obj)
+            TV = type(self.prop)
+            if TO is list or TO is tuple or TO is dict:
+                try:
+                    value = self.obj[self.prop]
+                except:
+                    utils.log_error(f"Object: {self.obj} has no key: {self.prop}")
+            elif TV is str:
+                if hasattr(self.obj, self.prop):
+                    value = getattr(self.obj, self.prop)
+                else:
+                    utils.log_error(f"Object: {self.obj} has no attribute {self.prop}")
         return value
 
     def reset(self):
@@ -1447,6 +1490,18 @@ def image(width, height, rgb, path):
     image.fill(qcol)
     image.save(path)
     return image
+
+
+def mod_hsv(color, h, s, v):
+    c = QColor.fromRgbF(color[0], color[1], color[2], 1.0)
+    H = c.hueF()
+    S = c.saturationF()
+    V = c.valueF()
+    H = (H + h) % 1.0
+    S = max(0.0, min(1.0, (S * s)))
+    V = max(0.0, min(1.0, (V * v)))
+    c.setHsvF(H, S, V)
+    return [c.redF(), c.greenF(), c.blueF()]
 
 
 def wait(t, force = False):
