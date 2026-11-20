@@ -1187,7 +1187,7 @@ class Exporter:
                 obj_type = cc.get_object_type(obj)
                 obj_visible = cc.is_visible(obj)
                 if obj_type != "NONE":
-                    id = cc.get_link_id(obj, add_if_missing=True)
+                    id = cc.get_link_id(obj)
                     info_obj_json = {
                         "Link_ID": id,
                         "Name": obj_name,

@@ -408,7 +408,7 @@ class LinkActor():
         return False
 
     def get_link_id(self):
-        return cc.get_link_id(self.object, add_if_missing=True)
+        return cc.get_link_id(self.object)
 
     def set_link_id(self, link_id):
         cc.set_link_id(self.object, link_id)
@@ -1923,8 +1923,8 @@ class DataLink(QObject):
                 num_props += 1
 
         num_total = num_avatars + num_props + num_lights + num_cameras
-        #num_posable = num_avatars + num_props + num_lights + num_cameras
-        num_posable = num_avatars + num_lights + num_cameras
+        num_posable = num_avatars + num_props + num_lights + num_cameras
+        #num_posable = num_avatars + num_lights + num_cameras
         num_sendable = num_avatars + num_props + num_lights + num_cameras
         num_updatable = num_avatars
         num_mesh = num_avatars + num_props
@@ -3949,7 +3949,8 @@ class DataLink(QObject):
         # get actors
         of_types = None
         if request_type in ["POSE", "SEQUENCE", "MOTIONS"]:
-            of_types = ["AVATAR", "LIGHT", "CAMERA"]
+            #of_types = ["AVATAR", "LIGHT", "CAMERA"]
+            of_types = ["AVATAR", "PROP", "LIGHT", "CAMERA"]
         actors = self.get_selected_actors(of_types=of_types)
         if actors:
             self.update_link_status(f"Sending Request, waiting for response ...")

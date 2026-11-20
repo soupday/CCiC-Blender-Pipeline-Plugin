@@ -1,18 +1,18 @@
 # Copyright (C) 2023 Victor Soupday
 # This file is part of CC/iC-Blender-Pipeline-Plugin <https://github.com/soupday/CCiC-Blender-Pipeline-Plugin>
 #
-# CC/iC-Blender-Pipeline-Plugin is free software: you can redistribute it and/or modify
+# This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CC/iC-Blender-Pipeline-Plugin is distributed in the hope that it will be useful,
+# This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CC/iC-Blender-Pipeline-Plugin.  If not, see <https://www.gnu.org/licenses/>.
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from RLPy import *
 del abs
@@ -958,6 +958,14 @@ class CCMeshMaterial():
                 self.update_modified()
             except: ...
 
+    def make_unique(self):
+        material_component = self.material_component()
+        if material_component:
+            try:
+                material_component.MakeUnique(self, self.mesh_name, self.mat_name)
+                self.update_modified()
+            except: ...
+
     def update_modified(self):
         RGlobal.ObjectModified(self.actor, EObjectModifiedType_Attribute | EObjectModifiedType_Material)
 
@@ -1225,9 +1233,12 @@ class CCMeshMaterial():
 
 
 def get_selected_mesh_materials(exclude_mesh_names=None, exclude_material_names=None,
-                                mesh_filter=None, material_filter=None, json_data=None) -> List[CCMeshMaterial]:
+                                mesh_filter=None, material_filter=None, json_data=None, from_objects=None) -> List[CCMeshMaterial]:
 
-    selected_objects = RScene.GetSelectedObjects()
+    if from_objects:
+        selected_objects = from_objects
+    else:
+        selected_objects = RScene.GetSelectedObjects()
 
     mesh_materials = []
     done = []
@@ -1800,6 +1811,16 @@ def find_parent_avatar(obj: RIObject):
     return None
 
 
+def get_cloth_type(actor: RIAvatar, mesh_name):
+    if type(actor) is RIAvatar:
+        clothes = actor.GetClothes()
+        for cloth in clothes:
+            if cloth.GetName() == mesh_name:
+                cloth_type = cloth.GetClotheType()
+                return cloth_type
+    return EClotheType_Unknown
+
+
 def add_data_block(obj: RIObject, block_name):
     data_block: RDataBlock = None
     if obj:
@@ -1862,7 +1883,7 @@ def validate_link_id(obj):
     return False
 
 
-def get_link_id(obj: RIObject, add_if_missing=False):
+def get_link_id(obj: RIObject, add_if_missing=True):
     if obj:
         link_id = get_data_block_str(obj, "DataLink", "LinkID")
         link_id_name = get_data_block_str(obj, "DataLink", "LinkIDName")
@@ -2484,30 +2505,34 @@ def extend_if(base: list, list: list):
 IGNORE_NODES = ["RL_BoneRoot", "IKSolverDummy", "NodeForExpressionLookAtSolver"]
 
 
-def get_actor_objects(actor):
+def get_actor_objects(actor, include_actor=True, include_child_objects=True):
     objects = []
     T = type(actor)
     if actor and (T is RIAvatar or T is RILightAvatar):
         avatar: RIAvatar = actor
         #if avatar.GetAvatarType() != EAvatarType_Standard:
         #    append_if(objects, avatar)
-        append_if(objects, avatar)
+        if include_actor:
+            append_if(objects, avatar)
         extend_if(objects, avatar.GetClothes())
         extend_if(objects, avatar.GetAccessories())
         extend_if(objects, avatar.GetHairs())
-        child_objects = RScene.FindChildObjects(actor, EObjectType_Avatar)
-        for obj in child_objects:
-            name = obj.GetName()
-            if name not in IGNORE_NODES:
-                append_if(objects, obj)
+        if include_child_objects:
+            child_objects = RScene.FindChildObjects(actor, EObjectType_Avatar)
+            for obj in child_objects:
+                name = obj.GetName()
+                if name not in IGNORE_NODES:
+                    append_if(objects, obj)
 
     elif actor and (T is RIProp or T is RIMDProp):
         child_objects = RScene.FindChildObjects(actor, EObjectType_Avatar)
-        append_if(objects, actor)
-        for obj in child_objects:
-            name = obj.GetName()
-            if name not in IGNORE_NODES:
-                append_if(objects, obj)
+        if include_actor:
+            append_if(objects, actor)
+        if include_child_objects:
+            for obj in child_objects:
+                name = obj.GetName()
+                if name not in IGNORE_NODES:
+                    append_if(objects, obj)
     else:
         append_if(objects, actor)
 
@@ -2516,7 +2541,7 @@ def get_actor_objects(actor):
 
 def find_actor_object(actor, mesh_name):
     objects = get_actor_objects(actor)
-    for obj in objects:
+    for obj in reversed(objects):
         mesh_names = obj.GetMeshNames()
         if mesh_name in mesh_names:
             return obj
