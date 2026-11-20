@@ -72,7 +72,9 @@ Changelog
 =========
 
 ### 2.4.5
-Fix to physics import.
+- Fix to physics import.
+- Fix to LinkID not being fixed on export.
+- Re-enabled prop motion exports.
 
 ### 2.4.4
 - Fix for errors due to API changes for Go-CC.
