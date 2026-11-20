@@ -408,7 +408,7 @@ class LinkActor():
         return False
 
     def get_link_id(self):
-        return cc.get_link_id(self.object, add_if_missing=True)
+        return cc.get_link_id(self.object)
 
     def set_link_id(self, link_id):
         cc.set_link_id(self.object, link_id)

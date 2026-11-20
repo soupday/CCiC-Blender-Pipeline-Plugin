@@ -315,7 +315,7 @@ class Importer:
                 elif len(objects) > 1:
                     utils.log_info(f"Generating new Link-ID's for split props")
                     for obj in objects:
-                        link_id = cc.get_link_id(obj, add_if_missing=True)
+                        link_id = cc.get_link_id(obj)
                         utils.log_info(f"New Link-ID: {obj.GetName()} {link_id}")
 
         return objects
